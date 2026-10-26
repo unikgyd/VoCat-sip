@@ -520,6 +520,9 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 		AllowAutomaticSIMRecovery: func(ctx context.Context, candidate modem.Candidate) bool {
 			return allowAutomaticSIMRecovery(ctx, database, candidate)
 		},
+		LegacyWriteICCID: func(ctx context.Context, candidate modem.Candidate) (string, error) {
+			return legacyWriteICCID(ctx, database, candidate)
+		},
 		MBNProfileForICCID: func(ctx context.Context, iccid string) (string, error) {
 			policy, err := database.CardPolicy(ctx, iccid)
 			if errors.Is(err, store.ErrNotFound) {
@@ -1924,7 +1927,7 @@ func enforceCardRegionLocked(
 	if reason := device.RegionBlockReason(imsi); reason != "" {
 		if !snapshot.FlightMode {
 			flightContext, cancelFlight := context.WithTimeout(ctx, flightModeTransitionTimeout)
-			_, err := manager.SetFlight(flightContext, id, true)
+			_, err := manager.QuarantineSIM(flightContext, id, snapshot.ICCID, imsi)
 			cancelFlight()
 			if err != nil && ctx.Err() == nil {
 				logger.Warn(

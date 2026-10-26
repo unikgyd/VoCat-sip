@@ -75,6 +75,9 @@ func (manager *Manager) openNativeQMIRegistration(
 	ctx context.Context,
 	candidate modem.Candidate,
 ) (nativeQMIRegistrationSession, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if manager == nil || manager.qmiRadioOpener == nil {
 		return nil, errors.New("QMI NAS registration is unavailable")
 	}
@@ -91,8 +94,19 @@ func (manager *Manager) openNativeQMIRegistration(
 		_ = session.Close()
 		return nil, errors.New("QMI radio session does not expose NAS registration control")
 	}
+	guard, err := manager.newSIMWriteGuard(ctx, candidate)
+	if err == nil {
+		err = guard.verify(ctx, session, true)
+	}
+	if err != nil {
+		_ = session.Close()
+		return nil, err
+	}
 	if manager.allowAutomaticSIMRecovery != nil && !manager.allowAutomaticSIMRecovery(ctx, candidate) {
-		return sharedNativeRegistration{nas}, nil
+		nas = sharedNativeRegistration{nas}
+	}
+	if guard != nil {
+		nas = &boundNativeRegistration{nativeQMIRegistrationSession: nas, identity: session, guard: guard}
 	}
 	return nas, nil
 }
@@ -102,7 +116,7 @@ func (manager *Manager) openNativeQMIRegistration(
 // NAS may still report searching or PS detached seconds later, so the
 // registration sequence continues after SetFlight returns. The per-device
 // guard prevents repeated UI/poll callbacks from opening competing sessions.
-func (manager *Manager) startNativeQMIRegistrationReconcile(id string) bool {
+func (manager *Manager) startNativeQMIRegistrationReconcile(id string, origins ...context.Context) bool {
 	if manager == nil {
 		return false
 	}
@@ -114,6 +128,16 @@ func (manager *Manager) startNativeQMIRegistrationReconcile(id string) bool {
 	if !isNativeQMICandidate(candidate) {
 		return false
 	}
+	origin := context.Background()
+	if len(origins) != 0 && origins[0] != nil {
+		origin = origins[0]
+	}
+	guard, err := manager.newSIMWriteGuard(origin, candidate)
+	if err != nil {
+		return false
+	}
+	// Preserve only binding evidence, not the browser request's lifetime.
+	workerRoot := guard.context(context.Background())
 	manager.nativeQMIRegistrationMu.Lock()
 	if _, running := manager.nativeQMIRegistrationInFlight[id]; running {
 		manager.nativeQMIRegistrationMu.Unlock()
@@ -127,7 +151,7 @@ func (manager *Manager) startNativeQMIRegistrationReconcile(id string) bool {
 			delete(manager.nativeQMIRegistrationInFlight, id)
 			manager.nativeQMIRegistrationMu.Unlock()
 		}()
-		ctx, cancel := context.WithTimeout(context.Background(), nativeQMIRegistrationBackgroundTimeout)
+		ctx, cancel := context.WithTimeout(workerRoot, nativeQMIRegistrationBackgroundTimeout)
 		defer cancel()
 		_, _ = manager.ReRegisterOperator(ctx, id)
 	}()
@@ -488,6 +512,9 @@ func ensureNativeQMIRegistrationForTarget(
 	for attempt := 1; attempt <= nativeQMIRegistrationMaxAttempts; attempt++ {
 		serving, servingErr := session.GetServingSystem(ctx)
 		if servingErr != nil {
+			if errors.Is(servingErr, ErrSIMObservation) || errors.Is(servingErr, ErrRegionBlocked) {
+				return servingErr
+			}
 			if err := waitNativeQMIRegistration(ctx); err != nil {
 				return fmt.Errorf("read QMI serving system: %w", servingErr)
 			}
@@ -669,7 +696,11 @@ func (manager *Manager) restoreNativeQMISelectionAfterFailure(
 	_ = session.InitiateNetworkRegister(rollbackCtx, qmiRegistrationRequestAutomatic())
 	_ = session.ForceNetworkSearch(rollbackCtx)
 	if strings.TrimSpace(deviceID) != "" {
-		manager.startNativeQMIRegistrationReconcile(deviceID)
+		origin := context.Background()
+		if bound, ok := session.(*boundNativeRegistration); ok {
+			origin = bound.guard.context(origin)
+		}
+		manager.startNativeQMIRegistrationReconcile(deviceID, origin)
 	}
 }
 

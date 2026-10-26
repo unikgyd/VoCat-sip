@@ -266,8 +266,16 @@ func (s *Server) startTelephonyAccess(ctx context.Context, config store.Device, 
 		} else if entry.Snapshot == nil || !entry.Snapshot.ModeKnown || entry.Snapshot.FlightMode || entry.Snapshot.RadioOff {
 			if err := s.requireModuleCallsIdle(ctx, config); err != nil {
 				failures = append(failures, err)
-			} else if _, err := s.devices.SetFlight(ctx, physical, false); err != nil {
+			} else if _, err := s.setSubscriptionFlight(ctx, physical, identity, false); err != nil {
 				failures = append(failures, fmt.Errorf("activate module radio: %w", err))
+			}
+		} else if entry.Snapshot.RegistrationStatus != 1 && entry.Snapshot.RegistrationStatus != 5 {
+			if registration, ok := s.devices.(interface {
+				ReconcileRegistrationForSIM(context.Context, string, string, string) error
+			}); ok {
+				if err := registration.ReconcileRegistrationForSIM(ctx, physical, identity.ICCID, identity.IMSI); err != nil {
+					failures = append(failures, fmt.Errorf("queue module registration: %w", err))
+				}
 			}
 		}
 	}
@@ -308,6 +316,16 @@ func (s *Server) startTelephonyAccess(ctx context.Context, config store.Device, 
 		}
 	}
 	return errors.Join(failures...)
+}
+
+func (s *Server) setSubscriptionFlight(ctx context.Context, physical string, identity vowifi.SIMIdentity, enabled bool) (device.FlightResult, error) {
+	bound, ok := s.devices.(interface {
+		SetFlightForSIM(context.Context, string, string, string, bool) (device.FlightResult, error)
+	})
+	if !ok {
+		return device.FlightResult{}, errors.New("the device provider cannot verify SIM-bound radio control")
+	}
+	return bound.SetFlightForSIM(ctx, physical, identity.ICCID, identity.IMSI, enabled)
 }
 
 type telephonyCleanupKey struct{ device, access string }

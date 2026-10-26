@@ -241,7 +241,7 @@ func (s *Server) handleTelephonyReconnect(w http.ResponseWriter, r *http.Request
 			writeError(w, 409, "module_call_state_unknown_or_active", err.Error())
 			return true
 		}
-		if _, err := s.devices.SetFlight(r.Context(), physical, false); err != nil {
+		if _, err := s.setSubscriptionFlight(r.Context(), physical, identity, false); err != nil {
 			s.writeDeviceError(w, err)
 			return true
 		}

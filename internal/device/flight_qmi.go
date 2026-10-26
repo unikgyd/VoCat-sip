@@ -714,6 +714,15 @@ func (manager *Manager) setNativeQMIFlight(
 	if err != nil {
 		return FlightResult{}, true, fmt.Errorf("read QMI operating mode: %w", err)
 	}
+	guard, err := manager.newSIMWriteGuard(ctx, manager.candidateFor(state))
+	if err == nil {
+		verifyContext, cancel := manager.withTimeout(ctx, manager.commandTimeout*5)
+		err = guard.verify(verifyContext, session, !enabled)
+		cancel()
+	}
+	if err != nil {
+		return FlightResult{}, true, err
+	}
 	previous := qmiModeAsCFUN(previousQMI)
 	targetQMI := previousQMI
 	if enabled {
@@ -750,12 +759,20 @@ func (manager *Manager) setNativeQMIFlight(
 	}
 	current := qmiModeAsCFUN(currentQMI)
 	currentRadioOff := isQMIRadioOffMode(currentQMI)
+	if guard != nil {
+		verifyContext, cancel := manager.withTimeout(ctx, manager.commandTimeout*5)
+		err = guard.verify(verifyContext, session, !enabled)
+		cancel()
+		if err != nil {
+			return FlightResult{PreviousMode: previous, CurrentMode: current, Changed: changed, FlightMode: currentRadioOff, RadioOff: currentRadioOff}, true, err
+		}
+	}
 	manager.updateSnapshotMode(id, state, current)
 	if !enabled && !currentRadioOff {
 		// DMS Online is only the radio half of the recovery. Continue with a
 		// background NAS registration/PS-attach reconcile after the flight-mode
 		// transition without holding the radio QMI session open.
-		manager.startNativeQMIRegistrationReconcile(id)
+		manager.startNativeQMIRegistrationReconcile(id, guard.context(ctx))
 	}
 	return FlightResult{
 		PreviousMode: previous,

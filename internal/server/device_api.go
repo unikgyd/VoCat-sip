@@ -1445,6 +1445,15 @@ func (s *Server) handleFlightMode(w http.ResponseWriter, r *http.Request, config
 		writeError(w, http.StatusConflict, "vowifi_owns_airplane_mode", "airplane mode is locked on while VoWiFi is enabled")
 		return true
 	}
+	var identity vowifi.SIMIdentity
+	if config.Telephony != nil {
+		var err error
+		identity, err = s.observedTelephonySubscription(r.Context(), config)
+		if err != nil || identity.ICCID == "" || identity.ICCID != config.Telephony.ICCID || identity.IMSI == "" {
+			writeError(w, 409, "sim_identity_changed", "the active SIM must match its saved policy before radio control")
+			return true
+		}
+	}
 	dataRuntime := s.cellularDataRuntime()
 	desiredData := config.NetworkEnabled && !(config.VoWiFiEnabled && store.WiFiExclusive(config))
 	if request.Enabled {
@@ -1455,7 +1464,13 @@ func (s *Server) handleFlightMode(w http.ResponseWriter, r *http.Request, config
 		}
 		dataRuntime.invalidateWithMaintenancePhase(config.ID, desiredData, phase, "", "flight_mode")
 	}
-	result, err := s.devices.SetFlight(r.Context(), physicalID, request.Enabled)
+	var result device.FlightResult
+	var err error
+	if config.Telephony != nil {
+		result, err = s.setSubscriptionFlight(r.Context(), physicalID, identity, request.Enabled)
+	} else {
+		result, err = s.devices.SetFlight(r.Context(), physicalID, request.Enabled)
+	}
 	if err != nil {
 		s.writeDeviceError(w, err)
 		return true
@@ -1465,6 +1480,9 @@ func (s *Server) handleFlightMode(w http.ResponseWriter, r *http.Request, config
 	// intentional airplane policy from an interrupted VoWiFi teardown.
 	if entry, getErr := s.devices.Get(physicalID); getErr == nil && entry.Snapshot != nil {
 		iccid := strings.TrimSpace(entry.Snapshot.ICCID)
+		if config.Telephony != nil {
+			iccid = identity.ICCID // the actual subscription verified by SetFlightForSIM
+		}
 		if iccid != "" {
 			policy, policyErr := s.store.CardPolicy(r.Context(), iccid)
 			if errors.Is(policyErr, store.ErrNotFound) {

@@ -11,6 +11,43 @@ import (
 
 var errTelephonySubscriptionChanged = errors.New("telephony: active subscription or access policy changed")
 
+func candidateMatchesTelephonyConfig(candidate modem.Candidate, config store.Device) bool {
+	return config.ID == candidate.ID || config.USBPath != "" && config.USBPath == candidate.USBPath ||
+		config.ControlDevice != "" && (config.ControlDevice == candidate.QMIControl || config.ControlDevice == candidate.ReaderName || config.ControlDevice == candidate.ATPort.OpenPath()) ||
+		config.ATPort != "" && (config.ATPort == candidate.ATPort.Path || config.ATPort == candidate.ATPort.OpenPath())
+}
+
+// This callback supplies an admission constraint, never a cached identity
+// proof. The device layer reads the actual ICCID/IMSI through its own lease.
+func legacyWriteICCID(ctx context.Context, database *store.Store, candidate modem.Candidate) (string, error) {
+	configs, err := database.ListDevices(ctx)
+	if err != nil {
+		return "", err
+	}
+	expected := ""
+	for _, config := range configs {
+		if config.Telephony == nil && !store.HostIMSConfigured(config) {
+			continue
+		}
+		if !candidateMatchesTelephonyConfig(candidate, config) {
+			if config.USBPath == "" && config.ControlDevice == "" && config.ATPort == "" {
+				return "", errTelephonySubscriptionChanged
+			}
+			continue
+		}
+		if store.HostIMSConfigured(config) {
+			return "", errTelephonySubscriptionChanged
+		}
+		if config.Telephony != nil {
+			if config.Telephony.ICCID == "" || expected != "" && expected != config.Telephony.ICCID {
+				return "", errTelephonySubscriptionChanged
+			}
+			expected = config.Telephony.ICCID
+		}
+	}
+	return expected, nil
+}
+
 type subscriptionSIMReader struct {
 	reader   vowifi.SIMIdentityReader
 	database *store.Store
@@ -28,9 +65,7 @@ func allowAutomaticSIMRecovery(ctx context.Context, database *store.Store, candi
 		if !protected {
 			continue
 		}
-		if config.ID == candidate.ID || config.USBPath != "" && config.USBPath == candidate.USBPath ||
-			config.ControlDevice != "" && (config.ControlDevice == candidate.QMIControl || config.ControlDevice == candidate.ReaderName || config.ControlDevice == candidate.ATPort.OpenPath()) ||
-			config.ATPort != "" && (config.ATPort == candidate.ATPort.Path || config.ATPort == candidate.ATPort.OpenPath()) {
+		if candidateMatchesTelephonyConfig(candidate, config) {
 			return false
 		}
 		if config.USBPath == "" && config.ControlDevice == "" && config.ATPort == "" {

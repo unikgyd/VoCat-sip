@@ -274,11 +274,16 @@ func (manager *Manager) SetFlight(
 	id string,
 	enabled bool,
 ) (FlightResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	state, err := manager.lookup(id)
 	if err != nil {
 		return FlightResult{}, err
 	}
-	state.opMu.Lock()
+	if err := lockMutexContext(ctx, &state.opMu); err != nil {
+		return FlightResult{}, err
+	}
 	defer state.opMu.Unlock()
 	if err := manager.validateActive(id, state); err != nil {
 		return FlightResult{}, err
@@ -286,6 +291,11 @@ func (manager *Manager) SetFlight(
 	if err := manager.requireNoModuleVoice(state); err != nil {
 		return FlightResult{}, err
 	}
+	admission, err := manager.newSIMWriteGuard(ctx, manager.candidateFor(state))
+	if err != nil {
+		return FlightResult{}, err
+	}
+	ctx = admission.context(ctx) // pin discovery before opening either transport
 	if manager.candidateFor(state).HardwareKind == "pcsc" {
 		return FlightResult{PreviousMode: 4, CurrentMode: 4, FlightMode: true, RadioOff: true}, nil
 	}
@@ -299,6 +309,16 @@ func (manager *Manager) SetFlight(
 		return FlightResult{}, err
 	}
 	previous, err := manager.readOperatingMode(ctx, client)
+	if err != nil {
+		manager.setResult(id, state, nil, err)
+		return FlightResult{}, err
+	}
+	guard, err := manager.newSIMWriteGuard(ctx, manager.candidateFor(state))
+	if err == nil {
+		verifyContext, cancel := manager.withTimeout(ctx, manager.commandTimeout*5)
+		err = guard.verify(verifyContext, atSIMWriteReader{client}, !enabled)
+		cancel()
+	}
 	if err != nil {
 		manager.setResult(id, state, nil, err)
 		return FlightResult{}, err
@@ -325,15 +345,29 @@ func (manager *Manager) SetFlight(
 			// Entering RF-off tears down the packet service. Forget the previous
 			// WDS generation before issuing CFUN so a later enable starts cleanly.
 			state.dataMu.Lock()
+			verifyContext, cancel := manager.withTimeout(ctx, manager.commandTimeout*5)
+			verifyErr := guard.verify(verifyContext, atSIMWriteReader{client}, false)
+			cancel()
+			if verifyErr != nil {
+				state.dataMu.Unlock()
+				return FlightResult{}, verifyErr
+			}
 			invalidateQMINetworkSession(state, manager.candidateFor(state))
 			state.dataMu.Unlock()
+		}
+		// Waiting for WDS cleanup may have outlived the original SIM check.
+		verifyContext, cancel := manager.withTimeout(ctx, manager.commandTimeout*5)
+		verifyErr := guard.verify(verifyContext, atSIMWriteReader{client}, !enabled)
+		cancel()
+		if verifyErr != nil {
+			return FlightResult{}, verifyErr
 		}
 		if _, err := manager.command(
 			ctx,
 			client,
 			fmt.Sprintf("AT+CFUN=%d", target),
 		); err != nil {
-			_, recoveredMode, recoveryErr := manager.recoverOperatingModeAfterTransportLoss(
+			recoveredClient, recoveredMode, recoveryErr := manager.recoverOperatingModeAfterTransportLoss(
 				ctx, id, state, client, target, err,
 			)
 			if recoveryErr != nil {
@@ -345,6 +379,7 @@ func (manager *Manager) SetFlight(
 					RadioOff:     isRadioOffMode(previous),
 				}, recoveryErr
 			}
+			client = recoveredClient
 			current = recoveredMode
 			currentKnown = true
 		}
@@ -371,6 +406,15 @@ func (manager *Manager) SetFlight(
 	}
 	if !enabled && !isRadioOffMode(current) {
 		state.preFlightMode = nil
+	}
+	if guard != nil {
+		verifyContext, cancel := manager.withTimeout(ctx, manager.commandTimeout*5)
+		err = guard.verify(verifyContext, atSIMWriteReader{client}, !enabled)
+		cancel()
+		if err != nil {
+			manager.setResult(id, state, nil, err)
+			return FlightResult{PreviousMode: previous, CurrentMode: current, Changed: changed, FlightMode: isRadioOffMode(current), RadioOff: isRadioOffMode(current)}, err
+		}
 	}
 	manager.updateSnapshotMode(id, state, current)
 	manager.setResult(id, state, nil, nil)

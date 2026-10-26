@@ -32,6 +32,10 @@ type Options struct {
 	// A metadata refresh must not power-cycle a SIM borrowed by another live
 	// access owner. nil retains standalone-device recovery behavior.
 	AllowAutomaticSIMRecovery func(context.Context, modem.Candidate) bool
+	// Returns the current independent policy's ICCID for legacy RF/NAS writes.
+	// Empty preserves legacy behavior; errors deny a write. Metadata only: the
+	// callback must not take a line/device lock or perform modem I/O.
+	LegacyWriteICCID func(context.Context, modem.Candidate) (string, error)
 }
 
 type Manager struct {
@@ -53,6 +57,7 @@ type Manager struct {
 	logger                    *slog.Logger
 	mbnProfileForICCID        func(context.Context, string) (string, error)
 	allowAutomaticSIMRecovery func(context.Context, modem.Candidate) bool
+	legacyWriteICCID          func(context.Context, modem.Candidate) (string, error)
 
 	networkEventsMu         sync.Mutex
 	networkEventSubscribers map[chan string]struct{}
@@ -198,6 +203,7 @@ func NewManager(options Options) (*Manager, error) {
 
 		qmiRadioOpener:                openQMIRadioSession,
 		allowAutomaticSIMRecovery:     options.AllowAutomaticSIMRecovery,
+		legacyWriteICCID:              options.LegacyWriteICCID,
 		qmiSharedSIMOpener:            openQMISharedSIMSession,
 		qmiDataOpener:                 openQMIDataSession,
 		nativeQMIRegistrationInFlight: make(map[string]struct{}),
