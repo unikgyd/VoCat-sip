@@ -62,8 +62,10 @@ process never prepared the line. A disabled line or an early preparation error
 does not erase a previous process's claim. With a saved valid IMEI, only that
 equipment's key is checked; foreign claims do not block it. Without a reliable
 saved IMEI, only a completely empty claim namespace proves clean. Otherwise the
-transition is refused until ownership is resolved. These queries read no private
-payload and do not implement cold-start recovery or force deletion.
+transition is refused until ownership is resolved. Presence queries expose no
+private payload. New source now connects a cleanup-only recovery callback for
+confirmed previous-process records before startup or a mode transition; see
+[Host IMS restart recovery](HOST_IMS_RECOVERY.md). It does not force deletion.
 They do not repair an older database that already mislabeled an unresolved
 Host owner as module mode, nor provide a cross-process absence reservation.
 
@@ -132,8 +134,9 @@ Current prerequisites remain explicit:
 The factory rechecks the current selected/enabled mode before acquiring new
 resources. Stop cleans only owned IMS/access/PDN resources; no modem reset,
 foreign bearer deletion or guessed cold-start adoption. A failed/unknown
-previous ownership journal still requires explicit recovery, not retries that
-erase the evidence. Application admission is not a license grant: original
+previous ownership journal with an unknown mutation still requires resolution;
+retries cannot erase the evidence. Confirmed original journals may now complete
+cleanup before a fresh access is prepared. Application admission is not a license grant: original
 LICENSE and existing product restrictions remain unchanged.
 
 ## Verification and remaining work

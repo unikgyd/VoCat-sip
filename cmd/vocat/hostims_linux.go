@@ -37,6 +37,7 @@ type linuxHostIMSFactory struct {
 	pool                          *hostims.BearerPool
 	preparing                     int
 	held                          map[*factoryHostIMSAccess]struct{}
+	recoveries                    map[string]*factoryHostIMSAccess
 }
 
 // Construction is inert: neither system D-Bus nor QMI nor an IMS PDN is opened.
@@ -212,7 +213,7 @@ func (f *linuxHostIMSFactory) prepare(ctx context.Context, id string) (hostimsru
 	if !hostIMSModeEnabled(config) {
 		return nil, hostims.ErrDenied
 	}
-	target, err := hostIMSPhysicalTarget(config, f.opts.Devices.List())
+	target, err := hostIMSPhysicalTarget(config, hostIMSMetadataInventory(config, f.opts.Devices.List()))
 	if err != nil {
 		return nil, err
 	}
@@ -230,6 +231,9 @@ func (f *linuxHostIMSFactory) prepare(ctx context.Context, id string) (hostimsru
 	if config.Telephony != nil && config.Telephony.ICCID != selection.SubscriberICCID() {
 		return nil, hostims.ErrChanged
 	}
+	if owner, err := f.recoverSelected(ctx, id, pool, selection); err != nil {
+		return owner, errors.Join(err, hostimsruntime.ErrCleanup)
+	}
 	if _, err := hostims.ProbeQMIEndpoint(ctx, selection); err != nil {
 		return nil, err
 	}
@@ -239,7 +243,7 @@ func (f *linuxHostIMSFactory) prepare(ctx context.Context, id string) (hostimsru
 	if configErr != nil || !sameHostIMSPrepareConfig(config, currentConfig) {
 		return nil, hostims.ErrChanged
 	}
-	again, err := hostIMSPhysicalTarget(currentConfig, f.opts.Devices.List())
+	again, err := hostIMSPhysicalTarget(currentConfig, hostIMSMetadataInventory(currentConfig, f.opts.Devices.List()))
 	again.ICCID, again.IMSI = "", ""
 	if err != nil || again != target {
 		return nil, hostims.ErrChanged
@@ -299,12 +303,7 @@ func (f *linuxHostIMSFactory) Subscription(ctx context.Context, id string) (vowi
 	if err != nil {
 		return vowifi.SIMIdentity{}, err
 	}
-	entries := f.opts.Devices.List()
-	for i := range entries {
-		if entries[i].Snapshot != nil && config.ModemIMEI != "" && config.USBPath != "" {
-			entries[i].Snapshot = nil
-		}
-	}
+	entries := hostIMSMetadataInventory(config, f.opts.Devices.List())
 	target, err := hostIMSPhysicalTarget(config, entries)
 	if err != nil {
 		return vowifi.SIMIdentity{}, err
@@ -380,10 +379,11 @@ func (f *linuxHostIMSFactory) Close(ctx context.Context) error {
 }
 
 type factoryHostIMSAccess struct {
-	access   *hostims.PreparedAccess
-	lease    interface{ Close(context.Context) error }
-	factory  *linuxHostIMSFactory
-	released sync.Once
+	access     *hostims.PreparedAccess
+	lease      interface{ Close(context.Context) error }
+	factory    *linuxHostIMSFactory
+	released   sync.Once
+	recoveryID string
 }
 
 func (a *factoryHostIMSAccess) Close(ctx context.Context) error {
@@ -394,7 +394,14 @@ func (a *factoryHostIMSAccess) Close(ctx context.Context) error {
 		err = a.lease.Close(ctx)
 	}
 	if err == nil {
-		a.released.Do(func() { a.factory.mu.Lock(); delete(a.factory.held, a); a.factory.mu.Unlock() })
+		a.released.Do(func() {
+			a.factory.mu.Lock()
+			delete(a.factory.held, a)
+			if a.factory.recoveries[a.recoveryID] == a {
+				delete(a.factory.recoveries, a.recoveryID)
+			}
+			a.factory.mu.Unlock()
+		})
 	}
 	return err
 }

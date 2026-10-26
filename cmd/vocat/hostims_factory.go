@@ -17,6 +17,19 @@ var errHostIMSFactory = errors.New("host IMS: application factory unavailable or
 
 type hostIMSDeviceInventory interface{ List() []device.Device }
 
+// Saved equipment plus physical topology lets MM supply the live SIM. Do not
+// let an intentionally unrefreshed AT SIM snapshot veto that metadata lookup,
+// or mutate a caller's inventory slice while projecting hardware-only rows.
+func hostIMSMetadataInventory(config store.Device, entries []device.Device) []device.Device {
+	result := append([]device.Device(nil), entries...)
+	if hostIMSDigits(config.ModemIMEI, 15, 15) && strings.Trim(config.ModemIMEI, "0") != "" && config.USBPath != "" {
+		for i := range result {
+			result[i].Snapshot = nil
+		}
+	}
+	return result
+}
+
 type hostIMSFactoryOptions struct {
 	Store     *store.Store
 	Devices   hostIMSDeviceInventory

@@ -6,6 +6,7 @@
 
 以下为当前工作区源码核对，不把旧 README、接口存在或历史绿色记录视为本次验收。
 “已接入”仅表示业务入口已连接；运营商／硬件／跨网段验收单独记录。
+最后统一测试的逐项证据入口为[验收台账](PARITY_ACCEPTANCE.md)，尚未标记任何新项通过。
 
 ## 能力矩阵
 
@@ -13,7 +14,7 @@
 | --- | --- | --- |
 | 独立模组状态与控制 | Windows `VoKernelService.TelephonyModes.cs`、`ModuleManagementInstance` | `ims_dispatch.go`、`ims_mode_api.go` 已按模组分派；实际热拔、换卡、冷启动恢复仍须补验收 |
 | 蜂窝模式、VoWiFi 与默认选路独立 | Windows `SimTelephonyPreferences` 分开保存蜂窝／WiFi 自动连接及默认路由 | 已写入逐卡策略、双运行时分派、原通话／USSI 会话归属、Web 控制、逐卡启动投递、换卡停止确认、Host IMS 实时 SIM 元数据、模块 RF／NAS 原卡核验、任务持久恢复及原数据会话／传输清理。最新应用改动尚未统一测试／构建，不能视为完成。见[独立接入边界](INDEPENDENT_ACCESS.md)与[数据交接](CELLULAR_DATA_HANDOVER.md) |
-| Host IMS 信令与短信 | VoSharp Host IMS 会话、承载与安全所有者 | Go `hostimsruntime` 已接应用；真实多机固件、完整冷启动与运营商业务仍待解决／验收 |
+| Host IMS 信令与短信 | VoSharp Host IMS 会话、承载与安全所有者 | Go `hostimsruntime` 已接应用；新源码补入已确认的跨进程网络／安全／原 PDN 清理后再启动，未知日志保留屏障。尚未统一验证，真实固件、MM／主机重启及运营商业务另验收，见[重启恢复](HOST_IMS_RECOVERY.md) |
 | VoWiFi 注册与恢复 | VoSharp IKE／Manager／按卡历史 | Go `vowifi` 已有双栈、按卡候选、认证证据、持久退避与自动恢复；DITO VoWiFi 实测注销 SIP 500、跨 reader／多卡槽及实机故障矩阵仍待解决／验收 |
 | 网页／本机电话 | Windows 电话页、浮窗与麦克风会话 | Go `web_phone.go`＋`web/src/phone` 已有拨接挂、独占 PCM、跨页来电卡、静音和电平；浏览器休眠、真实听感仍需验收 |
 | USB 模组双向媒体 | Windows `CellularAudioBridge`、`UsbAudioModemBinding`、`Qdc507VoiceRuntime` | Go `modulecall` 已接显式 module 模式的网页、SIP 入出呼和 Telegram 原通话控制；先取得同物理设备双向 ALSA 再 ATD／ATA，精确 Call-ID 与串口结束版本隔离。软件回环与实机业务验收分开，见 [USB 语音边界](MODULE_VOICE.md) |

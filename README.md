@@ -63,6 +63,8 @@ SQLite stores configuration and runtime history. See the
 ### Linux integration documentation
 
 - [Host IMS application](docs/HOST_IMS_APPLICATION.md) and [ownership boundaries](docs/HOST_IMS.md).
+- [Host IMS restart cleanup](docs/HOST_IMS_RECOVERY.md), including confirmed journals and unresolved ownership fences.
+- [Final acceptance ledger](docs/PARITY_ACCEPTANCE.md), including the required evidence and remaining hardware acceptance.
 - [Cellular data ownership and handover](docs/CELLULAR_DATA_HANDOVER.md).
 - [Automatic task ownership and restoration](docs/AUTOMATIC_TASKS.md).
 - [Web phone](docs/WEB_PHONE.md), [USB module voice](docs/MODULE_VOICE.md), [AMR media](docs/AMR_MEDIA.md), and [DTMF](docs/SIP_DTMF.md).

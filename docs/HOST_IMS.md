@@ -1,9 +1,13 @@
-# Linux Host IMS：协议与承载所有者，尚未接入可启用线路
+# Linux Host IMS：协议、承载所有者与历史边界
+
+当前应用接线见 [Host IMS application](HOST_IMS_APPLICATION.md)，逐卡独立策略见
+[独立接入](INDEPENDENT_ACCESS.md)，新增的已确认日志恢复见[重启恢复](HOST_IMS_RECOVERY.md)。
+下面保留早期阶段的设计与当时待办，不代表当前源码仍未接线；最新源码尚待统一测试与构建。
 
 本阶段把现有运营商 SIP 核心从「只能接 SWu 隧道」扩展为可接受独立、经过校验的
 蜂窝 IMS 承载。后续已实现[真实 ModemManager 接口的逐模组承载所有者](HOST_IMS_BEARER.md)。
-**该所有者尚未接入业务编排、模式切换、API 或开关**，不能据此认为
-Linux 已具备 Windows 当前的 Host IMS 实卡能力。原 LICENSE 和地区／设备／SIM
+早期承载所有者当时尚未接入业务编排、模式切换、API 或开关；应用层现已接入，
+但这仍不能替代 Windows／Linux 的实卡验收。原 LICENSE 和地区／设备／SIM
 授权检查保持不变。
 
 后续已补入[蜂窝 UIM／ISIM／AKA 事务前置层](HOST_IMS_SIM.md)，包含严格 QMI 协议

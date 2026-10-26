@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 )
 
@@ -11,11 +12,13 @@ import (
 // retains this exact failed acquisition until its write-ahead cleanup is ACKed.
 // An unknown mutation reply is never reconstructed or adopted by APN.
 type PendingBearerCleanup struct {
-	pool      *BearerPool
-	selection Selection
-	claim     *bearerClaim
-	token     string
-	waitOnly  bool
+	pool            *BearerPool
+	selection       Selection
+	claim           *bearerClaim
+	token           string
+	waitOnly        bool
+	operation       sync.Mutex
+	networkRecovery interface{ Close(context.Context) error }
 }
 
 func (*PendingBearerCleanup) Format(out fmt.State, _ rune) {
@@ -84,6 +87,10 @@ func (a *PendingBearerCleanup) Close(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if !a.operation.TryLock() {
+		return ErrBusy
+	}
+	defer a.operation.Unlock()
 	c := a.claim
 	c.mu.Lock()
 	if a.waitOnly {
@@ -112,7 +119,35 @@ func (a *PendingBearerCleanup) Close(ctx context.Context) error {
 		c.mu.Unlock()
 		return ErrChanged
 	}
-	if c.record.Pending != "" || c.record.SIMPending || c.record.SIMUncertain || c.record.RuntimePending || c.record.RuntimeUncertain || c.record.Network != nil || len(c.retained) != 0 || len(c.networkHolds) != 0 {
+	if c.record.Pending != "" || c.record.SIMPending || c.record.SIMUncertain || c.record.RuntimePending || c.record.RuntimeUncertain || len(c.retained) != 0 {
+		c.mu.Unlock()
+		return ErrUncertain
+	}
+	if c.record.Network != nil {
+		// Reopen only a journal adopted after taking the original process lock.
+		// The recovered object is cleanup-only and retained across caller timeout.
+		if !c.adopted {
+			c.mu.Unlock()
+			return ErrUncertain
+		}
+		c.mu.Unlock()
+		if a.networkRecovery == nil {
+			recovery, err := reopenPendingNetwork(ctx, a)
+			if err != nil {
+				return err
+			}
+			a.networkRecovery = recovery
+		}
+		if err := a.networkRecovery.Close(ctx); err != nil {
+			return err
+		}
+		c.mu.Lock()
+		if c.pendingCleanup != a || c.record.Token != a.token || c.record.Network != nil || c.busy || c.storageFailed {
+			c.mu.Unlock()
+			return ErrUncertain
+		}
+	}
+	if len(c.networkHolds) != 0 {
 		c.mu.Unlock()
 		return ErrUncertain
 	}

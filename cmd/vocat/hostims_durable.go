@@ -11,11 +11,13 @@ import (
 
 // The runtime manager can acknowledge its in-memory owners, but cannot infer
 // that a previous process left no private durable claim. This wrapper adds a
-// non-mutating presence fence before mode switches/deletion release ownership.
+// presence fence before mode switches/deletion release ownership. A factory
+// recovery callback may clean a confirmed previous-process journal first.
 type durableHostIMSController struct {
 	*hostimsruntime.Manager
 	database         *store.Store
 	readSubscription func(context.Context, string) (vowifi.SIMIdentity, error)
+	recoverPending   func(context.Context, string) error
 }
 
 func (c *durableHostIMSController) Subscription(ctx context.Context, id string) (vowifi.SIMIdentity, error) {
@@ -54,6 +56,15 @@ func (c *durableHostIMSController) StopDevice(ctx context.Context, id string) er
 		return nil
 	}
 	pending, err := (hostims.SQLiteClaimJournal{Database: c.database}).HasEquipmentClaim(ctx, config.ModemIMEI)
+	if err != nil {
+		return hostims.ErrUncertain
+	}
+	if pending && c.recoverPending != nil {
+		if err := c.recoverPending(ctx, id); err != nil {
+			return err
+		}
+		pending, err = (hostims.SQLiteClaimJournal{Database: c.database}).HasEquipmentClaim(ctx, config.ModemIMEI)
+	}
 	if err != nil || pending {
 		return hostims.ErrUncertain
 	}

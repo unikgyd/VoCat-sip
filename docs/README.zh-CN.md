@@ -47,6 +47,7 @@ Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制�
 
 完整差异见[能力并集清单](FEATURE_UNION.md)，接入边界见[独立接入说明](INDEPENDENT_ACCESS.md)，
 源码、缓存和运行文件的提交规则见[仓库约定](REPOSITORY.md)。原许可、地区准入和授权检查保持。
+本轮统一验收逐项记录在[验收台账](PARITY_ACCEPTANCE.md)，Host IMS 已确认日志的清理边界见[重启恢复](HOST_IMS_RECOVERY.md)。
 
 自动接听的格式、时限、首接仲裁与网页接管见[实现边界](AUTO_ANSWER.md)。
 通话录音的 PCM 采集、保留、私有目录与中断恢复见[录音说明](CALL_RECORDINGS.md)。

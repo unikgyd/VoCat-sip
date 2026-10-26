@@ -74,6 +74,11 @@ func configureHostIMSRuntime(ctx context.Context, logger *slog.Logger, database 
 	}); ok {
 		manager.readSubscription = observer.Subscription
 	}
+	if recovery, ok := factory.(interface {
+		CleanupPending(context.Context, string) error
+	}); ok {
+		manager.recoverPending = recovery.CleanupPending
+	}
 	closeAll := func(ctx context.Context) error {
 		// Do not close shared DBus underneath a late session/access cleanup.
 		if err := manager.Close(ctx); err != nil {
