@@ -84,6 +84,13 @@ old namespace's resources; this does not establish cleanup of a surviving host
 namespace or recovery of active Host IMS/module-data resources. All original
 host/database/container state was restored. Runtime code was unchanged.
 
+The [QMI ownership inquiry](VERIFICATION_20261027_QMI_OWNERSHIP.md) adds 14 real
+fresh-client status observations across IPv4, IPv6 and dual stack. It confirms
+that readable packet state/runtime does not grant the original lifecycle owner.
+The proxy's versioned source retains unreleased client records after application
+disconnect. No data crash was injected or counted as recovered; durable bearer
+and host-resource recovery remains required. Only a stale source comment changed.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
 hotplug, Host IMS/module-data crash recovery, successful scheduled work and external provider

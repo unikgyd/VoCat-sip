@@ -782,9 +782,10 @@ func (manager *Manager) setQMINetwork(
 		}
 	}
 
-	// A process restart loses the old WDS handle. StopAnyNetworkInterface is a
-	// modem-side recovery primitive, so stale sessions are reclaimed without
-	// trusting a CID/PDH cached under a reused cdc-wdm basename.
+	// A fresh transport cannot recover an earlier process's WDS capability.
+	// SIM-bound and multi-family requests below only observe packet status and
+	// reject an existing call; they never reclaim it through StopAny or a cached
+	// CID/PDH. Seeing another client's runtime settings does not grant ownership.
 	openContext, cancelOpen := context.WithTimeout(ctx, qmiDataOpenTimeout)
 	session, err := manager.qmiDataOpener(openContext, candidate.QMIControl)
 	cancelOpen()

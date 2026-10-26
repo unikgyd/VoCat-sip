@@ -101,3 +101,11 @@ This addresses orderly process exit. Abrupt termination, machine restart and
 physical hotplug require separate live evidence; graceful cleanup does not
 establish recovery of a lost WDS transport after a crash. Real firmware and
 carrier acceptance remains separate from software verification.
+
+The [real QMI ownership inquiry](VERIFICATION_20261027_QMI_OWNERSHIP.md) confirmed
+that a fresh WDS client can read another client's existing packet state and
+runtime parameters on the original QDC507. Availability is not lifecycle
+ownership. Cold recovery still needs a durable original bearer/host journal and
+an acknowledged cleanup capability; it must not adopt a cached CID/PDH or send
+modem-wide StopAny through a fresh client. Active ordinary-data crash recovery
+has not yet been implemented and accepted as an automatic restoration path.

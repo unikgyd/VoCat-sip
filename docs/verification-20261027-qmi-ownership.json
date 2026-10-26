@@ -1,0 +1,187 @@
+{
+  "date": "2026-10-27",
+  "applicationRuntimeSource": "7ed6ea2",
+  "binarySHA256": "4fea12ecb7153f68c70929878593fc2bb71c7ba87bd48577a5eec383fcb66a8f",
+  "probeSourceSHA256": "d57d4e1eebd9f249b9cd3a75a85de6c162b1ad5132fc5319a0f4497d26dce3cc",
+  "probeBinarySHA256": "3dc4a7542ad72dab80da62ecc6e5d255f8b5279a4cde764169a2f9699f6c0caa",
+  "scope": {
+    "originalQDC507AndChinaTelecomSIM": true,
+    "originalCTNETAPN": true,
+    "originalProxyUsed": true,
+    "noProxyFallbackToRaw": true,
+    "noCTLSyncOnOpen": true,
+    "probeNeverStartsOrStopsPacketData": true,
+    "applicationControlsItsOwnStartsAndStops": true,
+    "firmwareChanges": false,
+    "modemResets": false,
+    "carrierCallsOrMobileSMS": false,
+    "actualProcessCrashInjected": false,
+    "automaticColdRecoveryProven": false
+  },
+  "samples": [
+    {
+      "phase": "before",
+      "originalSIMAndUSBVerified": true,
+      "noPacketStartOrStop": true,
+      "noRFOrWDAChange": true,
+      "observations": [
+        {
+          "family": 4,
+          "connected": false,
+          "runtimeAvailable": false,
+          "validAddressOfRequestedFamily": false
+        },
+        {
+          "family": 6,
+          "connected": false,
+          "runtimeAvailable": false,
+          "validAddressOfRequestedFamily": false
+        }
+      ]
+    },
+    {
+      "phase": "during-6",
+      "originalSIMAndUSBVerified": true,
+      "noPacketStartOrStop": true,
+      "noRFOrWDAChange": true,
+      "observations": [
+        {
+          "family": 4,
+          "connected": false,
+          "runtimeAvailable": false,
+          "validAddressOfRequestedFamily": false
+        },
+        {
+          "family": 6,
+          "connected": true,
+          "runtimeAvailable": true,
+          "validAddressOfRequestedFamily": true
+        }
+      ]
+    },
+    {
+      "phase": "after-6",
+      "originalSIMAndUSBVerified": true,
+      "noPacketStartOrStop": true,
+      "noRFOrWDAChange": true,
+      "observations": [
+        {
+          "family": 4,
+          "connected": false,
+          "runtimeAvailable": false,
+          "validAddressOfRequestedFamily": false
+        },
+        {
+          "family": 6,
+          "connected": false,
+          "runtimeAvailable": false,
+          "validAddressOfRequestedFamily": false
+        }
+      ]
+    },
+    {
+      "phase": "during-4",
+      "originalSIMAndUSBVerified": true,
+      "noPacketStartOrStop": true,
+      "noRFOrWDAChange": true,
+      "observations": [
+        {
+          "family": 4,
+          "connected": true,
+          "runtimeAvailable": true,
+          "validAddressOfRequestedFamily": true
+        },
+        {
+          "family": 6,
+          "connected": false,
+          "runtimeAvailable": false,
+          "validAddressOfRequestedFamily": false
+        }
+      ]
+    },
+    {
+      "phase": "after-4",
+      "originalSIMAndUSBVerified": true,
+      "noPacketStartOrStop": true,
+      "noRFOrWDAChange": true,
+      "observations": [
+        {
+          "family": 4,
+          "connected": false,
+          "runtimeAvailable": false,
+          "validAddressOfRequestedFamily": false
+        },
+        {
+          "family": 6,
+          "connected": false,
+          "runtimeAvailable": false,
+          "validAddressOfRequestedFamily": false
+        }
+      ]
+    },
+    {
+      "phase": "during-dual",
+      "originalSIMAndUSBVerified": true,
+      "noPacketStartOrStop": true,
+      "noRFOrWDAChange": true,
+      "observations": [
+        {
+          "family": 4,
+          "connected": true,
+          "runtimeAvailable": true,
+          "validAddressOfRequestedFamily": true
+        },
+        {
+          "family": 6,
+          "connected": true,
+          "runtimeAvailable": true,
+          "validAddressOfRequestedFamily": true
+        }
+      ]
+    },
+    {
+      "phase": "after-dual",
+      "originalSIMAndUSBVerified": true,
+      "noPacketStartOrStop": true,
+      "noRFOrWDAChange": true,
+      "observations": [
+        {
+          "family": 4,
+          "connected": false,
+          "runtimeAvailable": false,
+          "validAddressOfRequestedFamily": false
+        },
+        {
+          "family": 6,
+          "connected": false,
+          "runtimeAvailable": false,
+          "validAddressOfRequestedFamily": false
+        }
+      ]
+    }
+  ],
+  "observedProxyVersion": "qmi-proxy 1.38.0",
+  "referenceSource": "https://github.com/linux-mobile-broadband/libqmi/blob/1.38.0/src/libqmi-glib/qmi-proxy.c",
+  "applicationAfterDualProbe": {
+    "connected": true,
+    "publicIPCacheDetected": true
+  },
+  "cleanup": {
+    "applicationExitCode": 0,
+    "originalDatabaseByteIdentical": true,
+    "originalHostModemNetworkRestored": true,
+    "bothOriginalModemSIMPairsRegisteredRFOn": true,
+    "originalDistributionManagerBinaryRestored": true,
+    "temporaryManagerAndDropinRemoved": true,
+    "patchedManagerSameProcessAndZeroRestartDelta": true,
+    "originalRunningContainerIDsPreserved": true,
+    "zeroXFRMStatesAndPolicies": true,
+    "sharedServerLockInodePreserved": true
+  },
+  "conclusion": {
+    "freshCIDCanObserveExistingPacketCall": true,
+    "observedAvailabilityIsNotLifecycleOwnership": true,
+    "coldRecoveryRequiresDurableOwnershipAndAcknowledgedOriginalCleanup": true,
+    "overallHardwareAcceptanceComplete": false
+  }
+}

@@ -63,6 +63,9 @@ the subsequent 2,062 Go checks, real systemd rollback and IPv4/IPv6 public-IP re
 The [isolated Docker crash follow-up](docs/VERIFICATION_20261027_CRASH.md) records
 real SIGKILL and saved-intent connection restoration on the original EC20/DITO
 SIM, with host-network crash recovery still listed separately.
+The [QMI ownership inquiry](docs/VERIFICATION_20261027_QMI_OWNERSHIP.md) records
+the fresh-client status observations that constrain ordinary-data recovery;
+automatic recovery of an active host data process remains open.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the
