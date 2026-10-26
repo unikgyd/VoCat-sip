@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -89,8 +90,13 @@ func TestCellularRTPBindsAndRouteFailureCannotSendPCM(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer media.Close()
-	if len(network.bindings) != 1 || !addressIP(media.conn.LocalAddr()).Equal(net.IPv4(127, 0, 0, 1)) {
-		t.Fatal("RTP socket bypassed bearer/source binding")
+	if len(network.bindings) != 2 || !addressIP(media.conn.LocalAddr()).Equal(net.IPv4(127, 0, 0, 1)) || !addressIP(media.controlConn.LocalAddr()).Equal(net.IPv4(127, 0, 0, 1)) || media.conn.LocalAddr().String() == media.controlConn.LocalAddr().String() {
+		t.Fatal("separate RTP/RTCP sockets bypassed bearer/source binding")
+	}
+	for _, binding := range network.bindings {
+		if binding.network != "udp4" || binding.address != "127.0.0.1:0" {
+			t.Fatal("control socket used a different bearer/source", binding)
+		}
 	}
 	if err := media.configureRemote(rtpTestSDP("127.0.0.1", 19000)); !errors.Is(err, ErrCellularAccess) || strings.Contains(err.Error(), "private") || media.ready() {
 		t.Fatalf("unproven target exposed: %v", err)
@@ -101,6 +107,32 @@ func TestCellularRTPBindsAndRouteFailureCannotSendPCM(t *testing.T) {
 	network.bindErr = errors.New("private socket owner")
 	if connection, err := newAccessRTPMedia(context.Background(), net.IPv4(127, 0, 0, 1), network, nil); connection != nil || !errors.Is(err, ErrCellularAccess) || strings.Contains(err.Error(), "private") {
 		t.Fatalf("failed binder exposed RTP: %v", err)
+	}
+}
+
+type controlBindFailureNetwork struct {
+	rtpTestNetwork
+	calls int
+	first syscall.RawConn
+}
+
+func (n *controlBindFailureNetwork) BindSocket(_ context.Context, _, _ string, raw syscall.RawConn) error {
+	n.calls++
+	if n.calls == 1 {
+		n.first = raw
+		return nil
+	}
+	return errors.New("private control bearer bind failure")
+}
+
+func TestCellularRTPControlBindFailureClosesOriginalSocket(t *testing.T) {
+	n := &controlBindFailureNetwork{rtpTestNetwork: rtpTestNetwork{fakeCellularBearer: &fakeCellularBearer{}}}
+	media, err := newAccessRTPMedia(context.Background(), net.IPv4(127, 0, 0, 1), n, nil)
+	if media != nil || !errors.Is(err, ErrCellularAccess) || strings.Contains(err.Error(), "private") || n.calls != 2 {
+		t.Fatal("failed RTCP bind exposed a partial media owner", err)
+	}
+	if err := n.first.Control(func(uintptr) {}); err == nil {
+		t.Fatal("RTP socket survived failed RTCP acquisition")
 	}
 }
 
