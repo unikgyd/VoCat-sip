@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"vocat/internal/device"
+	"vocat/internal/modem"
 	"vocat/internal/store"
 )
 
@@ -41,14 +42,35 @@ func (c *revertTestController) ReRegisterOperator(context.Context, string) (devi
 
 func (c *revertTestController) Refresh(context.Context, string) (device.Snapshot, error) {
 	c.actions = append(c.actions, "refresh")
-	return device.Snapshot{ICCID: c.currentICCID, RegistrationStatus: c.registration, PSAttached: false}, nil
+	snapshot := *automaticTaskTestSnapshot(c.currentICCID)
+	snapshot.RegistrationStatus = c.registration
+	return snapshot, nil
+}
+
+func (c *revertTestController) ExecuteAT(ctx context.Context, id, command string) (modem.Response, error) {
+	if command == "AT+CLCC" {
+		return modem.Response{Final: "OK"}, nil
+	}
+	return c.fakeDeviceController.ExecuteAT(ctx, id, command)
+}
+
+func (c *revertTestController) SetFlightForSIM(ctx context.Context, id, iccid, imsi string, enabled bool) (device.FlightResult, error) {
+	if iccid != c.currentICCID || imsi != "310260123456789" {
+		return device.FlightResult{}, device.ErrSIMObservation
+	}
+	return c.SetFlight(ctx, id, enabled)
+}
+
+func (c *revertTestController) ESIMChipInfo(context.Context, string) (*device.EsimChipInfo, error) {
+	return &device.EsimChipInfo{EID: "89010000000000000000000000000001"}, nil
 }
 
 func (c *revertTestController) ESIMListProfiles(_ context.Context, _ string) (device.EsimInfo, error) {
 	return device.EsimInfo{
+		EID: "89010000000000000000000000000001",
 		Profiles: []device.EsimProfile{
-			{ICCID: "card-initial", AID: "A0000005591010FFFFFFFF8900000100"},
-			{ICCID: "card-task", AID: "A0000005591010FFFFFFFF8900000200"},
+			{ICCID: "8901000000000000000", AID: "A0000005591010FFFFFFFF8900000100"},
+			{ICCID: "8901000000000000001", AID: "A0000005591010FFFFFFFF8900000200"},
 		},
 	}, nil
 }
@@ -56,7 +78,7 @@ func (c *revertTestController) ESIMListProfiles(_ context.Context, _ string) (de
 func (c *revertTestController) ESIMSwitchProfile(_ context.Context, _ string, iccid, aid string) error {
 	c.switches = append(c.switches, fmt.Sprintf("%s:%s", iccid, aid))
 	c.currentICCID = iccid
-	c.entry.Snapshot = &device.Snapshot{ICCID: iccid}
+	c.entry.Snapshot = automaticTaskTestSnapshot(iccid)
 	return nil
 }
 
@@ -66,12 +88,12 @@ func TestAutomaticTaskRevertToInitialProfile(t *testing.T) {
 
 	ctrl := &revertTestController{
 		registration: 1,
-		currentICCID: "card-initial",
+		currentICCID: "8901000000000000000",
 		fakeDeviceController: fakeDeviceController{
 			entry: device.Device{
 				ID:         "dev1",
 				Discovered: true,
-				Snapshot:   &device.Snapshot{ICCID: "card-initial"},
+				Snapshot:   automaticTaskTestSnapshot("8901000000000000000"),
 			},
 		},
 	}
@@ -89,21 +111,21 @@ func TestAutomaticTaskRevertToInitialProfile(t *testing.T) {
 	}
 
 	initialPolicy := store.CardPolicy{
-		ICCID:          "card-initial",
+		ICCID:           "8901000000000000000",
 		AirplaneEnabled: true,
-		VoWiFiEnabled:  true,
-		NetworkEnabled: false,
-		Source:         "user",
+		VoWiFiEnabled:   true,
+		NetworkEnabled:  false,
+		Source:          "user",
 	}
 	if err := s.store.UpsertCardPolicy(ctx, initialPolicy); err != nil {
 		t.Fatal(err)
 	}
 
 	taskPolicy := store.CardPolicy{
-		ICCID:          "card-task",
+		ICCID:           "8901000000000000001",
 		AirplaneEnabled: false,
-		NetworkEnabled: true,
-		Source:         "user",
+		NetworkEnabled:  true,
+		Source:          "user",
 	}
 	if err := s.store.UpsertCardPolicy(ctx, taskPolicy); err != nil {
 		t.Fatal(err)
@@ -111,7 +133,7 @@ func TestAutomaticTaskRevertToInitialProfile(t *testing.T) {
 
 	task := store.AutomaticTask{
 		DeviceID:      "dev1",
-		ProfileICCID:  "card-task",
+		ProfileICCID:  "8901000000000000001",
 		ProfileAID:    "A0000005591010FFFFFFFF8900000200",
 		TaskType:      "cellular_attach",
 		Environment:   "cellular",
@@ -127,16 +149,16 @@ func TestAutomaticTaskRevertToInitialProfile(t *testing.T) {
 		t.Fatalf("unexpected output: %q", output)
 	}
 
-	// Verify profile switches: first to card-task, then reverted back to card-initial
+	// Verify profile switches: first to 8901000000000000001, then reverted back to 8901000000000000000
 	wantSwitches := []string{
-		"card-task:A0000005591010FFFFFFFF8900000200",
-		"card-initial:A0000005591010FFFFFFFF8900000100",
+		"8901000000000000001:A0000005591010FFFFFFFF8900000200",
+		"8901000000000000000:A0000005591010FFFFFFFF8900000100",
 	}
 	if !reflect.DeepEqual(ctrl.switches, wantSwitches) {
 		t.Fatalf("switches=%v, want %v", ctrl.switches, wantSwitches)
 	}
-	if ctrl.currentICCID != "card-initial" {
-		t.Fatalf("final currentICCID=%s, want card-initial", ctrl.currentICCID)
+	if ctrl.currentICCID != "8901000000000000000" {
+		t.Fatalf("final currentICCID=%s, want 8901000000000000000", ctrl.currentICCID)
 	}
 
 	// Verify initial policy was restored
@@ -148,21 +170,21 @@ func TestAutomaticTaskRevertToInitialProfile(t *testing.T) {
 		t.Fatalf("device setting not restored: %+v", storedDevice)
 	}
 
-	storedInitialPolicy, err := s.store.CardPolicy(ctx, "card-initial")
+	storedInitialPolicy, err := s.store.CardPolicy(ctx, "8901000000000000000")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if storedInitialPolicy.VoWiFiEnabled != initialPolicy.VoWiFiEnabled || storedInitialPolicy.AirplaneEnabled != initialPolicy.AirplaneEnabled {
-		t.Fatalf("card-initial policy not restored: %+v", storedInitialPolicy)
+		t.Fatalf("8901000000000000000 policy not restored: %+v", storedInitialPolicy)
 	}
 
-	// Verify card-task's own saved policy was also preserved in store
-	storedTaskPolicy, err := s.store.CardPolicy(ctx, "card-task")
+	// Verify 8901000000000000001's own saved policy was also preserved in store
+	storedTaskPolicy, err := s.store.CardPolicy(ctx, "8901000000000000001")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if storedTaskPolicy.NetworkEnabled != taskPolicy.NetworkEnabled {
-		t.Fatalf("card-task policy altered: %+v", storedTaskPolicy)
+		t.Fatalf("8901000000000000001 policy altered: %+v", storedTaskPolicy)
 	}
 }
 
@@ -172,12 +194,12 @@ func TestAutomaticTaskDoNotRevertWhenDisabled(t *testing.T) {
 
 	ctrl := &revertTestController{
 		registration: 1,
-		currentICCID: "card-initial",
+		currentICCID: "8901000000000000000",
 		fakeDeviceController: fakeDeviceController{
 			entry: device.Device{
 				ID:         "dev1",
 				Discovered: true,
-				Snapshot:   &device.Snapshot{ICCID: "card-initial"},
+				Snapshot:   automaticTaskTestSnapshot("8901000000000000000"),
 			},
 		},
 	}
@@ -185,12 +207,12 @@ func TestAutomaticTaskDoNotRevertWhenDisabled(t *testing.T) {
 
 	ctx := context.Background()
 	_ = s.store.UpsertDevice(ctx, store.Device{ID: "dev1", Name: "Modem"})
-	_ = s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "card-initial", Source: "user"})
-	_ = s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "card-task", NetworkEnabled: true, Source: "user"})
+	_ = s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "8901000000000000000", Source: "user"})
+	_ = s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "8901000000000000001", NetworkEnabled: true, Source: "user"})
 
 	task := store.AutomaticTask{
 		DeviceID:      "dev1",
-		ProfileICCID:  "card-task",
+		ProfileICCID:  "8901000000000000001",
 		ProfileAID:    "A0000005591010FFFFFFFF8900000200",
 		TaskType:      "cellular_attach",
 		Environment:   "cellular",
@@ -206,13 +228,13 @@ func TestAutomaticTaskDoNotRevertWhenDisabled(t *testing.T) {
 		t.Fatalf("unexpected output: %q", output)
 	}
 
-	// Only switched once to card-task, did not revert
-	wantSwitches := []string{"card-task:A0000005591010FFFFFFFF8900000200"}
+	// Only switched once to 8901000000000000001, did not revert
+	wantSwitches := []string{"8901000000000000001:A0000005591010FFFFFFFF8900000200"}
 	if !reflect.DeepEqual(ctrl.switches, wantSwitches) {
 		t.Fatalf("switches=%v, want %v", ctrl.switches, wantSwitches)
 	}
-	if ctrl.currentICCID != "card-task" {
-		t.Fatalf("final currentICCID=%s, want card-task", ctrl.currentICCID)
+	if ctrl.currentICCID != "8901000000000000001" {
+		t.Fatalf("final currentICCID=%s, want 8901000000000000001", ctrl.currentICCID)
 	}
 }
 
@@ -222,12 +244,12 @@ func TestAutomaticTaskRevertsEvenOnTaskFailure(t *testing.T) {
 
 	ctrl := &revertTestController{
 		registration: 3, // Registration denied -> task failure
-		currentICCID: "card-initial",
+		currentICCID: "8901000000000000000",
 		fakeDeviceController: fakeDeviceController{
 			entry: device.Device{
 				ID:         "dev1",
 				Discovered: true,
-				Snapshot:   &device.Snapshot{ICCID: "card-initial"},
+				Snapshot:   automaticTaskTestSnapshot("8901000000000000000"),
 			},
 		},
 	}
@@ -235,12 +257,12 @@ func TestAutomaticTaskRevertsEvenOnTaskFailure(t *testing.T) {
 
 	ctx := context.Background()
 	_ = s.store.UpsertDevice(ctx, store.Device{ID: "dev1", Name: "Modem"})
-	_ = s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "card-initial", Source: "user"})
-	_ = s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "card-task", Source: "user"})
+	_ = s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "8901000000000000000", Source: "user"})
+	_ = s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "8901000000000000001", Source: "user"})
 
 	task := store.AutomaticTask{
 		DeviceID:      "dev1",
-		ProfileICCID:  "card-task",
+		ProfileICCID:  "8901000000000000001",
 		ProfileAID:    "A0000005591010FFFFFFFF8900000200",
 		TaskType:      "cellular_attach",
 		Environment:   "cellular",
@@ -253,16 +275,16 @@ func TestAutomaticTaskRevertsEvenOnTaskFailure(t *testing.T) {
 		t.Fatalf("expected registration denied error, got %v", err)
 	}
 
-	// Must have reverted back to card-initial even though task failed
+	// Must have reverted back to 8901000000000000000 even though task failed
 	wantSwitches := []string{
-		"card-task:A0000005591010FFFFFFFF8900000200",
-		"card-initial:A0000005591010FFFFFFFF8900000100",
+		"8901000000000000001:A0000005591010FFFFFFFF8900000200",
+		"8901000000000000000:A0000005591010FFFFFFFF8900000100",
 	}
 	if !reflect.DeepEqual(ctrl.switches, wantSwitches) {
 		t.Fatalf("switches=%v, want %v", ctrl.switches, wantSwitches)
 	}
-	if ctrl.currentICCID != "card-initial" {
-		t.Fatalf("final currentICCID=%s, want card-initial", ctrl.currentICCID)
+	if ctrl.currentICCID != "8901000000000000000" {
+		t.Fatalf("final currentICCID=%s, want 8901000000000000000", ctrl.currentICCID)
 	}
 }
 

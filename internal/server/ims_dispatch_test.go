@@ -324,6 +324,7 @@ func TestIMSModeSwitchRejectsActiveCallAndMissingOwner(t *testing.T) {
 func TestIMSHostStatusAndLegacyBypassIsolation(t *testing.T) {
 	config := dispatchConfig("line", store.IMSModeHost)
 	s, _, _, hardware := newDispatchTestServer(t, config)
+	s.subscriptionObservations.Store(config.ID, subscriptionObservation{identity: vowifi.SIMIdentity{ICCID: "synthetic-sim", IMSI: "001010000000001"}, physical: hardware.entry.ID, generation: hardware.entry.Candidate.USBGeneration, available: true, at: time.Now()})
 	summary := s.configuredDeviceSummary(config, &hardware.entry)
 	if summary["ims_mode"] != store.IMSModeHost || summary["ims_runtime"].(map[string]any)["ims_ready"] != true || summary["vowifi_runtime"].(map[string]any)["ims_ready"] == true {
 		t.Fatal("Host mislabeled as WiFi", summary)

@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,17 +12,25 @@ import (
 	"vocat/internal/developer"
 	"vocat/internal/device"
 	"vocat/internal/exportproxy"
+	"vocat/internal/modem"
 	"vocat/internal/store"
 )
 
 type publicIPDeviceController struct{ fakeDeviceController }
+
+func publicIPCacheTestServer() *Server {
+	r, _ := transferRuntime()
+	r.entries["ec20"] = r.entries["a"]
+	r.entries["ec20"].session.identity = "8944100001"
+	return &Server{publicIPs: make(map[string]cachedPublicIP), cellularData: r}
+}
 
 func (controller *publicIPDeviceController) SetNetwork(_ context.Context, _ string, request device.NetworkRequest) (device.NetworkResult, error) {
 	return device.NetworkResult{Enabled: request.Enabled}, nil
 }
 
 func TestPublicIPCacheFollowsCurrentICCID(t *testing.T) {
-	server := &Server{publicIPs: make(map[string]cachedPublicIP)}
+	server := publicIPCacheTestServer()
 	want := exportproxy.PublicIPInfo{IP: "203.0.113.8", CountryCode: "GB"}
 	server.savePublicIP("ec20", "8944100001", want)
 
@@ -52,7 +61,8 @@ func TestPublicIPGetClearsCacheWhenCellularDataIsDisabled(t *testing.T) {
 	if err := database.UpsertAppSetting(ctx, store.AppSetting{Key: developer.EnabledSettingKey, Value: enabled}); err != nil {
 		t.Fatal(err)
 	}
-	server := &Server{store: database, developerEnabled: true, publicIPs: make(map[string]cachedPublicIP)}
+	server := publicIPCacheTestServer()
+	server.store, server.developerEnabled = database, true
 	server.savePublicIP("ec20", "8944100001", exportproxy.PublicIPInfo{IP: "203.0.113.8", CountryCode: "GB"})
 
 	request := httptest.NewRequest(http.MethodGet, "/api/devices/ec20/network/public-ip", nil)
@@ -76,7 +86,7 @@ func TestPublicIPGetClearsCacheWhenCellularDataIsDisabled(t *testing.T) {
 }
 
 func TestPublicIPCacheClearsWhileModemIsResetting(t *testing.T) {
-	server := &Server{publicIPs: make(map[string]cachedPublicIP)}
+	server := publicIPCacheTestServer()
 	server.savePublicIP("ec20", "8944100001", exportproxy.PublicIPInfo{IP: "203.0.113.8", CountryCode: "GB"})
 	if _, ok := server.loadPublicIP("ec20", ""); ok {
 		t.Fatal("cache survived a missing live ICCID")
@@ -84,7 +94,7 @@ func TestPublicIPCacheClearsWhileModemIsResetting(t *testing.T) {
 }
 
 func TestOverviewPublicIPIncludesCurrentCachedSession(t *testing.T) {
-	server := &Server{publicIPs: make(map[string]cachedPublicIP)}
+	server := publicIPCacheTestServer()
 	server.savePublicIP("ec20", "8944100001", exportproxy.PublicIPInfo{
 		IP: "203.0.113.8", CountryCode: "GB", Region: "England", City: "London", Organization: "Example carrier",
 	})
@@ -105,6 +115,20 @@ func TestOverviewPublicIPIncludesCurrentCachedSession(t *testing.T) {
 
 func TestCellularConnectedAutomaticallyDetectsPublicIP(t *testing.T) {
 	ctx := context.Background()
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		t.Fatal(err)
+	}
+	networkInterface := ""
+	for _, entry := range interfaces {
+		if entry.Flags&net.FlagLoopback != 0 {
+			networkInterface = entry.Name
+			break
+		}
+	}
+	if networkInterface == "" {
+		t.Fatal("a local loopback interface is required")
+	}
 	database, err := store.Open(ctx, ":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -120,13 +144,14 @@ func TestCellularConnectedAutomaticallyDetectsPublicIP(t *testing.T) {
 	if err := database.UpsertDevice(ctx, store.Device{
 		ID: "ec20", Name: "EC20", DeviceType: store.DeviceTypePCIeEC20EC25,
 		ModemIMEI: "000000000000001",
-		Interface: "wwan0", NetworkEnabled: true,
+		Interface: networkInterface, NetworkEnabled: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	controller := &publicIPDeviceController{fakeDeviceController: fakeDeviceController{entry: device.Device{
 		ID: "physical-1", Discovered: true,
-		Snapshot: &device.Snapshot{DeviceID: "physical-1", IMEI: "000000000000001", SIMReady: true, ICCID: "89441000000000000001"},
+		Candidate: modem.Candidate{NetworkInterface: networkInterface},
+		Snapshot:  &device.Snapshot{DeviceID: "physical-1", IMEI: "000000000000001", SIMReady: true, ICCID: "89441000000000000001"},
 	}}}
 	called := make(chan string, 1)
 	server := &Server{
@@ -147,8 +172,8 @@ func TestCellularConnectedAutomaticallyDetectsPublicIP(t *testing.T) {
 	}
 	select {
 	case networkInterface := <-called:
-		if networkInterface != "wwan0" {
-			t.Fatalf("lookup interface = %q, want wwan0", networkInterface)
+		if networkInterface != controller.entry.Candidate.NetworkInterface {
+			t.Fatalf("lookup interface = %q, want %s", networkInterface, controller.entry.Candidate.NetworkInterface)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("automatic public IP lookup was not started")

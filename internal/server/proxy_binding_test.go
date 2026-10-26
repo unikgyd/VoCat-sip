@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"vocat/internal/device"
 	"vocat/internal/store"
 	"vocat/internal/vowifi"
 )
@@ -34,7 +35,7 @@ func newProfileBindingTestServer(t *testing.T) (*Server, *store.Store, *fakeVoWi
 		}
 	}
 	controller := &fakeVoWiFiController{state: vowifi.State{DeviceID: "ec20", ICCID: testProfileICCID, Enabled: true}}
-	return &Server{store: database, vowifi: controller, logger: slog.New(slog.NewTextHandler(io.Discard, nil)), maxRequestBodyBytes: 16 << 10}, database, controller
+	return &Server{store: database, vowifi: controller, devices: fakeDeviceController{entry: device.Device{ID: "ec20", Discovered: true, Snapshot: &device.Snapshot{SIMReady: true, ICCID: testProfileICCID, IMSI: "310260123456789"}}}, logger: slog.New(slog.NewTextHandler(io.Discard, nil)), maxRequestBodyBytes: 16 << 10}, database, controller
 }
 
 func profileBindingRequest(t *testing.T, server *Server, method, body string) *httptest.ResponseRecorder {
@@ -98,11 +99,12 @@ func TestProfileProxyBindingSupportsPCSCReader(t *testing.T) {
 	server, database, controller := newProfileBindingTestServer(t)
 	readerICCID := "89104100000028106378"
 	if err := database.UpsertDevice(context.Background(), store.Device{
-		ID: "reader-1", Name: "USB SIM Reader", DeviceType: store.DeviceTypeUSBSIMReader,
+		ID: "reader-1", Name: "USB SIM Reader", DeviceType: store.DeviceTypeUSBSIMReader, VoWiFiEnabled: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	controller.state = vowifi.State{DeviceID: "reader-1", ICCID: readerICCID, Enabled: true}
+	server.devices = fakeDeviceController{entry: device.Device{ID: "reader-1", Discovered: true, Snapshot: &device.Snapshot{SIMReady: true, ICCID: readerICCID, IMSI: "310260123456789"}}}
 	response := profileBindingRequest(t, server, http.MethodPost, `{
 		"upstream_proxy_id":"route-1",
 		"bindings":[{"device_id":"reader-1","iccid":"89104100000028106378","profile_name":"Reader Profile"}]

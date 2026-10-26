@@ -52,7 +52,7 @@ func TestHoldResumeReinviteCommitsOnlyMatchingDialogAndACK(t *testing.T) {
 			forged.Headers[k] = append([]string(nil), v...)
 		}
 		forged.Headers["to"] = []string{"<sip:peer@ims.example.test>;tag=other"}
-		s.dispatchPacket(&sipPacket{Response: &forged}, nil)
+		s.dispatchPacket(sipPacket{Response: &forged}, nil)
 		s.dispatchPacket(parsed, nil)
 	}
 	for _, held := range []bool{true, false} {
