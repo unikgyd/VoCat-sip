@@ -36,7 +36,7 @@ func TestHoldResumeReinviteCommitsOnlyMatchingDialogAndACK(t *testing.T) {
 		if direction == "sendonly" {
 			answer = replaceSDPDirection(answer, "recvonly")
 		}
-		response, err := buildSIPResponseWithBody(r, 200, "remote", answer, "Content-Type: application/sdp")
+		response, err := buildSIPResponseWithBody(r, 200, "remote", answer)
 		if err != nil {
 			t.Error(err)
 			return
