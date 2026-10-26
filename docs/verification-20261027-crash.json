@@ -1,0 +1,114 @@
+{
+  "date": "2026-10-27",
+  "sourceRevision": "caff83f",
+  "binarySHA256": "4fea12ecb7153f68c70929878593fc2bb71c7ba87bd48577a5eec383fcb66a8f",
+  "softwareEvidence": "verification-20261027-native.json",
+  "softwareRuntimeUnchanged": true,
+  "noSoftwareSuitesRepeated": true,
+  "realLine": {
+    "modem": "original EC20",
+    "sim": "original DITO",
+    "ePDGAndIMSRegistrationBefore": true,
+    "ePDGAndIMSRegistrationAfter": true,
+    "originalSIMEquipmentVerifiedBeforeAfter": true
+  },
+  "beforeCrash": {
+    "runtime": {
+      "phase": "sms_ready",
+      "enabled": true,
+      "active": true,
+      "sim_ready": true,
+      "access_ready": true,
+      "tunnel_ready": true,
+      "ims_ready": true,
+      "sms_ready": true,
+      "attempt": 1,
+      "last_error_class": null
+    },
+    "network": {
+      "isolatedNetworkNamespace": true,
+      "tunInterfaces": 1,
+      "tunRXPackets": 10,
+      "tunTXPackets": 17,
+      "xfrmStates": 4,
+      "xfrmPolicies": 8
+    }
+  },
+  "crash": {
+    "signal": "SIGKILL",
+    "exitCode": 137,
+    "OOM": false,
+    "containerSupervisorRestartPolicy": "no",
+    "observedTerminal": true,
+    "originalDockerSandboxPathRemoved": true,
+    "hostXFRMUnaffected": true
+  },
+  "restart": {
+    "sameContainer": true,
+    "newProcess": true,
+    "newIsolatedNetworkNamespace": true,
+    "savedWiFiIntentUsed": true,
+    "noConnectRequestResubmitted": true,
+    "secondsUntilReady": 28.756,
+    "runtime": {
+      "phase": "sms_ready",
+      "enabled": true,
+      "active": true,
+      "sim_ready": true,
+      "access_ready": true,
+      "tunnel_ready": true,
+      "ims_ready": true,
+      "sms_ready": true,
+      "attempt": 1,
+      "last_error_class": null
+    },
+    "network": {
+      "isolatedNetworkNamespace": true,
+      "tunInterfaces": 1,
+      "tunRXPackets": 7,
+      "tunTXPackets": 12,
+      "xfrmStates": 4,
+      "xfrmPolicies": 8
+    }
+  },
+  "cleanup": {
+    "applicationExitCode": 0,
+    "originalDatabaseByteIdentical": true,
+    "originalManagerPIDAndRestartCountUnchanged": true,
+    "bothOriginalModemSIMPairsRegisteredRFOn": true,
+    "originalHostModemNetworkUnchanged": true,
+    "zeroHostXFRMStatesPolicies": true,
+    "originalRunningContainersPreserved": true,
+    "sharedServerLockInodePreserved": true,
+    "onlyOwnedInhibitorsReleased": true
+  },
+  "retainedHelperFailures": [
+    {
+      "kind": "empty-xfrm-parser",
+      "productFailure": false,
+      "correctedWithoutReconnect": true
+    },
+    {
+      "kind": "stop-observer-expected-disabled-instead-of-idle",
+      "productFailure": false,
+      "correctedWithoutStopResubmission": true
+    },
+    {
+      "kind": "private-cleanup-import-marker",
+      "productFailure": false,
+      "mutationHadNotStarted": true
+    }
+  ],
+  "scope": {
+    "bridgeNetworkNamespace": true,
+    "sharedHardwareAndServerLock": true,
+    "carrierCallsSubmitted": false,
+    "mobileSMSSubmitted": false,
+    "capabilityReadyDoesNotProveSMSDelivery": true,
+    "firmwareChangedOrModemRebooted": false,
+    "HostIMSCrashTested": false,
+    "activeModuleDataCrashTested": false,
+    "physicalHotplugTested": false,
+    "overallHardwareGoalComplete": false
+  }
+}

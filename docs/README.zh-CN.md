@@ -55,6 +55,9 @@ Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制�
 发布权限检查见[IPv6 与双栈验收](VERIFICATION_20261027_IPV6.md)。
 后续 2,062 个 Go 测试、真实 systemd 升级回滚及 IPv4／IPv6 公网查询修复见
 [原生安装补充验收](VERIFICATION_20261027_NATIVE.md)。
+原 EC20／DITO SIM 在隔离 Docker 容器中经过真实 SIGKILL 后，按保存的连接设置恢复了
+隧道和 IMS 注册；经过、清理及宿主网络崩溃恢复的剩余边界见
+[容器崩溃补充验收](VERIFICATION_20261027_CRASH.md)。
 
 完整差异见[能力并集清单](FEATURE_UNION.md)，接入边界见[独立接入说明](INDEPENDENT_ACCESS.md)，
 源码、缓存和运行文件的提交规则见[仓库约定](REPOSITORY.md)。原许可、地区准入和授权检查保持。

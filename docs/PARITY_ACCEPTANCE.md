@@ -76,9 +76,17 @@ database was an existing private copy; empty-database bootstrap and Internet
 GitHub delivery remain outside that run. Automatic data reconnect was confirmed
 after a transient startup ownership guard, without another start submission.
 
+The [isolated Docker crash run](VERIFICATION_20261027_CRASH.md) adds actual
+SIGKILL/exit-137 evidence and automatic connection restoration using the original
+EC20/DITO SIM. The saved intent restored real tunnel/IMS readiness in 28.756
+seconds under a new process and bridge network namespace. Docker released the
+old namespace's resources; this does not establish cleanup of a surviving host
+namespace or recovery of active Host IMS/module-data resources. All original
+host/database/container state was restored. Runtime code was unchanged.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
-hotplug, abrupt crash recovery, successful scheduled work and external provider
+hotplug, Host IMS/module-data crash recovery, successful scheduled work and external provider
 delivery still need their live scenarios. Existing
 profile management does not establish provisioning/download/delete of a
 disposable profile.

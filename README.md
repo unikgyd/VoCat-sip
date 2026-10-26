@@ -60,6 +60,9 @@ the latest candidate's 2,057 Go checks, race/kernel checks, amd64/arm64 builds,
 real data transfers, dependency requirements and shipping-permission evidence.
 The [native installation follow-up](docs/VERIFICATION_20261027_NATIVE.md) records
 the subsequent 2,062 Go checks, real systemd rollback and IPv4/IPv6 public-IP repair.
+The [isolated Docker crash follow-up](docs/VERIFICATION_20261027_CRASH.md) records
+real SIGKILL and saved-intent connection restoration on the original EC20/DITO
+SIM, with host-network crash recovery still listed separately.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the
