@@ -131,8 +131,13 @@ func (b sipCarrierBackend) Answer(ctx context.Context, id, callID string) (vowif
 	if _, err := b.Incoming(ctx, id, callID); err != nil {
 		return vowifi.Call{}, errors.Join(sipgateway.ErrCarrierAnswerNotAttempted, err)
 	}
+	release, claimErr := b.server.claimCallAnswer(ctx, id, callID)
+	if claimErr != nil {
+		return vowifi.Call{}, claimErr
+	}
 	var call vowifi.Call
 	var err error
+	defer func() { release(errors.Is(err, sipgateway.ErrCarrierAnswerNotAttempted)) }()
 	if b.server.moduleVoiceCall(id, callID) {
 		lock := b.server.imsModeLock(id)
 		lock.RLock()
@@ -145,7 +150,7 @@ func (b sipCarrierBackend) Answer(ctx context.Context, id, callID string) (vowif
 		call, err = b.server.vowifi.(VoWiFiCallController).AnswerCall(ctx, id, callID)
 	}
 	if errors.Is(err, ims.ErrCallState) || errors.Is(err, ims.ErrCallBusy) {
-		err = sipgateway.ErrCarrierBusy
+		err = errors.Join(err, sipgateway.ErrCarrierBusy)
 	}
 	return call, err
 }

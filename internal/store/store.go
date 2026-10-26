@@ -14,7 +14,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 30
+const schemaVersion = 31
 
 var ErrNotFound = errors.New("store: not found")
 

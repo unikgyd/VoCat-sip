@@ -668,6 +668,10 @@ func (s *Server) handleDevicePath(
 		return s.handleE911(w, r, config, tail[2:])
 	}
 	switch strings.Join(tail, "/") {
+	case "auto-answer":
+		return s.handleAutoAnswer(w, r, config, false)
+	case "auto-answer/prompt":
+		return s.handleAutoAnswer(w, r, config, true)
 	case "telephony":
 		return s.handleTelephonyPolicy(w, r, config)
 	case "telephony/actions/reconnect":

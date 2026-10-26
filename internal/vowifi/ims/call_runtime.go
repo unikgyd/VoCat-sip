@@ -82,6 +82,7 @@ func (session *Session) Calls() []vowifi.Call {
 	now := time.Now().UTC()
 	calls := make([]vowifi.Call, 0, len(session.calls))
 	for id, call := range session.calls {
+		call.public.AnswerConfirmed = !call.terminated && call.public.State == "active" && (!call.answerSent || call.answerAcked)
 		call.public.DTMFDigits = ""
 		call.public.CanHold = !call.terminated && call.public.State == "active" && (!call.answerSent || call.answerAcked) && call.media != nil && call.media.ready()
 		if call.public.CanHold && !call.public.Held && !call.localOfferPending {

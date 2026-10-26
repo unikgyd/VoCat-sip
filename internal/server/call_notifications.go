@@ -97,6 +97,9 @@ func (history *callNotificationHistory) shouldSuppressDuplicateCall(key callNoti
 
 // NotifyIncomingCall delivers an incoming call alert to all configured notification channels.
 func (s *Server) NotifyIncomingCall(ctx context.Context, notification IncomingCallNotification) {
+	if s.autoAnswer != nil {
+		s.autoAnswer.offer(notification)
+	}
 	s.notifyIncomingCall(ctx, notification, sendCallNotification)
 }
 

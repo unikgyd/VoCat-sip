@@ -21,6 +21,7 @@ import (
 // Tokens are memory-only and travel in a WS subprotocol, not a URL/log.
 type phoneLease struct {
 	device, call, client, token string
+	kind, stage                 string
 	attached, readySeen         bool
 	deadline                    time.Time
 	cancel                      context.CancelFunc
@@ -167,7 +168,8 @@ func (p *webPhone) sweep(now time.Time) {
 
 type phoneCallView struct {
 	vowifi.Call
-	AudioOwner string `json:"audio_owner"`
+	AudioOwner      string `json:"audio_owner"`
+	AutoAnswerState string `json:"auto_answer_state,omitempty"`
 }
 type phoneLineView struct {
 	DeviceID  string          `json:"device_id"`
@@ -216,18 +218,22 @@ func (s *Server) routePhoneAPI(w http.ResponseWriter, r *http.Request) bool {
 					continue
 				}
 				owner := ""
+				automaticState := ""
 				if s.sipGateway != nil && s.sipGateway.CarrierOwnsMedia(config.ID, call.ID) {
 					owner = "sip"
 				}
 				s.webPhone.mu.Lock()
 				if l := s.webPhone.leases[config.ID]; l != nil && l.call == call.ID {
 					owner = "other_browser"
-					if l.client == client {
+					if l.kind == "auto_answer" {
+						owner = "auto_answer"
+						automaticState = l.stage
+					} else if l.client == client {
 						owner = "this_browser"
 					}
 				}
 				s.webPhone.mu.Unlock()
-				line.Calls = append(line.Calls, phoneCallView{Call: call, AudioOwner: owner})
+				line.Calls = append(line.Calls, phoneCallView{Call: call, AudioOwner: owner, AutoAnswerState: automaticState})
 			}
 			lines = append(lines, line)
 		}
@@ -239,6 +245,9 @@ func (s *Server) routePhoneAPI(w http.ResponseWriter, r *http.Request) bool {
 	}
 	if tail == "/hold" {
 		return s.handlePhoneHold(w, r)
+	}
+	if tail == "/takeover" {
+		return s.handleAutomaticTakeover(w, r)
 	}
 	if tail != "/dial" && tail != "/answer" && tail != "/hangup" {
 		writeError(w, 404, "not_found", "phone endpoint not found")

@@ -565,6 +565,14 @@ func migrationStatements(version int) []string {
 				updated_at INTEGER NOT NULL
 			)`,
 		}
+	case 31:
+		return []string{`CREATE TABLE call_answering (
+			iccid TEXT PRIMARY KEY NOT NULL,
+			document_json TEXT NOT NULL,
+			pcm BLOB NOT NULL,
+			revision TEXT NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`}
 	default:
 		return nil
 	}

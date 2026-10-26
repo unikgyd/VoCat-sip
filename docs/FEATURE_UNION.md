@@ -19,7 +19,8 @@
 | USB 模组双向媒体 | Windows `CellularAudioBridge`、`UsbAudioModemBinding`、`Qdc507VoiceRuntime` | Go `modulecall` 已接显式 module 模式的网页、SIP 入出呼和 Telegram 原通话控制；先取得同物理设备双向 ALSA 再 ATD／ATA，精确 Call-ID 与串口结束版本隔离。软件回环与实机业务验收分开，见 [USB 语音边界](MODULE_VOICE.md) |
 | 通话中按键 | Windows 电话键盘／控制入口 | 网页 IMS 按键和 SIP 分机／peer 的 RFC 4733 跨腿已接线；新增 SIP INFO `application/dtmf-relay` 到原运营商通话的兼容入口、对话核验与防重。INFO 新源码待最后统一验证；运营商 IVR 及真实软电话仍待验收 |
 | 保持与恢复 | Windows `ImsCallManager.HoldAsync/ResumeAsync` 通过 re-INVITE | 已写入精确 IMS 对话的出站 re-INVITE、ACK／迟到回复处理、媒体方向与网页保持／恢复入口；新增源码尚未统一测试／构建，见[保持边界](IMS_CALL_HOLD.md) |
-| 自动接听与留言播放 | Windows `CallMessagePlayback`、`AutoAnswerMessageRequests`、来电延时设置 | Go 目前手动网页／Telegram 接听；延时、群振首接仲裁、文件校验、播放与精确挂断尚未接入 |
+| 自动接听与留言播放 | Windows `CallMessagePlayback`、`AutoAnswerMessageRequests`、来电延时设置 | 新源码已接按 ICCID 保存、5–120 秒延时、文件导入／试听、统一应答仲裁、ACK／模块确认、PCM 播放、原通话挂断和网页接管；尚未统一测试／构建，见[自动接听边界](AUTO_ANSWER.md) |
+| 通话录音 | Windows `CallExperienceSettings.SaveCallRecordings`、录音目录与通话媒体保存 | 独立于留言播放；Linux 尚待接入双向媒体录音、保存／下载／清理和设置。不能把上传留言或丢弃接收 PCM 当成录音能力 |
 | SIP 内线与来显 | VoSharp SIP gateway；Go 自有 B2BUA | Go 已接 Registrar、Digest、内线群振首接和双向 G.711；软电话实机与高级对话功能仍待验收 |
 | SIP 运营商入呼／外呼 | 两端已有逐线权限、选线和呼叫归属 | Go 已接 IMS、显式 USB module＋PCM 和 RFC 4733 跨腿；群振首接、双向 G.711／IMS 事件回环已有测试，SIP INFO、保持及 RTCP 仍待补齐 |
 | 可选 Asterisk peer | 双向独立凭据、分方向通话／短信权限 | Go 固定 peer 与本地 Registrar 共存；隔离互通已有历史证据，生产／跨网段媒体验收另列 |
@@ -47,7 +48,7 @@
    掉线、换卡、热拔关闭原媒体，禁止默认声卡兜底。没有 UAC 的旧 AT 工具仍是信令工具。
 3. **独立接入策略和生命周期。** 迁移现有互斥模式，明确蜂窝／WiFi 自动连接和默认路由，
    保持逐模组故障隔离；真实硬件验证停止、注销、冷启动、重连和换卡。
-4. **高级呼叫与提醒。** 保持／恢复、自动接听留言、SIP INFO 兼容；RFC 4733 分机／peer
+4. **高级呼叫与提醒。** 保持／恢复、自动接听留言、通话录音、SIP INFO 兼容；RFC 4733 分机／peer
    跨腿已接入，见 [SIP 按键边界](SIP_DTMF.md)。继续统一首接与媒体所有权，操作未知不重发。
 5. **剩余双向管理差异与联合验收。** eSIM／USSD reader 矩阵、Go 自有任务／通知的 Windows
    等效能力、软电话／运营商真实双向媒体短信、构建发布与回滚。

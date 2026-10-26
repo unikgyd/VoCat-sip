@@ -86,7 +86,9 @@ func (m *Manager) Calls(id string) ([]vowifi.Call, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if e := m.entries[id]; e != nil && e.call != nil {
-		return []vowifi.Call{e.call.public}, nil
+		view := e.call.public
+		view.AnswerConfirmed = view.State == "active" && view.EndedAt == nil
+		return []vowifi.Call{view}, nil
 	}
 	return []vowifi.Call{}, nil
 }

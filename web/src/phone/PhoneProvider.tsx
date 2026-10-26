@@ -7,13 +7,14 @@ export interface PhoneCall {
   id: string; number: string; direction: string; state: string; mediaReady?: boolean;
   answeredAt?: string; startedAt: string; audioOwner: string; codec?: string; dtmfDigits?: string;
   canHold?: boolean; held?: boolean; holdPending?: boolean;
+  autoAnswerState?: string;
 }
 export interface PhoneLine { deviceId: string; name: string; ready: boolean; calls: PhoneCall[]; transport?: string }
 interface OwnedCall { deviceId: string; callId: string; token: string; audio: PhoneAudio }
 interface PhoneState {
   lines: PhoneLine[]; error: string; loading: boolean; busy: boolean; level: number; muted: boolean; audioState: string;
   owned: { deviceId: string; callId: string } | null;
-  act: (action: "dial" | "answer" | "hangup", line: string, target: string) => Promise<void>;
+  act: (action: "dial" | "answer" | "hangup" | "takeover", line: string, target: string) => Promise<void>;
   toggleMute: () => void; clearError: () => void;
   sendDTMF: (digit: string) => Promise<void>; dtmfBusy: boolean;
   setHold: (held: boolean) => Promise<void>; holdBusy: boolean;
@@ -95,7 +96,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     ring(); const timer = setInterval(ring, 3500); return () => clearInterval(timer);
   }, [chime, ringing]);
 
-  async function act(action: "dial" | "answer" | "hangup", deviceId: string, target: string) {
+  async function act(action: "dial" | "answer" | "hangup" | "takeover", deviceId: string, target: string) {
     if (pending.current) return;
     pending.current = true; setBusy(true); setError("");
     const abort = operation.current = new AbortController();

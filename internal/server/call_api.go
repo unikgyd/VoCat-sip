@@ -176,7 +176,7 @@ func (s *Server) handleCallAction(w http.ResponseWriter, r *http.Request, config
 				err = s.claimLocalSIPAnswer(config.ID, callID)
 			}
 			if err == nil {
-				result, err = controller.AnswerCall(r.Context(), config.ID, callID)
+				result, err = (sipCarrierBackend{s}).Answer(r.Context(), config.ID, callID)
 			}
 		case "hangup":
 			callID, err = resolveVoWiFiCallID(controller, config.ID, callID, "")

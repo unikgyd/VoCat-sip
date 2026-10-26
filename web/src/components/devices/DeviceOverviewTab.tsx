@@ -13,6 +13,7 @@ import { isVoWiFiInUse } from "./shared";
 import { EpdgDiscoveryPanel } from "./EpdgDiscoveryPanel";
 import { IMSLinePanel, OverviewHostIMSCard } from "./IMSLinePanel";
 import { selectedIMSMode } from "./imsLineModel";
+import { AutoAnswerPanel } from "./AutoAnswerPanel";
 
 export interface DeviceOverviewTabProps {
   device: DeviceDetail;
@@ -40,6 +41,7 @@ export function DeviceOverviewTab(props: DeviceOverviewTabProps) {
   return (
     <div className="space-y-4">
       <IMSLinePanel device={device} onUpdated={props.onRefresh} />
+      <AutoAnswerPanel device={device} />
       <div className={`grid grid-cols-1 gap-4 ${showNetworkDetails ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
         <div className="ui-panel-muted p-4">
           <div className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">{t("运行状态")}</div>

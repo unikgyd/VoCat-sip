@@ -30,8 +30,9 @@ export function CallCard({ line, call }: { line: PhoneLine; call: PhoneCall }) {
       <div className="flex justify-between text-xs text-gray-500"><span>{phone.muted ? t("麦克风已静音") : t("麦克风输入")}</span><span>{call.codec || "PCM 8 kHz"}</span></div>
       <div role="meter" aria-label={t("麦克风输入")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(1, phone.level * 5) * 100)} className="h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10"><div className="h-full bg-emerald-500 transition-[width]" style={{ width: `${Math.min(100, phone.level * 500)}%` }} /></div>
     </div>}
-    {!mine && call.audioOwner && <p className="mb-3 text-xs text-gray-500">{t(call.audioOwner === "sip" ? "由 SIP 分机接听" : "由其他网页接听")}</p>}
+    {!mine && call.audioOwner && <p className="mb-3 text-xs text-gray-500">{t(call.audioOwner === "auto_answer" ? "正在自动接听或播放留言" : call.audioOwner === "sip" ? "由 SIP 分机接听" : "由其他网页接听")}</p>}
     <div className="flex flex-wrap gap-2">
+      {!mine && call.audioOwner === "auto_answer" && (call.autoAnswerState === "playing" || call.autoAnswerState === "awaiting_takeover") && <Button variant="success" size="large" icon={<Phone size={16} />} loading={phone.busy} disabled={!!phone.owned} onClick={() => void phone.act("takeover", line.deviceId, call.id)}>{t("接管通话")}</Button>}
       {incoming && !call.audioOwner && <Button variant="success" size="large" icon={<Phone size={16} />} loading={phone.busy} disabled={!!phone.owned || !line.ready} onClick={() => void phone.act("answer", line.deviceId, call.id)}>{t("在本机接听")}</Button>}
       {mine && <Button size="large" icon={phone.muted ? <MicOff size={16} /> : <Mic size={16} />} onClick={phone.toggleMute}>{t(phone.muted ? "取消静音" : "静音")}</Button>}
       {mine && call.canHold && <Button size="large" icon={call.held ? <Play size={16} /> : <Pause size={16} />} loading={phone.holdBusy} disabled={phone.busy || phone.holdBusy || phone.dtmfBusy || call.holdPending} onClick={() => void phone.setHold(!call.held)}>{t(call.held ? "恢复通话" : "保持通话")}</Button>}

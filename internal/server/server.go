@@ -117,6 +117,9 @@ type Server struct {
 	cellularData              *cellularDataRuntime
 	sipGateway                *sipgateway.Manager
 	webPhone                  *webPhone
+	autoAnswer                *automaticAnswer
+	answerClaims              callAnswerClaims
+	callPromptImport          sync.Mutex
 	smsAPI                    *smsapi.Service
 }
 
@@ -191,6 +194,7 @@ func New(options Options) (*Server, error) {
 	server.loadLoggingConfig(context.Background())
 	server.sipGateway = sipgateway.New(context.Background(), options.Store, sipgateway.WithCarrierBackend(sipCarrierBackend{server}), sipgateway.WithCarrierSMSBackend(sipSMSBackend{server}))
 	server.webPhone = newWebPhone(server)
+	server.autoAnswer = newAutomaticAnswer(server)
 	server.smsAPI = smsapi.New(context.Background(), server.store)
 
 	mux := http.NewServeMux()
@@ -215,6 +219,9 @@ func New(options Options) (*Server, error) {
 // CloseSIPGateway releases the optional SIP and read-only SMS API services. It does not
 // reconfigure modems or wait for carrier registration to change.
 func (s *Server) CloseSIPGateway() {
+	if s.autoAnswer != nil {
+		s.autoAnswer.close()
+	}
 	if s.smsAPI != nil {
 		s.smsAPI.Close()
 	}

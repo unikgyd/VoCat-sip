@@ -497,6 +497,7 @@ type Call struct {
 	SIPCode          int        `json:"sip_code,omitempty"`
 	Reason           string     `json:"reason,omitempty"`
 	MediaReady       bool       `json:"media_ready,omitempty"`
+	AnswerConfirmed  bool       `json:"answer_confirmed,omitempty"`
 	SignalingPending bool       `json:"signaling_pending,omitempty"`
 	Codec            string     `json:"codec,omitempty"`
 	DTMFDigits       string     `json:"dtmf_digits,omitempty"`

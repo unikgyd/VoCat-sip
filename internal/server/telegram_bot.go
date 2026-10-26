@@ -1910,7 +1910,7 @@ func (bot *telegramBot) executeSimpleVoWiFiCallAction(ctx context.Context, devic
 		if err := bot.server.claimLocalSIPAnswer(deviceID, callID); err != nil {
 			return "", err
 		}
-		call, err := controller.AnswerCall(operationContext, deviceID, callID)
+		call, err := (sipCarrierBackend{bot.server}).Answer(operationContext, deviceID, callID)
 		if err != nil {
 			return "", err
 		}
