@@ -81,10 +81,10 @@ func TestCellularRegistrationDisablesDataBeforeProfileSwitch(t *testing.T) {
 				t.Fatal(err)
 			}
 			// Even if the target card normally uses data, it must not connect while switching.
-			if err := s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "test-card", NetworkEnabled: true, Source: "user"}); err != nil {
+			if err := s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "8901000000000000002", NetworkEnabled: true, Source: "user"}); err != nil {
 				t.Fatal(err)
 			}
-			config, _, _, _, err := s.ensureAutomaticTaskProfile(ctx, store.AutomaticTask{DeviceID: "dev1", ProfileICCID: "test-card", TaskType: "cellular_attach", Environment: "cellular"}, func(string) {})
+			config, _, _, _, err := s.ensureAutomaticTaskProfile(ctx, store.AutomaticTask{DeviceID: "dev1", ProfileICCID: "8901000000000000002", TaskType: "cellular_attach", Environment: "cellular"}, func(string) {})
 			if tc.wantError == "" {
 				if err != nil || config.NetworkEnabled {
 					t.Fatalf("config=%+v error=%v", config, err)
@@ -108,7 +108,7 @@ func TestCellularRegistrationDisablesDataBeforeProfileSwitch(t *testing.T) {
 			if status.DesiredEnabled != tc.wantEnabled || status.MaintenancePhase != "" {
 				t.Fatalf("runtime intent=%+v, want enabled=%v", status, tc.wantEnabled)
 			}
-			policy, err := s.store.CardPolicy(context.Background(), "test-card")
+			policy, err := s.store.CardPolicy(context.Background(), "8901000000000000002")
 			if err != nil || !policy.NetworkEnabled || policy.Source != "user" {
 				t.Fatalf("target saved policy changed: %+v, %v", policy, err)
 			}
