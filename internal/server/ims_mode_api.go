@@ -90,12 +90,12 @@ func (s *Server) handleIMSMode(w http.ResponseWriter, r *http.Request, config st
 		writeError(w, http.StatusBadRequest, "invalid_ims_mode", "mode must be module, vowifi or host_ims with an explicit enabled flag; module is not an IMS runtime")
 		return true
 	}
-	lock := s.imsModeLock(config.ID)
-	if !lock.TryLock() {
-		writeError(w, http.StatusConflict, "ims_busy", "a line operation or mode transition is in progress")
+	unlock, gateErr := s.acquireLineWrite(r.Context(), config.ID)
+	if gateErr != nil {
+		writeError(w, http.StatusConflict, "ims_busy", gateErr.Error())
 		return true
 	}
-	defer lock.Unlock()
+	defer unlock()
 	current, err := s.store.Device(r.Context(), config.ID)
 	if err != nil {
 		s.writeStoreError(w, err)

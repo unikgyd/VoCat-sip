@@ -114,6 +114,9 @@ func (s *Server) reconcileTelephonyLine(ctx context.Context, id, previous string
 		return "", false
 	}
 	defer gate.Unlock()
+	if err := s.store.RequireAutomaticTaskRecovered(ctx, id); err != nil {
+		return "", false
+	}
 	current, err := s.store.Device(ctx, id)
 	if err != nil || current.Telephony == nil {
 		return "", false
@@ -309,6 +312,14 @@ func (s *Server) startTelephonyAccess(ctx context.Context, config store.Device, 
 		if controller == nil {
 			failures = append(failures, fmt.Errorf("%s provider unavailable", access))
 			continue
+		}
+		if ensure, ok := controller.(interface {
+			Ensure(context.Context, string) error
+		}); ok {
+			if err := ensure.Ensure(ctx, config.ID); err != nil {
+				failures = append(failures, err)
+				continue
+			}
 		}
 		if desired, ok := controller.(interface{ DesiredEnabled(string) (bool, error) }); ok {
 			queued, err := desired.DesiredEnabled(config.ID)

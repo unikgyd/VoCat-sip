@@ -1056,6 +1056,13 @@ func configureVoWiFiRuntime(
 		return nil, err
 	}
 	for _, deviceConfig := range configured {
+		if err := database.RequireAutomaticTaskRecovered(ctx, deviceConfig.ID); err != nil {
+			if errors.Is(err, store.ErrAutomaticTaskRecoveryPending) {
+				continue
+			}
+			_ = manager.Close(context.Background())
+			return nil, err
+		}
 		if deviceConfig.Telephony == nil && store.HostIMSConfigured(deviceConfig) {
 			continue
 		}

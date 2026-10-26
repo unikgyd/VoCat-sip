@@ -60,12 +60,12 @@ func (s *Server) handleTelephonyPolicy(w http.ResponseWriter, r *http.Request, c
 		writeError(w, 400, "invalid_telephony_policy", err.Error())
 		return true
 	}
-	gate := s.imsModeLock(config.ID)
-	if !gate.TryLock() {
-		writeError(w, 409, "ims_busy", "a line operation is in progress")
+	unlock, gateErr := s.acquireLineWrite(r.Context(), config.ID)
+	if gateErr != nil {
+		writeError(w, 409, "ims_busy", gateErr.Error())
 		return true
 	}
-	defer gate.Unlock()
+	defer unlock()
 	current, err := s.store.Device(r.Context(), config.ID)
 	if err != nil {
 		s.writeStoreError(w, err)

@@ -12,6 +12,17 @@ import (
 )
 
 func (s *Server) requireAutomaticTaskCallsIdle(ctx context.Context, config store.Device) error {
+	// Startup deliberately leaves journaled lines disabled. Register inert
+	// entries before querying their call state; absence is not a cleanup ACK.
+	for _, access := range s.telephonyControllerAccesses(config) {
+		if ensure, ok := s.controllerForMode(access).(interface {
+			Ensure(context.Context, string) error
+		}); ok {
+			if err := ensure.Ensure(ctx, config.ID); err != nil {
+				return err
+			}
+		}
+	}
 	if err := s.requireModuleCallsIdle(ctx, config); err != nil {
 		return err
 	}

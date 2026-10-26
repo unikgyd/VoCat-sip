@@ -73,6 +73,14 @@ interface AutomaticTaskRun {
   error: string;
 }
 
+interface AutomaticTaskRecovery {
+  deviceId: string;
+  taskId: number;
+  phase: string;
+  active: boolean;
+  lastError: string;
+}
+
 interface TaskForm {
   id: number;
   name: string;
@@ -139,7 +147,7 @@ function formatDateTime(value?: string) {
 }
 
 function currentDeviceICCID(device?: DeviceListItem) {
-  return String(device?.modem?.iccid || device?.vowifiRuntime?.iccid || "").trim();
+  return String(device?.imsRuntime?.iccid || device?.modem?.iccid || device?.vowifiRuntime?.iccid || "").trim();
 }
 
 const fieldLabel = "mb-1.5 block text-sm font-semibold text-gray-700 dark:text-gray-200";
@@ -147,6 +155,7 @@ const fieldLabel = "mb-1.5 block text-sm font-semibold text-gray-700 dark:text-g
 export default function AutomaticTasksPage() {
   const { t } = useI18n();
   const [tasks, setTasks] = useState<AutomaticTask[]>([]);
+  const [recoveries, setRecoveries] = useState<AutomaticTaskRecovery[]>([]);
   const [runs, setRuns] = useState<AutomaticTaskRun[]>([]);
   const [runsTotal, setRunsTotal] = useState(0);
   const [runsPage, setRunsPage] = useState(1);
@@ -170,11 +179,12 @@ export default function AutomaticTasksPage() {
     if (initial) setLoading(true);
     try {
       const [taskData, deviceData, systemInfo] = await Promise.all([
-        api<{ tasks?: AutomaticTask[] }>("/automatic-tasks"),
+        api<{ tasks?: AutomaticTask[]; recoveries?: AutomaticTaskRecovery[] }>("/automatic-tasks"),
         api<DevicesResponse>("/devices"),
 		api<SystemInfo>("/system/info"),
       ]);
       setTasks(taskData.tasks || []);
+      setRecoveries(taskData.recoveries || []);
       setDevices(deviceData.devices || []);
 		setAdvancedTasksAvailable(!!systemInfo.developer);
     } catch (error) {
@@ -451,6 +461,19 @@ export default function AutomaticTasksPage() {
 		  : t("按周期使用指定 SIM 卡或切换到指定 eSIM Profile，并在设备串行队列中执行短信、通话或蜂窝注册任务")}
         actions={<Button variant="primary" icon={<AddRegular />} onClick={() => edit()} disabled={!devices.length}>{t("添加任务")}</Button>}
       />
+
+      {recoveries.length > 0 && (
+        <div className="ui-card mb-4 space-y-2 p-4" role="status" aria-live="polite">
+          <p className="font-semibold">{t("任务环境恢复")}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-300">{t("线路将在原设备、SIM 和通话清理确认后恢复；恢复期间新任务保持排队。重启不会重放通话或短信。")}</p>
+          {recoveries.map((recovery) => (
+            <div key={recovery.deviceId} className="flex flex-wrap items-center gap-2 text-sm">
+              <span>{deviceByID.get(recovery.deviceId)?.name || recovery.deviceId}</span>
+              <Tag>{t(recovery.active ? "任务执行或恢复中" : "等待确认恢复")}</Tag>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="ui-card overflow-hidden">
         <div className="overflow-x-auto">

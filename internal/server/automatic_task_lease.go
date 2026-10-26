@@ -11,17 +11,36 @@ var errTaskLeaseExpired = errors.New("the automatic task no longer owns this lin
 
 type automaticTaskLeaseKey struct{}
 type automaticTaskLease struct {
-	server *Server
-	id     string
+	server         *Server
+	id             string
+	finishRecovery func() error
 }
 
 func (s *Server) beginAutomaticTask(ctx context.Context, id string) (context.Context, func() error, error) {
+	return s.beginAutomaticTaskRecovery(ctx, id, "")
+}
+
+func (s *Server) beginAutomaticTaskRecovery(ctx context.Context, id, token string) (context.Context, func() error, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
 	gate := s.imsModeLock(id)
 	if !gate.TryLock() {
 		return nil, nil, errLineBusy
+	}
+	if s.store != nil {
+		if token == "" {
+			if err := s.store.RequireAutomaticTaskRecovered(ctx, id); err != nil {
+				gate.Unlock()
+				return nil, nil, err
+			}
+		} else {
+			pending, err := s.store.AutomaticTaskRecovery(ctx, id)
+			if err != nil || pending.Token != token {
+				gate.Unlock()
+				return nil, nil, errors.Join(err, errTaskLeaseExpired)
+			}
+		}
 	}
 	lease := &automaticTaskLease{server: s, id: id}
 	s.automaticTaskOwners.Store(id, lease)
@@ -38,7 +57,11 @@ func (s *Server) beginAutomaticTask(ctx context.Context, id string) (context.Con
 			done = append(done, worker.done)
 		}
 		runtime.mu.Unlock()
-		finish := func() {
+		finish := func() error {
+			var recoveryErr error
+			if lease.finishRecovery != nil {
+				recoveryErr = lease.finishRecovery()
+			}
 			runtime.mu.Lock()
 			if entry := runtime.entries[id]; entry != nil && entry.taskLease == lease {
 				entry.taskLease = nil
@@ -49,6 +72,7 @@ func (s *Server) beginAutomaticTask(ctx context.Context, id string) (context.Con
 			runtime.mu.Unlock()
 			s.automaticTaskOwners.Delete(id)
 			gate.Unlock()
+			return recoveryErr
 		}
 		cleanup, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
@@ -61,13 +85,12 @@ func (s *Server) beginAutomaticTask(ctx context.Context, id string) (context.Con
 					for _, child := range remaining {
 						<-child
 					}
-					finish()
+					_ = finish()
 				}(done[i:])
 				return errors.New("automatic task data workers are still releasing the line")
 			}
 		}
-		finish()
-		return nil
+		return finish()
 	}, nil
 }
 
@@ -91,5 +114,28 @@ func (s *Server) acquireLineRead(ctx context.Context, id string) (func(), error)
 	if !gate.TryRLock() {
 		return nil, errLineBusy
 	}
+	if s.store != nil {
+		if err := s.store.RequireAutomaticTaskRecovered(ctx, id); err != nil {
+			gate.RUnlock()
+			return nil, err
+		}
+	}
 	return gate.RUnlock, nil
+}
+
+func (s *Server) acquireLineWrite(ctx context.Context, id string) (func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	gate := s.imsModeLock(id)
+	if !gate.TryLock() {
+		return nil, errLineBusy
+	}
+	if s.store != nil {
+		if err := s.store.RequireAutomaticTaskRecovered(ctx, id); err != nil {
+			gate.Unlock()
+			return nil, err
+		}
+	}
+	return gate.Unlock, nil
 }

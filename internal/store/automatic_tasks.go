@@ -235,6 +235,18 @@ const automaticTaskRunSelect = `
 		status, attempts, output, error, created_at, updated_at
 	FROM automatic_task_runs`
 
+// Limit each device separately so a blocked line cannot starve the fleet.
+func (s *Store) ListQueuedAutomaticTaskRuns(ctx context.Context) ([]AutomaticTaskRun, error) {
+	rows, err := s.db.QueryContext(ctx, automaticTaskRunSelect+` WHERE id IN (
+		SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY device_id ORDER BY id) AS position
+			FROM automatic_task_runs WHERE status = 'queued') WHERE position <= 100
+	) ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	return scanAutomaticTaskRuns(rows)
+}
+
 func (s *Store) ListAutomaticTaskRuns(ctx context.Context, limit int) ([]AutomaticTaskRun, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100

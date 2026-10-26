@@ -512,12 +512,12 @@ func (s *Server) handleDevicePath(
 	if len(tail) == 0 {
 		switch r.Method {
 		case http.MethodDelete:
-			lock := s.imsModeLock(id)
-			if !lock.TryLock() {
-				writeError(w, http.StatusConflict, "ims_busy", "a line operation is in progress")
+			unlock, gateErr := s.acquireLineWrite(r.Context(), id)
+			if gateErr != nil {
+				writeError(w, http.StatusConflict, "ims_busy", gateErr.Error())
 				return true
 			}
-			defer lock.Unlock()
+			defer unlock()
 			config, err = s.store.Device(r.Context(), id)
 			if err != nil {
 				s.writeStoreError(w, err)
@@ -555,12 +555,12 @@ func (s *Server) handleDevicePath(
 				"data": map[string]any{"deleted": true, "physical_device_untouched": true},
 			})
 		case http.MethodPut:
-			lock := s.imsModeLock(id)
-			if !lock.TryLock() {
-				writeError(w, http.StatusConflict, "ims_busy", "a line operation is in progress")
+			unlock, gateErr := s.acquireLineWrite(r.Context(), id)
+			if gateErr != nil {
+				writeError(w, http.StatusConflict, "ims_busy", gateErr.Error())
 				return true
 			}
-			defer lock.Unlock()
+			defer unlock()
 			config, err = s.store.Device(r.Context(), id)
 			if err != nil {
 				s.writeStoreError(w, err)
@@ -1213,7 +1213,7 @@ func (s *Server) writeVoWiFiError(w http.ResponseWriter, err error) {
 		"raw_error", err,
 	)
 	switch {
-	case errors.Is(err, errLineBusy), errors.Is(err, errTaskLeaseExpired):
+	case errors.Is(err, errLineBusy), errors.Is(err, errTaskLeaseExpired), errors.Is(err, store.ErrAutomaticTaskRecoveryPending):
 		writeError(w, http.StatusConflict, "line_busy", err.Error())
 	case errors.Is(err, vowifiruntime.ErrNotRegistered):
 		writeError(w, http.StatusServiceUnavailable, "vowifi_device_unavailable", "the configured device has no VoWiFi runtime")
@@ -1937,7 +1937,7 @@ func (s *Server) writeDeviceError(w http.ResponseWriter, err error) {
 		"raw_error", device.HardwareErrorDetail(err),
 	)
 	switch {
-	case errors.Is(err, errLineBusy), errors.Is(err, errTaskLeaseExpired):
+	case errors.Is(err, errLineBusy), errors.Is(err, errTaskLeaseExpired), errors.Is(err, store.ErrAutomaticTaskRecoveryPending):
 		writeError(w, http.StatusConflict, "line_busy", err.Error())
 	case errors.Is(err, modulecall.ErrBusy):
 		writeError(w, http.StatusConflict, "module_call_busy", "the module has an owned call; finish its cleanup before maintenance")

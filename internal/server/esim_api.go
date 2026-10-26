@@ -29,12 +29,12 @@ func (s *Server) handleESIM(w http.ResponseWriter, r *http.Request, rest []strin
 	if len(configuredIDs) > 0 && strings.TrimSpace(configuredIDs[0]) != "" {
 		configuredID = strings.TrimSpace(configuredIDs[0])
 	}
-	gate := s.imsModeLock(configuredID)
-	if !gate.TryLock() {
-		writeError(w, 409, "ims_busy", "a line operation is in progress")
+	unlock, gateErr := s.acquireLineWrite(r.Context(), configuredID)
+	if gateErr != nil {
+		writeError(w, 409, "ims_busy", gateErr.Error())
 		return true
 	}
-	defer gate.Unlock()
+	defer unlock()
 	if s.store != nil {
 		config, err := s.store.Device(r.Context(), configuredID)
 		if err != nil {

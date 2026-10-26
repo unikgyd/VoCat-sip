@@ -573,6 +573,18 @@ func migrationStatements(version int) []string {
 			revision TEXT NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`}
+	case 32:
+		// Cleanup must survive deletion of the task or its execution history.
+		// Deliberately no task/device foreign key or cascading delete.
+		return []string{`CREATE TABLE automatic_task_recoveries (
+			device_id TEXT PRIMARY KEY NOT NULL,
+			token TEXT NOT NULL UNIQUE,
+			task_id INTEGER NOT NULL,
+			phase TEXT NOT NULL,
+			payload_json TEXT NOT NULL,
+			last_error TEXT NOT NULL DEFAULT '',
+			updated_at INTEGER NOT NULL
+		)`}
 	default:
 		return nil
 	}

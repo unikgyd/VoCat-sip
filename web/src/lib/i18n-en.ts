@@ -5,6 +5,10 @@
  * 富文本片段（嵌套链接/代码块的说明框）不走字典，在组件里按语言分支渲染。
  */
 export const EN_DICT: Record<string, string> = {
+  "任务环境恢复": "Task environment restoration",
+  "线路将在原设备、SIM 和通话清理确认后恢复；恢复期间新任务保持排队。重启不会重放通话或短信。": "The line restores after its original device, SIM and call cleanup are confirmed. New tasks stay queued during restoration. Restarting never replays calls or SMS.",
+  "任务执行或恢复中": "Task running or restoring",
+  "等待确认恢复": "Waiting for confirmed restoration",
   "模组语音可连接": "Module voice can connect",
   "模组语音未就绪": "Module voice is not ready",
   "支持已注册的 IMS 和已配对 USB 音频的模组线路。关闭网页或音频断开会结束本机接管的通话；后台休眠不保证收到提醒。": "Supports registered IMS and module lines with paired USB audio. Closing the page or losing audio ends the call owned by this browser; background sleep may prevent alerts.",

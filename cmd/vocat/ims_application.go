@@ -89,6 +89,12 @@ func configureHostIMSRuntime(ctx context.Context, logger *slog.Logger, database 
 		if !store.HostIMSConfigured(config) {
 			continue
 		}
+		if err := database.RequireAutomaticTaskRecovered(ctx, config.ID); err != nil {
+			if errors.Is(err, store.ErrAutomaticTaskRecoveryPending) {
+				continue
+			}
+			return manager, closeAll, err
+		}
 		if err := manager.Ensure(ctx, config.ID); err != nil {
 			return manager, closeAll, err
 		}
@@ -129,6 +135,10 @@ func lockIMSLineRead(ctx context.Context, database *store.Store, id string) (sto
 	gate := linelock.For(id)
 	if !gate.TryRLock() {
 		return store.Device{}, nil, errors.New("a line operation is in progress")
+	}
+	if err := database.RequireAutomaticTaskRecovered(ctx, id); err != nil {
+		gate.RUnlock()
+		return store.Device{}, nil, err
 	}
 	config, err := database.Device(ctx, id)
 	if err != nil {
@@ -212,6 +222,12 @@ func lockLegacyPhysicalRead(ctx context.Context, database *store.Store, inventor
 	unlock := func() {
 		for i := len(ids) - 1; i >= 0; i-- {
 			linelock.For(ids[i]).RUnlock()
+		}
+	}
+	for _, id := range ids {
+		if err := database.RequireAutomaticTaskRecovered(ctx, id); err != nil {
+			unlock()
+			return nil, false
 		}
 	}
 	configs, err = database.ListDevices(ctx)

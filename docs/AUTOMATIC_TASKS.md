@@ -38,7 +38,35 @@ than overwriting a newer APN/settings edit with an old snapshot; normal SIM
 reconciliation also notices a leftover temporary policy after the task releases
 its gate.
 
-Remaining work includes durable restoration/revert journals across process
-restart, complete Host IMS task handover, and the final failure/cancellation,
-multi-modem, frontend and build verification. Real firmware acceptance remains
-separate from software checks.
+Schema 32 adds a private restoration journal before the first access stop,
+RF/data change or profile switch. It records original/target card policies,
+task-owned device settings and stable hardware evidence. It excludes the
+business payload, SIM PINs and proxy credentials. Task/history deletion does not
+cascade into cleanup state. Updates and deletion match a random ownership token;
+the row clears only after restoration and all task data workers have exited.
+
+Restart recovery fails interrupted running jobs and only restores their
+environment. It never repeats a call or SMS. A known original/target ICCID and
+the original hardware must be observed; requested profile reversion additionally
+requires the saved eUICC EID. An uncertain LPA response is judged by fresh ICCID
+readback. Unknown calls, foreign data bearers, replacement cards or incomplete
+cleanup keep the recovery record pending. New work on that line returns busy,
+and queued tasks wait; other devices keep their independent queues. Full queues
+refill from SQLite instead of blocking the fleet scheduler or dropping jobs.
+
+Journaled lines do not auto-enable temporary preferences at startup. The normal
+SIM reconciler, legacy maintenance, data work and manual lifecycle writers all
+honor the durable fence. The task page shows active or pending restoration;
+private journal payloads and tokens are excluded from API responses.
+
+Host IMS tasks observe the original SIM through its metadata owner, acknowledge
+IMS/bearer cleanup, and only then expose temporary module/VoWiFi task access.
+The task changes only the active independent-access projection; durable per-SIM
+preferences stay intact. Restoration merges task-owned fields into the current
+device row, recreates inert controller entries as needed and queues the saved
+access intent. Carrier registration is still asynchronous. A retained Host IMS
+claim cannot be assumed released merely because the process restarted.
+
+Remaining work is the final failure/restart/cancellation, multi-modem, frontend
+and build verification, alongside the remaining management integration review.
+Real firmware acceptance remains separate from software checks.

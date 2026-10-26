@@ -51,6 +51,7 @@ func (s *Server) prepareIndependentTaskEnvironment(ctx context.Context, config *
 		}
 		progress("正在准备独立 Wi-Fi 通话执行环境")
 		policy.AutoConnectWiFi = true
+		policy.CellularMode = store.IMSModeModule
 		policy.AutoConnectCellular = false
 		policy.WiFiRadioPolicy = "exclusive"
 		policy.DefaultRoute = store.IMSModeVoWiFi
