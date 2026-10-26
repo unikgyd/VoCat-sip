@@ -14,6 +14,10 @@ func openQMIDataSession(context.Context, string) (qmiDataSession, error) {
 
 func invalidateQMINetworkSession(*managedDevice, modem.Candidate) {}
 
+func (manager *Manager) stopOwnedQMINetwork(context.Context, *managedDevice, *ownedNetwork) error {
+	return ErrDataBackendUnavailable
+}
+
 func (manager *Manager) NetworkStatus(context.Context, string) (NetworkStatus, error) {
 	return NetworkStatus{}, ErrDataBackendUnavailable
 }

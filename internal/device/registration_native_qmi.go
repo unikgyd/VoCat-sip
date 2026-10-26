@@ -138,24 +138,43 @@ func (manager *Manager) startNativeQMIRegistrationReconcile(id string, origins .
 	}
 	// Preserve only binding evidence, not the browser request's lifetime.
 	workerRoot := guard.context(context.Background())
+	workerContext, cancelWorker := context.WithTimeout(workerRoot, nativeQMIRegistrationBackgroundTimeout)
 	manager.nativeQMIRegistrationMu.Lock()
-	if _, running := manager.nativeQMIRegistrationInFlight[id]; running {
+	if manager.validateActive(id, state) != nil {
 		manager.nativeQMIRegistrationMu.Unlock()
+		cancelWorker()
 		return false
 	}
+	if _, running := manager.nativeQMIRegistrationInFlight[id]; running {
+		manager.nativeQMIRegistrationMu.Unlock()
+		cancelWorker()
+		return false
+	}
+	if manager.nativeQMIRegistrationCancel == nil {
+		manager.nativeQMIRegistrationCancel = make(map[string]context.CancelFunc)
+	}
+	manager.nativeQMIRegistrationCancel[id] = cancelWorker
 	manager.nativeQMIRegistrationInFlight[id] = struct{}{}
 	manager.nativeQMIRegistrationMu.Unlock()
 	go func() {
+		defer cancelWorker()
 		defer func() {
 			manager.nativeQMIRegistrationMu.Lock()
 			delete(manager.nativeQMIRegistrationInFlight, id)
+			delete(manager.nativeQMIRegistrationCancel, id)
 			manager.nativeQMIRegistrationMu.Unlock()
 		}()
-		ctx, cancel := context.WithTimeout(workerRoot, nativeQMIRegistrationBackgroundTimeout)
-		defer cancel()
-		_, _ = manager.ReRegisterOperator(ctx, id)
+		_, _ = manager.ReRegisterOperator(workerContext, id)
 	}()
 	return true
+}
+
+func (manager *Manager) cancelNativeQMIRegistration(id string) {
+	manager.nativeQMIRegistrationMu.Lock()
+	if cancel := manager.nativeQMIRegistrationCancel[id]; cancel != nil {
+		cancel()
+	}
+	manager.nativeQMIRegistrationMu.Unlock()
 }
 
 func qmiOperatorSelectionFromPreference(pref *qmi.SystemSelectionPreference) (OperatorSelection, error) {

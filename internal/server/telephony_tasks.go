@@ -41,6 +41,9 @@ func (s *Server) prepareIndependentTaskEnvironment(ctx context.Context, config *
 	if err := s.stopTelephonyAccess(ctx, *config); err != nil {
 		return err
 	}
+	if err := s.quiesceOwnedData(ctx, *config); err != nil {
+		return fmt.Errorf("stop original data before preparing task: %w", err)
+	}
 	policy := *config.Telephony
 	if task.Environment == "vowifi" {
 		if task.TaskType == "public_ip" {
@@ -61,7 +64,12 @@ func (s *Server) prepareIndependentTaskEnvironment(ctx context.Context, config *
 	if err := s.store.UpsertDevice(ctx, *config); err != nil {
 		return err
 	}
-	if err := s.startTelephonyAccess(ctx, *config, physical); err != nil {
+	activation := *config
+	activation.NetworkEnabled = false // data starts only after task registration is ready
+	if task.Environment == "vowifi" {
+		s.cellularDataRuntime().resume(config.ID)
+	}
+	if err := s.startTelephonyAccess(ctx, activation, physical); err != nil {
 		return err
 	}
 	if task.Environment == "vowifi" {
@@ -76,6 +84,7 @@ func (s *Server) prepareIndependentTaskEnvironment(ctx context.Context, config *
 	if err := s.waitAutomaticCellular(ctx, physical, task.TaskType == "public_ip"); err != nil {
 		return err
 	}
+	s.cellularDataRuntime().resume(config.ID)
 	if task.TaskType == "public_ip" {
 		card, err := s.store.CardPolicy(ctx, policy.ICCID)
 		if err != nil {
@@ -97,6 +106,9 @@ func (s *Server) restoreIndependentTaskEnvironment(ctx context.Context, physical
 	if err := s.stopTelephonyAccess(ctx, current); err != nil {
 		return err
 	}
+	if err := s.quiesceOwnedData(ctx, current); err != nil {
+		return fmt.Errorf("stop temporary task data before restoring access: %w", err)
+	}
 	identity, err := s.observedTelephonySubscription(ctx, current)
 	if err != nil || identity.ICCID != config.Telephony.ICCID {
 		return errors.New("task restoration subscription could not be verified")
@@ -105,10 +117,11 @@ func (s *Server) restoreIndependentTaskEnvironment(ctx context.Context, physical
 	if err := s.store.SaveTelephonyPolicy(ctx, config, *config.Telephony, card); err != nil {
 		return err
 	}
+	s.cellularDataRuntime().resume(config.ID)
 	if err := s.startTelephonyAccess(ctx, config, physical); err != nil {
 		return err
 	}
-	if !store.HostIMSConfigured(config) {
+	if !store.HostIMSConfigured(config) && config.NetworkEnabled {
 		if _, err := s.applyCellularData(ctx, config.ID, physical, s.cardNetworkRequest(ctx, physical, config, card, config.NetworkEnabled)); err != nil {
 			return fmt.Errorf("restore saved cellular data intent: %w", err)
 		}

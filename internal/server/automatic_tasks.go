@@ -221,6 +221,15 @@ func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticT
 				err = errors.Join(err, fmt.Errorf("stop access before restoring profile: %w", stopErr))
 				return
 			}
+			if current, readErr := s.store.Device(cleanupContext, task.DeviceID); readErr != nil {
+				err = errors.Join(err, readErr)
+				return
+			} else if current.Telephony != nil {
+				if stopErr := s.quiesceOwnedData(cleanupContext, current); stopErr != nil {
+					err = errors.Join(err, fmt.Errorf("stop task data before restoring profile: %w", stopErr))
+					return
+				}
+			}
 			_, _ = s.devices.SetFlight(cleanupContext, physicalID, true)
 			if switchBackErr := s.devices.ESIMSwitchProfile(cleanupContext, physicalID, revertState.initialICCID, revertState.initialAID); switchBackErr != nil {
 				s.logger.Warn("automatic task failed to revert to initial profile", "device_id", task.DeviceID, "initial_iccid", revertState.initialICCID, "error", switchBackErr)
@@ -335,6 +344,9 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 		if err := s.stopTelephonyAccess(ctx, config); err != nil {
 			return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, err
 		}
+		if err := s.quiesceOwnedData(ctx, config); err != nil {
+			return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, fmt.Errorf("stop original data before task profile switch: %w", err)
+		}
 	}
 
 	var initialAID string
@@ -432,6 +444,7 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 		if err := s.store.SaveTelephonyPolicy(ctx, config, policy, card); err != nil {
 			return store.Device{}, device.Device{}, "", revertState, err
 		}
+		s.cellularDataRuntime().resume(config.ID)
 	}
 	return config, entry, physicalID, revertState, nil
 }

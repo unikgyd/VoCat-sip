@@ -144,6 +144,11 @@ type cellularDataRuntimeEntry struct {
 	probeFailures int
 }
 
+type cellularDataWorker struct {
+	done   chan struct{}
+	cancel context.CancelFunc // runtime.mu; includes superseded entry workers
+}
+
 // The monitor is deliberately a control-plane/host-plane check. It never
 // sends a user-plane request, so a healthy session does not consume carrier
 // data merely because VoCat is keeping it alive.
@@ -166,6 +171,9 @@ type cellularDataRuntime struct {
 	logger                *slog.Logger
 	onConnected           cellularDataConnectedCallback
 	entries               map[string]*cellularDataRuntimeEntry
+	workers               map[string]map[*cellularDataWorker]struct{}
+	quiescing             map[string]bool
+	physicalTargets       map[string]map[string]struct{}
 	nextSessionGeneration uint64
 }
 
@@ -176,7 +184,10 @@ func newCellularDataRuntime(setter cellularNetworkSetter, logger *slog.Logger, c
 	}
 	return &cellularDataRuntime{
 		root: context.Background(), setter: setter, logger: logger, onConnected: onConnected,
-		entries: make(map[string]*cellularDataRuntimeEntry),
+		entries:         make(map[string]*cellularDataRuntimeEntry),
+		workers:         make(map[string]map[*cellularDataWorker]struct{}),
+		quiescing:       make(map[string]bool),
+		physicalTargets: make(map[string]map[string]struct{}),
 	}
 }
 
@@ -206,15 +217,41 @@ func (setter imsAwareNetworkSetter) SetNetwork(ctx context.Context, physicalID s
 			continue
 		}
 		lock := s.imsModeLock(candidate.ID)
-		lock.RLock()
+		if err := lockDataLineRead(ctx, lock); err != nil {
+			return device.NetworkResult{}, err
+		}
 		defer lock.RUnlock()
 		current, err := s.store.Device(ctx, candidate.ID)
 		if err != nil {
 			return device.NetworkResult{}, err
 		}
 		_, resolved, present = s.physicalForConfig(current)
-		if !present || resolved != physicalID || store.HostIMSConfigured(current) {
+		if !present || resolved != physicalID || request.Enabled && store.HostIMSConfigured(current) {
 			return device.NetworkResult{}, device.ErrDataBackendUnavailable
+		}
+		if current.Telephony != nil || store.HostIMSConfigured(current) {
+			if !request.Enabled {
+				owner, ok := s.devices.(ownedNetworkController)
+				if !ok {
+					return device.NetworkResult{}, device.ErrDataBackendUnavailable
+				}
+				return device.NetworkResult{}, owner.StopOwnedNetwork(ctx, physicalID)
+			}
+			if current.Telephony == nil {
+				return device.NetworkResult{}, device.ErrDataBackendUnavailable
+			}
+			origin, ok := ctx.Value(cellularDataIdentityKey{}).(cellularDataIdentity)
+			identity, err := s.observedTelephonySubscription(ctx, current)
+			if !ok || origin.config != current.ID || origin.physical != physicalID || origin.iccid == "" || origin.iccid != current.Telephony.ICCID || err != nil || identity.ICCID != origin.iccid {
+				return device.NetworkResult{}, device.ErrSIMObservation
+			}
+			bound, ok := s.devices.(interface {
+				SetNetworkForSIM(context.Context, string, string, string, device.NetworkRequest) (device.NetworkResult, error)
+			})
+			if !ok {
+				return device.NetworkResult{}, device.ErrDataBackendUnavailable
+			}
+			return bound.SetNetworkForSIM(ctx, physicalID, identity.ICCID, identity.IMSI, request)
 		}
 		return s.devices.SetNetwork(ctx, physicalID, request)
 	}
@@ -225,7 +262,7 @@ func (s *Server) legacyDataOwnerBusy(id string) bool {
 	runtime.mu.Lock()
 	defer runtime.mu.Unlock()
 	entry := runtime.entries[id]
-	return entry != nil && (entry.running || entry.status.Connected || entry.status.Phase == "failed" || entry.session != nil && entry.session.phase != cellularDataSessionClosed)
+	return runtime.quiescing[id] || len(runtime.workers[id]) != 0 || entry != nil && (entry.running || entry.status.Connected || entry.status.Phase == "failed" || entry.session != nil && entry.session.phase != cellularDataSessionClosed)
 }
 
 func (runtime *cellularDataRuntime) start(ctx context.Context) {
@@ -340,6 +377,12 @@ func (s *Server) restoreLegacyCellularDataForDevice(ctx context.Context, id, phy
 	entry, physicalID, present := s.physicalForConfig(config)
 	if !present || entry.Snapshot == nil || physicalFilter != "" && physicalID != physicalFilter {
 		return
+	}
+	if config.Telephony != nil {
+		identity, err := s.observedTelephonySubscription(ctx, config)
+		if err != nil || identity.ICCID == "" || identity.ICCID != config.Telephony.ICCID {
+			return
+		}
 	}
 	request := s.cellularNetworkRequest(ctx, config, entry.Snapshot)
 	request.Enabled = config.NetworkEnabled
@@ -458,6 +501,13 @@ func (s *Server) monitorCellularDataForDevice(ctx context.Context, observer cell
 	request := s.cellularNetworkRequest(ctx, config, entry.Snapshot)
 	request.Enabled = true
 	identity := strings.TrimSpace(entry.Snapshot.ICCID)
+	if config.Telephony != nil {
+		observed, err := s.observedTelephonySubscription(ctx, config)
+		if err != nil || observed.ICCID != config.Telephony.ICCID || observed.ICCID == "" {
+			return // subscription reconciliation owns cleanup and replacement
+		}
+		identity = observed.ICCID
+	}
 	if runtime.sessionIdentityChanged(config.ID, status.Revision, identity) {
 		runtime.invalidateWithMaintenancePhase(config.ID, true, "recovering", "active ICCID/Profile changed", "profile_changed")
 		runtime.requestWithIdentity(config.ID, resolvedPhysicalID, request, identity)
@@ -544,6 +594,12 @@ func (runtime *cellularDataRuntime) requestLocked(
 	identity string,
 ) cellularDataRuntimeStatus {
 	entry := runtime.entries[configID]
+	if runtime.quiescing[configID] {
+		if entry != nil {
+			return entry.status
+		}
+		return cellularDataRuntimeStatus{Phase: "failed", MaintenancePhase: "data_cleanup_pending", LastError: "previous data ownership cleanup is pending"}
+	}
 	if entry == nil {
 		entry = &cellularDataRuntimeEntry{
 			status:  cellularDataRuntimeStatus{Phase: "unknown"},
@@ -552,15 +608,19 @@ func (runtime *cellularDataRuntime) requestLocked(
 		runtime.entries[configID] = entry
 	}
 	entry.physicalID = physicalID
+	if runtime.physicalTargets == nil {
+		runtime.physicalTargets = make(map[string]map[string]struct{})
+	}
+	if runtime.physicalTargets[configID] == nil {
+		runtime.physicalTargets[configID] = make(map[string]struct{})
+	}
+	runtime.physicalTargets[configID][physicalID] = struct{}{}
 	entry.request = request
 	if identity == "" {
 		identity = entry.identity
 	}
 	if identity != "" {
 		entry.identity = identity
-	}
-	if identity != "" && entry.session != nil {
-		entry.session.identity = identity
 	}
 	entry.status.DesiredEnabled = request.Enabled
 	entry.status.Revision++
@@ -577,9 +637,6 @@ func (runtime *cellularDataRuntime) requestLocked(
 			// returning. Keep the old session in closing until the worker has
 			// observed that operation's completion; run() will then create the
 			// new session before replaying the enable request.
-			if identity != "" {
-				entry.session.identity = identity
-			}
 		}
 		entry.status.Phase = "starting"
 	} else {
@@ -591,7 +648,15 @@ func (runtime *cellularDataRuntime) requestLocked(
 	}
 	if !entry.running {
 		entry.running = true
-		go runtime.run(configID, entry)
+		if runtime.workers == nil {
+			runtime.workers = make(map[string]map[*cellularDataWorker]struct{})
+		}
+		if runtime.workers[configID] == nil {
+			runtime.workers[configID] = make(map[*cellularDataWorker]struct{})
+		}
+		worker := &cellularDataWorker{done: make(chan struct{})}
+		runtime.workers[configID][worker] = struct{}{}
+		go runtime.run(configID, entry, worker)
 	}
 	runtime.signalLocked(entry)
 	return entry.status
@@ -975,7 +1040,16 @@ func (runtime *cellularDataRuntime) isCurrent(configID string, revision uint64, 
 	return entry != nil && entry.status.Revision == revision && entry.status.Phase == phase
 }
 
-func (runtime *cellularDataRuntime) run(configID string, entry *cellularDataRuntimeEntry) {
+func (runtime *cellularDataRuntime) run(configID string, entry *cellularDataRuntimeEntry, worker *cellularDataWorker) {
+	defer func() {
+		runtime.mu.Lock()
+		delete(runtime.workers[configID], worker)
+		if len(runtime.workers[configID]) == 0 {
+			delete(runtime.workers, configID)
+		}
+		close(worker.done)
+		runtime.mu.Unlock()
+	}()
 	for {
 		runtime.mu.Lock()
 		current := runtime.entries[configID]
@@ -983,7 +1057,7 @@ func (runtime *cellularDataRuntime) run(configID string, entry *cellularDataRunt
 			runtime.mu.Unlock()
 			return
 		}
-		if entry.status.MaintenancePhase != "" {
+		if entry.status.MaintenancePhase != "" || runtime.quiescing[configID] {
 			entry.running = false
 			entry.cancel = nil
 			runtime.mu.Unlock()
@@ -1008,6 +1082,8 @@ func (runtime *cellularDataRuntime) run(configID string, entry *cellularDataRunt
 			operationTimeout = 30 * time.Second
 		}
 		operationContext, cancel := context.WithTimeout(root, operationTimeout)
+		operationContext = context.WithValue(operationContext, cellularDataIdentityKey{}, cellularDataIdentity{config: configID, physical: physicalID, iccid: entry.identity})
+		worker.cancel = cancel
 		entry.cancel = cancel
 		runtime.mu.Unlock()
 		if closingWatchdog != nil {

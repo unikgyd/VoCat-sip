@@ -768,6 +768,9 @@ func (manager *Manager) setNativeQMIFlight(
 		}
 	}
 	manager.updateSnapshotMode(id, state, current)
+	if currentRadioOff && state.dataOwner != nil && manager.ownedNetworkPhysicalCurrent(state, state.dataOwner) {
+		state.dataOwner.radioStopped = true
+	}
 	if !enabled && !currentRadioOff {
 		// DMS Online is only the radio half of the recovery. Continue with a
 		// background NAS registration/PS-attach reconcile after the flight-mode

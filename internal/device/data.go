@@ -200,6 +200,9 @@ func (manager *Manager) SetNetwork(
 	id string,
 	request NetworkRequest,
 ) (NetworkResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	state, err := manager.lookup(id)
 	if err != nil {
 		return NetworkResult{}, err
@@ -237,12 +240,19 @@ func (manager *Manager) SetNetwork(
 		// not hold opMu while an external QMI transaction is in flight: a stale
 		// WDS client may take seconds to time out, and blocking opMu here also
 		// blocks SMS synchronization, IMS status and ordinary health probes.
-		state.dataMu.Lock()
+		if err := lockMutexContext(ctx, &state.dataMu); err != nil {
+			return NetworkResult{}, err
+		}
 		defer state.dataMu.Unlock()
 		if err := manager.validateActive(id, state); err != nil {
 			return NetworkResult{}, err
 		}
 		candidate = manager.candidateFor(state)
+		guard, err := manager.newSIMWriteGuard(ctx, candidate)
+		if err != nil {
+			return NetworkResult{}, err
+		}
+		ctx = guard.context(ctx)
 		if request.Enabled {
 			if err := manager.regionBlockError(state); err != nil {
 				return NetworkResult{}, err
@@ -289,7 +299,9 @@ func (manager *Manager) SetNetwork(
 		return result, err
 	}
 
-	state.opMu.Lock()
+	if err := lockMutexContext(ctx, &state.opMu); err != nil {
+		return NetworkResult{}, err
+	}
 	defer state.opMu.Unlock()
 	if err := manager.validateActive(id, state); err != nil {
 		return NetworkResult{}, err
@@ -301,6 +313,14 @@ func (manager *Manager) SetNetwork(
 		}
 	}
 	candidate = manager.candidateFor(state)
+	if err := lockMutexContext(ctx, &state.dataMu); err != nil {
+		return NetworkResult{}, err
+	}
+	defer state.dataMu.Unlock()
+	guard, err := manager.newSIMWriteGuard(ctx, candidate)
+	if err != nil {
+		return NetworkResult{}, err
+	}
 
 	client, err := manager.clientLocked(ctx, state, candidate)
 	if err != nil {
@@ -308,6 +328,22 @@ func (manager *Manager) SetNetwork(
 		return NetworkResult{}, err
 	}
 	if request.Enabled {
+		if guard != nil && guard.binding.iccid == "" {
+			// Legacy configuration still needs an original-SIM cleanup identity.
+			// Treat its cached value only as a constraint and verify it live below.
+			manager.mu.RLock()
+			if state.snapshot != nil {
+				guard.binding.iccid, guard.binding.imsi = strings.TrimSpace(state.snapshot.ICCID), strings.TrimSpace(state.snapshot.IMSI)
+			}
+			manager.mu.RUnlock()
+		}
+		if state.dataOwner != nil && (state.dataOwner.backend != "at" || !sameSIMWritePhysical(state.dataOwner.candidate, candidate) || state.dataOwner.guard != nil && guard != nil && state.dataOwner.guard.binding.iccid != guard.binding.iccid) {
+			return NetworkResult{}, ErrDataCleanupPending
+		}
+		if err := guard.verify(ctx, atSIMWriteReader{client}, true); err != nil {
+			return NetworkResult{}, err
+		}
+		state.dataOwner = &ownedNetwork{candidate: copyCandidate(candidate), backend: "at", guard: guard}
 		type networkCommand struct {
 			value     string
 			sensitive bool
@@ -327,6 +363,9 @@ func (manager *Manager) SetNetwork(
 			networkCommand{value: "AT+CGACT=1,1"},
 		)
 		for _, command := range commands {
+			if err := guard.verify(ctx, atSIMWriteReader{client}, true); err != nil {
+				return NetworkResult{}, err
+			}
 			var err error
 			if command.sensitive {
 				_, err = manager.sensitiveCommand(ctx, client, command.value)
@@ -339,10 +378,14 @@ func (manager *Manager) SetNetwork(
 			}
 		}
 	} else {
+		if err := guard.verify(ctx, atSIMWriteReader{client}, false); err != nil {
+			return NetworkResult{}, err
+		}
 		if _, err := manager.command(ctx, client, "AT+CGACT=0,1"); err != nil {
 			manager.setResult(id, state, nil, err)
 			return NetworkResult{}, err
 		}
+		state.dataOwner = nil
 	}
 	manager.setResult(id, state, nil, nil)
 	return NetworkResult{

@@ -277,6 +277,9 @@ func (manager *Manager) SetFlight(
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if enabled {
+		manager.cancelNativeQMIRegistration(id)
+	}
 	state, err := manager.lookup(id)
 	if err != nil {
 		return FlightResult{}, err
@@ -291,6 +294,13 @@ func (manager *Manager) SetFlight(
 	if err := manager.requireNoModuleVoice(state); err != nil {
 		return FlightResult{}, err
 	}
+	if enabled {
+		manager.cancelNativeQMIRegistration(id)
+	}
+	if err := lockMutexContext(ctx, &state.dataMu); err != nil {
+		return FlightResult{}, err
+	}
+	defer state.dataMu.Unlock()
 	admission, err := manager.newSIMWriteGuard(ctx, manager.candidateFor(state))
 	if err != nil {
 		return FlightResult{}, err
@@ -344,16 +354,13 @@ func (manager *Manager) SetFlight(
 		if enabled {
 			// Entering RF-off tears down the packet service. Forget the previous
 			// WDS generation before issuing CFUN so a later enable starts cleanly.
-			state.dataMu.Lock()
 			verifyContext, cancel := manager.withTimeout(ctx, manager.commandTimeout*5)
 			verifyErr := guard.verify(verifyContext, atSIMWriteReader{client}, false)
 			cancel()
 			if verifyErr != nil {
-				state.dataMu.Unlock()
 				return FlightResult{}, verifyErr
 			}
 			invalidateQMINetworkSession(state, manager.candidateFor(state))
-			state.dataMu.Unlock()
 		}
 		// Waiting for WDS cleanup may have outlived the original SIM check.
 		verifyContext, cancel := manager.withTimeout(ctx, manager.commandTimeout*5)
@@ -417,6 +424,9 @@ func (manager *Manager) SetFlight(
 		}
 	}
 	manager.updateSnapshotMode(id, state, current)
+	if isRadioOffMode(current) && state.dataOwner != nil && manager.ownedNetworkPhysicalCurrent(state, state.dataOwner) {
+		state.dataOwner.radioStopped = true
+	}
 	manager.setResult(id, state, nil, nil)
 	return FlightResult{
 		PreviousMode: previous,

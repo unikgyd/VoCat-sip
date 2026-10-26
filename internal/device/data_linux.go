@@ -33,8 +33,29 @@ const (
 type productionQMIDataSession struct {
 	client                *qmi.Client
 	wds                   *qmi.WDSService
+	uim                   *qmi.UIMService
 	packetStatusEvents    chan struct{}
 	packetStatusEventOnce sync.Once
+}
+
+func (s *productionQMIDataSession) GetICCID(ctx context.Context) (string, error) {
+	if s.uim == nil {
+		var err error
+		s.uim, err = qmi.NewUIMServiceWithContext(ctx, s.client)
+		if err != nil {
+			return "", err
+		}
+	}
+	return s.uim.GetICCID(ctx)
+}
+
+func (s *productionQMIDataSession) GetIMSI(ctx context.Context) (string, error) {
+	if s.uim == nil {
+		if _, err := s.GetICCID(ctx); err != nil {
+			return "", err
+		}
+	}
+	return s.uim.GetIMSI(ctx)
 }
 
 func openQMIDataSession(ctx context.Context, controlDevice string) (qmiDataSession, error) {
@@ -245,6 +266,10 @@ func (session *productionQMIDataSession) Close() error {
 		return nil
 	}
 	var closeErrors []error
+	if session.uim != nil {
+		closeErrors = append(closeErrors, session.uim.Close())
+		session.uim = nil
+	}
 	if session.wds != nil {
 		closeErrors = append(closeErrors, session.wds.Close())
 		session.wds = nil
@@ -530,6 +555,23 @@ func closeQMIDataSession(state *managedDevice) {
 func rollbackQMIDataHost(state *managedDevice, candidate modem.Candidate, ipCommand string) {
 	rollbackContext, cancel := context.WithTimeout(context.Background(), managerCommandCleanupTimeout)
 	defer cancel()
+	if owner := state.dataOwner; owner != nil && owner.guard != nil && owner.guard.binding.iccid != "" {
+		// Keep an uncertain original WDS capability for coordinated cleanup.
+		current := owner.guard.manager.ownedNetworkPhysicalCurrent(state, owner)
+		cleanupErr := clearOwnedQMIHost(rollbackContext, owner, current)
+		if !current && cleanupErr == nil {
+			closeQMIDataSession(state)
+			state.dataOwner = nil
+			return
+		}
+		if state.dataSession != nil && owner.handleKnown {
+			if err := state.dataSession.Stop(rollbackContext, state.dataSessionHandle); stoppedQMIDataError(err) && cleanupErr == nil {
+				closeQMIDataSession(state)
+				state.dataOwner = nil
+			}
+		}
+		return
+	}
 	clearExportProxyRoute(rollbackContext, candidate.NetworkInterface)
 	if state.dataSession != nil {
 		_ = state.dataSession.Stop(rollbackContext, state.dataSessionHandle)
@@ -579,6 +621,24 @@ func (manager *Manager) setQMINetwork(
 	password string,
 	authentication string,
 ) (NetworkResult, error) {
+	guard, err := manager.newSIMWriteGuard(ctx, candidate)
+	if err != nil {
+		return NetworkResult{}, err
+	}
+	scoped := guard != nil && guard.binding.iccid != ""
+	if !enabled && scoped {
+		if state.dataOwner == nil {
+			if state.dataSession != nil {
+				return NetworkResult{}, ErrDataCleanupPending
+			}
+			return NetworkResult{Backend: "qmi", Interface: candidate.NetworkInterface, Detail: "no process-owned packet data session"}, nil
+		}
+		if state.dataOwner.backend != "qmi" {
+			return NetworkResult{}, ErrDataCleanupPending
+		}
+		err := manager.stopOwnedQMINetwork(ctx, state, state.dataOwner)
+		return NetworkResult{Backend: "qmi", Interface: candidate.NetworkInterface, Detail: "process-owned packet data session released"}, err
+	}
 	ipCommand, err := exec.LookPath("ip")
 	if err != nil {
 		return NetworkResult{}, fmt.Errorf("%w: install iproute2 to control %s", ErrDataBackendUnavailable, candidate.NetworkInterface)
@@ -597,15 +657,35 @@ func (manager *Manager) setQMINetwork(
 		if err != nil {
 			return NetworkResult{}, fmt.Errorf("stop QMI data session: %w", err)
 		}
+		state.dataOwner = nil
 		return NetworkResult{
 			Enabled: false, Backend: "qmi", Interface: candidate.NetworkInterface,
 			ControlDevice: candidate.QMIControl, APN: apn, IPVersion: ipVersion,
 			Detail: "packet data session stopped",
 		}, nil
 	}
+	if owner := state.dataOwner; owner != nil && owner.radioStopped && manager.ownedNetworkPhysicalCurrent(state, owner) {
+		if err := manager.stopOwnedQMINetwork(ctx, state, owner); err != nil {
+			return NetworkResult{}, err
+		}
+	}
+	if state.dataOwner != nil && state.dataSession == nil {
+		return NetworkResult{}, ErrDataCleanupPending
+	}
+	if scoped && state.dataSession != nil && state.dataOwner == nil {
+		return NetworkResult{}, ErrDataCleanupPending
+	}
+	if owner := state.dataOwner; owner != nil {
+		if owner.backend != "qmi" || !sameSIMWritePhysical(owner.candidate, candidate) || scoped && (owner.guard == nil || owner.guard.binding.iccid != guard.binding.iccid) {
+			return NetworkResult{}, ErrDataCleanupPending
+		}
+	}
 
 	removeLegacyQMINetworkState(candidate)
 	if state.dataSession != nil && state.dataSessionControl == candidate.QMIControl {
+		if err := guard.verify(ctx, state.dataSession, true); err != nil {
+			return NetworkResult{}, err
+		}
 		rawIPPath, pathErr := qmiRawIPSysfsPath(candidate.NetworkInterface)
 		if pathErr != nil {
 			return NetworkResult{}, pathErr
@@ -617,10 +697,14 @@ func (manager *Manager) setQMINetwork(
 		statusContext, cancel := context.WithTimeout(ctx, qmiDataStatusTimeout)
 		connected, statusErr := state.dataSession.Connected(statusContext)
 		cancel()
+		if statusErr != nil && scoped {
+			return NetworkResult{}, errors.Join(ErrDataCleanupPending, statusErr)
+		}
 		if statusErr == nil && connected {
 			return configureQMIDataHost(ctx, state, candidate, ipCommand, apn, ipVersion, "packet data session already connected")
 		}
 		closeQMIDataSession(state)
+		state.dataOwner = nil // this original WDS client confirmed disconnection
 	}
 
 	// A process restart loses the old WDS handle. StopAnyNetworkInterface is a
@@ -632,38 +716,84 @@ func (manager *Manager) setQMINetwork(
 	if err != nil {
 		return NetworkResult{}, fmt.Errorf("open QMI data session: %w", err)
 	}
+	if err := guard.verify(ctx, session, true); err != nil {
+		_ = session.Close()
+		return NetworkResult{}, err
+	}
 	manager.enableQMIDataEvents(ctx, state, candidate.ID, session)
-	stopContext, cancelStop := context.WithTimeout(ctx, qmiDataStopTimeout)
-	stopErr := session.StopAny(stopContext, true)
-	cancelStop()
+	var stopErr error
+	if scoped {
+		// A fresh CID does not prove ownership of a modem-wide packet call.
+		connected, observeErr := session.Connected(ctx)
+		if observeErr != nil || connected {
+			stopErr = ErrDataCleanupPending
+		}
+	} else {
+		stopContext, cancelStop := context.WithTimeout(ctx, qmiDataStopTimeout)
+		stopErr = session.StopAny(stopContext, true)
+		cancelStop()
+	}
 	if !stoppedQMIDataError(stopErr) {
 		disableQMIDataEvents(state)
 		_ = session.Close()
 		return NetworkResult{}, fmt.Errorf("reclaim stale QMI data session: %w", stopErr)
 	}
+	if scoped {
+		state.dataOwner = newOwnedQMINetwork(&ownedNetwork{candidate: copyCandidate(candidate), backend: "qmi", guard: guard, hostTouched: true})
+		state.dataSession, state.dataSessionControl = session, candidate.QMIControl
+		state.dataSessionHandle = 0
+	}
 	rawIPPath, pathErr := qmiRawIPSysfsPath(candidate.NetworkInterface)
 	if pathErr != nil {
 		disableQMIDataEvents(state)
-		_ = session.Close()
+		if !scoped {
+			_ = session.Close()
+		}
 		return NetworkResult{}, pathErr
 	}
 	if formatErr := prepareQMIDataFormat(ctx, session, ipCommand, candidate.NetworkInterface, rawIPPath); formatErr != nil {
 		disableQMIDataEvents(state)
-		_ = session.Close()
+		if !scoped {
+			_ = session.Close()
+		}
 		return NetworkResult{}, fmt.Errorf("prepare QMI data format: %w", formatErr)
 	}
+	if err := guard.verify(ctx, session, true); err != nil {
+		disableQMIDataEvents(state)
+		if !scoped {
+			_ = session.Close()
+		}
+		return NetworkResult{}, err
+	}
+	if !scoped {
+		state.dataOwner = newOwnedQMINetwork(&ownedNetwork{candidate: copyCandidate(candidate), backend: "qmi", guard: guard, hostTouched: true})
+	}
+	state.dataSession, state.dataSessionControl = session, candidate.QMIControl
+	state.dataSessionHandle = 0
 	authType := map[string]uint8{"NONE": 0, "PAP": 1, "CHAP": 2, "PAP_OR_CHAP": 3}[authentication]
 	startContext, cancelStart := context.WithTimeout(ctx, qmiDataStartTimeout)
 	handle, err := session.Start(startContext, apn, username, password, authType, qmiDataIPFamily(ipVersion))
 	cancelStart()
 	if err != nil {
 		disableQMIDataEvents(state)
-		_ = session.Close()
+		if !scoped {
+			closeQMIDataSession(state)
+			state.dataOwner = nil
+		}
 		return NetworkResult{}, fmt.Errorf("start QMI data session: %w", err)
 	}
 	state.dataSession = session
 	state.dataSessionHandle = handle
 	state.dataSessionControl = candidate.QMIControl
+	state.dataOwner.handleKnown = handle != 0 && handle != ^uint32(0)
+	if scoped {
+		if !state.dataOwner.handleKnown {
+			return NetworkResult{}, ErrDataCleanupPending
+		}
+		if err := guard.verify(ctx, session, true); err != nil {
+			return NetworkResult{}, err
+		}
+	}
 	return configureQMIDataHost(ctx, state, candidate, ipCommand, apn, ipVersion, fmt.Sprintf("packet data handle %d", handle))
 }
 

@@ -70,6 +70,7 @@ func (s *Server) readESIMInventory(ctx context.Context, configuredID, physicalID
 
 func (s *Server) resetSIMForESIM(ctx context.Context, configuredID, physicalID string, resetter simResetController) (info []device.EsimInventoryEntry, err error) {
 	endMaintenance := func() {}
+	dataPrepared := false
 	if maintenance, ok := s.vowifi.(VoWiFiMaintenanceController); ok {
 		if err := maintenance.BeginMaintenance(configuredID); err != nil {
 			return nil, fmt.Errorf("prepare VoWiFi for SIM reset: %w", err)
@@ -82,8 +83,20 @@ func (s *Server) resetSIMForESIM(ctx context.Context, configuredID, physicalID s
 		defer cancel()
 		// 重新读取保存的配置，避免恢复期间覆盖用户刚修改的 VoWiFi 意愿。
 		config, restoreErr := s.store.Device(restoreCtx, configuredID)
-		if restoreErr == nil && s.vowifi != nil {
-			_, restoreErr = s.vowifi.RequestEnabled(configuredID, config.Telephony != nil || store.EffectiveIMSEnabled(config))
+		if restoreErr == nil && config.Telephony != nil {
+			if !dataPrepared {
+				restoreErr = device.ErrDataCleanupPending
+			} else {
+				identity, observeErr := s.observedTelephonySubscription(restoreCtx, config)
+				if observeErr != nil || identity.ICCID != config.Telephony.ICCID {
+					restoreErr = device.ErrSIMObservation
+				} else {
+					s.cellularDataRuntime().resume(configuredID)
+					restoreErr = s.startTelephonyAccess(restoreCtx, config, physicalID)
+				}
+			}
+		} else if restoreErr == nil && s.vowifi != nil {
+			_, restoreErr = s.vowifi.RequestEnabled(configuredID, store.EffectiveIMSEnabled(config))
 		}
 		if restoreErr != nil {
 			err = errors.Join(err, fmt.Errorf("restore VoWiFi after SIM reset: %w", restoreErr))
@@ -91,6 +104,16 @@ func (s *Server) resetSIMForESIM(ctx context.Context, configuredID, physicalID s
 	}()
 	if err = s.quiesceVoWiFiForProfileSwitch(ctx, configuredID); err != nil {
 		return nil, err
+	}
+	config, readErr := s.store.Device(ctx, configuredID)
+	if readErr != nil {
+		return nil, readErr
+	}
+	if config.Telephony != nil {
+		if err = s.quiesceOwnedData(ctx, config); err != nil {
+			return nil, err
+		}
+		dataPrepared = true
 	}
 	if err = resetter.ResetSIM(ctx, physicalID); err != nil {
 		return nil, err

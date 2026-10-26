@@ -116,7 +116,7 @@ func (s *Server) handleTelephonyPolicy(w http.ResponseWriter, r *http.Request, c
 		writeError(w, 409, "network_enabled", "disable the data session before starting exclusive Wi-Fi access")
 		return true
 	}
-	if cellChanged && requested.AutoConnectCellular && requested.CellularMode == store.IMSModeHost && (current.NetworkEnabled || s.legacyDataOwnerBusy(current.ID)) {
+	if cellChanged && requested.AutoConnectCellular && requested.CellularMode == store.IMSModeHost && current.NetworkEnabled {
 		writeError(w, 409, "network_cleanup_pending", "the previous cellular data owner must finish cleanup before Host IMS")
 		return true
 	}
@@ -158,6 +158,14 @@ func (s *Server) handleTelephonyPolicy(w http.ResponseWriter, r *http.Request, c
 		}
 		defer endIMSMaintenance(s.hostIMS, current.ID)
 	}
+	dataHandover := cellChanged && requested.CellularMode == store.IMSModeHost || wifiChanged && requested.AutoConnectWiFi && requested.WiFiRadioPolicy == "exclusive"
+	if dataHandover {
+		if err := s.quiesceOwnedData(r.Context(), current); err != nil {
+			writeError(w, 409, "network_cleanup_pending", "the previous data owner's cleanup has not been confirmed")
+			return true
+		}
+		current.NetworkEnabled = false
+	}
 	latest, latestPhysical, found := s.physicalForConfig(current)
 	again, identityErr := s.observedTelephonySubscription(r.Context(), current)
 	if identityErr != nil || !found || latestPhysical != physical || latest.Candidate.USBGeneration != entry.Candidate.USBGeneration || again.ICCID != iccid || again.IMSI != identity.IMSI {
@@ -180,6 +188,9 @@ func (s *Server) handleTelephonyPolicy(w http.ResponseWriter, r *http.Request, c
 		return true
 	}
 	current.Telephony = &requested
+	if dataHandover {
+		s.cellularDataRuntime().resume(current.ID)
+	}
 	if wifiChanged {
 		endIMSMaintenance(s.wifiController(), current.ID)
 	}

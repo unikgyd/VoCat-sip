@@ -364,6 +364,20 @@ func (manager *Manager) NativeQMIRadioSnapshot(ctx context.Context, id string) (
 }
 
 func (manager *Manager) StopNativeQMICellularData(ctx context.Context, id string) error {
+	state, err := manager.lookup(id)
+	if err != nil {
+		return err
+	}
+	guard, err := manager.newSIMWriteGuard(ctx, manager.candidateFor(state))
+	if err != nil {
+		return err
+	}
+	if guard != nil && guard.binding.iccid != "" {
+		// Independent exclusive Wi-Fi first releases only the original host
+		// data capability. Its subsequent verified RF-off owns radio teardown;
+		// there is no need to detach every modem-side packet service here.
+		return manager.StopOwnedNetwork(ctx, id)
+	}
 	return manager.withNativeQMIVoWiFiSession(ctx, id, func(session nativeQMIVoWiFiSession) error {
 		serving, err := session.GetServingSystem(ctx)
 		if err != nil {

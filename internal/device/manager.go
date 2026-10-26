@@ -70,6 +70,7 @@ type Manager struct {
 	qmiDataOpener                 qmiDataSessionOpener
 	nativeQMIRegistrationMu       sync.Mutex
 	nativeQMIRegistrationInFlight map[string]struct{}
+	nativeQMIRegistrationCancel   map[string]context.CancelFunc
 	nativeQMISIMRecoveryMu        sync.Mutex
 	nativeQMISIMRecoveries        map[string]time.Time
 
@@ -144,6 +145,7 @@ type managedDevice struct {
 	dataSession        qmiDataSession
 	dataSessionHandle  uint32
 	dataSessionControl string
+	dataOwner          *ownedNetwork // dataMu; original transport and host generation
 	dataEventCancel    context.CancelFunc
 	candidate          modem.Candidate
 	backend            string
@@ -246,6 +248,11 @@ func (manager *Manager) Stop(ctx context.Context) error {
 		states = append(states, state)
 	}
 	manager.mu.Unlock()
+	manager.nativeQMIRegistrationMu.Lock()
+	for _, cancel := range manager.nativeQMIRegistrationCancel {
+		cancel()
+	}
+	manager.nativeQMIRegistrationMu.Unlock()
 
 	var closeErrors []error
 	for _, state := range states {

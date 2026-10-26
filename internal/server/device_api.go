@@ -1816,11 +1816,21 @@ func (s *Server) handleCellularData(
 		apn := strings.TrimSpace(request.APN)
 		policyIPVersion := "IPV4V6"
 		activeICCID := ""
+		if config.Telephony != nil {
+			identity, err := s.observedTelephonySubscription(r.Context(), config)
+			if err != nil || identity.ICCID == "" || identity.ICCID != config.Telephony.ICCID {
+				writeError(w, 409, "sim_identity_changed", "the active SIM must match its saved policy before changing data intent")
+				return true
+			}
+			activeICCID = identity.ICCID
+		}
 		isRoaming := false
 		var activePolicy store.CardPolicy
 		var activeAPNProfile store.CardAPNProfile
 		if entry, getErr := s.devices.Get(physicalID); getErr == nil && entry.Snapshot != nil {
-			activeICCID = strings.TrimSpace(entry.Snapshot.ICCID)
+			if config.Telephony == nil {
+				activeICCID = strings.TrimSpace(entry.Snapshot.ICCID)
+			}
 			isRoaming = entry.Snapshot.RegistrationStatus == 5
 			if stored, policyErr := s.store.CardPolicy(r.Context(), activeICCID); policyErr == nil {
 				activePolicy = stored

@@ -461,6 +461,15 @@ func (s *Server) handleEsimSwitch(w http.ResponseWriter, r *http.Request, config
 		s.writeDeviceError(w, err)
 		return
 	}
+	if current, err := s.store.Device(r.Context(), configuredID); err != nil {
+		s.writeStoreError(w, err)
+		return
+	} else if current.Telephony != nil {
+		if err := s.quiesceOwnedData(r.Context(), current); err != nil {
+			s.writeDeviceError(w, err)
+			return
+		}
+	}
 	// Profile operations run with RF disabled. The eUICC remains accessible in
 	// CFUN=4. Devices that consume the requested eUICC REFRESH stay online;
 	// older AT modems enter the reset recovery path and reapply CFUN=4 when the
@@ -487,10 +496,6 @@ func (s *Server) handleEsimSwitch(w http.ResponseWriter, r *http.Request, config
 		s.writeDeviceError(w, switchErr)
 		return
 	}
-	if _, err := s.devices.SetFlight(r.Context(), physicalID, true); err != nil {
-		s.writeDeviceError(w, err)
-		return
-	}
 	if current, configErr := s.store.Device(r.Context(), configuredID); configErr == nil && current.Telephony != nil {
 		identity, identityErr := s.observedTelephonySubscription(r.Context(), current)
 		if identityErr != nil || identity.ICCID != iccid {
@@ -502,9 +507,12 @@ func (s *Server) handleEsimSwitch(w http.ResponseWriter, r *http.Request, config
 			s.writeDeviceError(w, err)
 			return
 		}
-		dataRuntime.invalidate(configuredID, false, "disabled", "")
 		switchCompleted = true
 		writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"status": "switched", "iccid": iccid, "verified": true}})
+		return
+	}
+	if _, err := s.devices.SetFlight(r.Context(), physicalID, true); err != nil {
+		s.writeDeviceError(w, err)
 		return
 	}
 	policy, err := s.store.CardPolicy(r.Context(), iccid)

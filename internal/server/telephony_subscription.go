@@ -149,7 +149,18 @@ func (s *Server) reconcileTelephonyLine(ctx context.Context, id, previous string
 	if key == "missing" && previous == key {
 		return key, false
 	}
-	if key != previous && !(previous == "" && identity.ICCID == current.Telephony.ICCID && key != "missing") {
+	needsBinding := key != previous && !(previous == "" && identity.ICCID == current.Telephony.ICCID && key != "missing")
+	data := s.cellularDataRuntime()
+	data.mu.Lock()
+	needsBinding = needsBinding || data.quiescing[id]
+	data.mu.Unlock()
+	needsBinding = needsBinding || store.HostIMSConfigured(current) && current.NetworkEnabled
+	if previous == "" && identity.ICCID != "" {
+		if saved, err := s.store.SIMTelephonyPolicy(operation, identity.ICCID); err == nil && saved != *current.Telephony {
+			needsBinding = true // interrupted temporary task projection
+		}
+	}
+	if needsBinding {
 		var applied *store.Device
 		applied, physical, err = s.bindTelephonySubscription(operation, current, identity)
 		if err != nil {
@@ -205,6 +216,9 @@ func (s *Server) bindTelephonySubscription(ctx context.Context, config store.Dev
 		// audio reservation. Never issue a new SIM's CLCC hangup here.
 		return nil, physical, errors.New("previous module call is still releasing its reservation")
 	}
+	if err := s.quiesceOwnedData(ctx, config); err != nil {
+		return nil, physical, fmt.Errorf("release previous cellular data owner: %w", err)
+	}
 	if !present || identity.ICCID == "" {
 		return nil, physical, nil
 	}
@@ -228,12 +242,14 @@ func (s *Server) bindTelephonySubscription(ctx context.Context, config store.Dev
 		return nil, physical, errors.New("subscription changed during access cleanup")
 	}
 	card.VoWiFiEnabled = false
-	config.NetworkEnabled = false // A previous SIM's data intent cannot migrate.
+	config.NetworkEnabled = card.NetworkEnabled && policy.CellularMode == store.IMSModeModule &&
+		!(policy.AutoConnectWiFi && policy.WiFiRadioPolicy == "exclusive") && (!card.AirplaneEnabled || policy.AutoConnectCellular)
 	config.APN = card.APN
 	if err := s.store.SaveTelephonyPolicy(ctx, config, policy, card); err != nil {
 		return nil, physical, err
 	}
 	config.Telephony = &policy
+	s.cellularDataRuntime().resume(config.ID)
 	for _, controller := range controllers {
 		endIMSMaintenance(controller, config.ID)
 	}
@@ -252,7 +268,7 @@ func (s *Server) startTelephonyAccess(ctx context.Context, config store.Device, 
 		}
 		endIMSMaintenance(s.controllerForMode(access), config.ID)
 	}
-	if config.Telephony != nil && !config.Telephony.AutoConnectCellular && !config.Telephony.AutoConnectWiFi {
+	if config.Telephony != nil && !config.Telephony.AutoConnectCellular && !config.Telephony.AutoConnectWiFi && !config.NetworkEnabled {
 		return errors.Join(failures...)
 	}
 	identity, err := s.observedTelephonySubscription(ctx, config)
@@ -314,6 +330,9 @@ func (s *Server) startTelephonyAccess(ctx context.Context, config store.Device, 
 		if _, err := controller.RequestEnabled(config.ID, true); err != nil {
 			failures = append(failures, fmt.Errorf("queue %s access: %w", access, err))
 		}
+	}
+	if err := s.startTelephonyData(ctx, config, physical, identity); err != nil {
+		failures = append(failures, err)
 	}
 	return errors.Join(failures...)
 }
