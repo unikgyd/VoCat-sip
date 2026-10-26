@@ -28,7 +28,7 @@ Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制�
 
 后端使用 Go 编写，界面采用 React 与 TypeScript 构建，生产环境前端被嵌入进 Go 二进制中。单个可执行文件即包含完整的 Web 应用，并使用 SQLite 进行持久化存储。
 
-## 当前开发状态（2026-10-26）
+## 当前开发状态（2026-10-27）
 
 本 fork 作为 Linux 客户端，参考成熟的 [VoWin](https://github.com/unikgyd/VoWin) 补齐能力，
 同时保留现有 Linux 功能。通话与音频、多模组与恢复、管理与通知三个方向均在范围内。
@@ -40,15 +40,18 @@ Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制�
 | 独立接入 | 已实现按 ICCID 保存蜂窝／Wi-Fi 意愿、默认选路、原会话归属、分别重连和界面；统一软件测试与构建已通过。 |
 | 管理 | 保留 eSIM、USSD、网络／代理、任务、短信 API 和通知；已接逐卡启动、Host IMS 实时身份、原数据会话／传输清理、任务持久恢复、Host IMS 交接及共存模式的数据／代理控制。 |
 | 高级通话 | 已接 IMS 保持／恢复、legacy SIP INFO、按卡延时接听、留言导入／播放、网页接管、录音及独立 RTCP／媒体统计；已验证的软件范围见验收记录。 |
-| 尚待验收 | 真实模组／SIM 生命周期、USB 音频、真实通话留言／接管、软电话／运营商互通、原生 AMR 依赖及部署／回滚。 |
+| Linux 实机 | NAS 上 QDC507／电信 Host IMS 与 EC20／DITO VoWiFi 已同时注册；电信实拨收到振铃并协商 AMR，本次无人接听。 |
+| 尚待验收 | 接通后的双向音频、USB 音频、真实通话留言／接管、软电话互通及其他硬件／安装组合。 |
 
 按先实现、最后统一测试的顺序，已通过 **2025 项原生 Go、2020 项静态 Go、79 项前端、
 132 次关键竞态、41 项隔离内核检查、vet 和四个 Linux 构建**。跳过项、保留的失败与
-实机边界见[统一软件验收记录](VERIFICATION_20261026.md)。当前为通过软件验证的开发候选，
-尚未替换现用程序，实机验收单独记录。
+实机边界见[统一软件验收记录](VERIFICATION_20261026.md)。随后进行的 NAS 实机测试、
+兼容性修复、通话结果和回滚见[Linux 实机验收记录](VERIFICATION_20261027_LIVE.md)。
 
 完整差异见[能力并集清单](FEATURE_UNION.md)，接入边界见[独立接入说明](INDEPENDENT_ACCESS.md)，
 源码、缓存和运行文件的提交规则见[仓库约定](REPOSITORY.md)。原许可、地区准入和授权检查保持。
+本次受控电信测试卡通过[精确 SIM 准入文件](AUTHORIZED_TEST_SIMS.md)配置，真实身份不提交到 Git。
+现有 IMS Profile、模组 IMS 交接和依赖要求见[Host IMS 部署说明](HOST_IMS_DEPLOYMENT.md)。
 本轮统一验收逐项记录在[验收台账](PARITY_ACCEPTANCE.md)，Host IMS 已确认日志的清理边界见[重启恢复](HOST_IMS_RECOVERY.md)。
 
 自动接听的格式、时限、首接仲裁与网页接管见[实现边界](AUTO_ANSWER.md)。
@@ -184,15 +187,20 @@ printf '%s\n' "$VOCAT_BOOTSTRAP_PASSWORD" | docker run --rm -i \
   ghcr.io/mengmengcode/vocat:latest bootstrap-admin
 unset VOCAT_BOOTSTRAP_PASSWORD
 
+sudo install -d -m 0700 /run/vocat
 docker run -d \
   --name vocat \
   --restart unless-stopped \
   --network host \
+  --pid host \
   --privileged \
   --user 0:0 \
   -v vocat-data:/opt/vocat/data \
   -v /dev:/dev \
   -v /sys:/sys:ro \
+  -v /run/dbus:/run/dbus:ro \
+  -v /run/vocat:/run/vocat \
+  -v /run/lock:/run/lock \
   ghcr.io/mengmengcode/vocat:latest
 ```
 

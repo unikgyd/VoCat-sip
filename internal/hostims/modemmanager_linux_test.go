@@ -81,7 +81,8 @@ func (w *wireModem) CreateBearer(values map[string]dbus.Variant) (dbus.ObjectPat
 	family, _ := mmUint(values, "ip-type")
 	mux, _ := mmUint(values, "multiplex")
 	roaming, _ := mmBool(values, "allow-roaming")
-	path, err := w.backend.Create(context.Background(), w.owner, w.path, bearerProperties{APN: apn, APNType: apnType, IPFamily: family, Multiplex: mux, AllowRoaming: roaming})
+	profileID, _ := mmProfileID(values)
+	path, err := w.backend.Create(context.Background(), w.owner, w.path, bearerProperties{APN: apn, APNType: apnType, IPFamily: family, Multiplex: mux, AllowRoaming: roaming, ProfileID: profileID})
 	if err != nil {
 		return "", dbus.MakeFailedError(err)
 	}
@@ -136,7 +137,7 @@ func wireBearerProps(b bearerSnapshot) map[string]dbus.Variant {
 	if b.ConfigurationError {
 		v6 = map[string]dbus.Variant{"method": dbus.MakeVariant(uint32(3))}
 	}
-	return map[string]dbus.Variant{"Properties": dbus.MakeVariant(map[string]dbus.Variant{"apn": dbus.MakeVariant(b.Properties.APN), "apn-type": dbus.MakeVariant(b.Properties.APNType), "ip-type": dbus.MakeVariant(b.Properties.IPFamily), "multiplex": dbus.MakeVariant(b.Properties.Multiplex), "allow-roaming": dbus.MakeVariant(b.Properties.AllowRoaming)}),
+	return map[string]dbus.Variant{"Properties": dbus.MakeVariant(map[string]dbus.Variant{"apn": dbus.MakeVariant(b.Properties.APN), "apn-type": dbus.MakeVariant(b.Properties.APNType), "ip-type": dbus.MakeVariant(b.Properties.IPFamily), "multiplex": dbus.MakeVariant(b.Properties.Multiplex), "allow-roaming": dbus.MakeVariant(b.Properties.AllowRoaming), "profile-id": dbus.MakeVariant(int32(b.Properties.ProfileID))}),
 		"Connected": dbus.MakeVariant(b.Connected), "Suspended": dbus.MakeVariant(b.Suspended), "Multiplexed": dbus.MakeVariant(b.Multiplexed), "Interface": dbus.MakeVariant(b.Interface), "Ip4Config": dbus.MakeVariant(v4), "Ip6Config": dbus.MakeVariant(v6)}
 }
 func wireModemProps(m modemSnapshot) map[string]dbus.Variant {

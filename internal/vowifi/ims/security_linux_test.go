@@ -103,6 +103,25 @@ func TestLinuxIPSecErrorsDoNotEchoKeyArguments(t *testing.T) {
 	}
 }
 
+func TestLinuxIPSecPolicyDoesNotRequireProtocolNameDatabase(t *testing.T) {
+	install, err := buildXFRMInstallPlan(testIPSecSAConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleanup := buildXFRMCleanupPlan(testIPSecSAConfig())
+	for _, operations := range [][]xfrmOperation{install, cleanup} {
+		for _, operation := range operations {
+			if !strings.Contains(operation.description, "policy") {
+				continue
+			}
+			joined := " " + strings.Join(operation.arguments, " ") + " "
+			if !strings.Contains(joined, " proto 6 ") && !strings.Contains(joined, " proto 17 ") {
+				t.Fatal("policy selector requires /etc/protocols", operation.description)
+			}
+		}
+	}
+}
+
 func TestRunIPCommandExplainsMissingKernelXFRM(t *testing.T) {
 	directory := t.TempDir()
 	command := directory + "/ip"

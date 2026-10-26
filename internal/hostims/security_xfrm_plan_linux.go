@@ -51,7 +51,7 @@ func validateScopedXFRMKey(k scopedXFRMKey) error {
 	validIP := func(ip netip.Addr) bool {
 		return ip.IsValid() && !ip.Is4In6() && ip.Zone() == "" && !ip.IsUnspecified() && !ip.IsMulticast() && !ip.IsLinkLocalUnicast()
 	}
-	if !validIP(k.Src) || !validIP(k.Dst) || k.Src.Is4() != k.Dst.Is4() || k.Src == k.Dst || k.Mark == 0 {
+	if !validIP(k.Src) || !validIP(k.Dst) || k.Src.Is4() != k.Dst.Is4() || k.Src == k.Dst || k.Mark == 0 && k.Kind != "state" {
 		return ErrXFRMSchema
 	}
 	switch k.Kind {
@@ -111,6 +111,15 @@ func scopedXFRMLifetime() nl.XfrmLifetimeCfg {
 }
 
 func buildScopedXFRMPlan(config imssec.Config, mark, clientReqID, serverReqID uint32) (*scopedXFRMPlan, error) {
+	return buildScopedXFRMPlanMode(config, mark, clientReqID, serverReqID, false)
+}
+
+// Linux socket policies use policy mark zero to resolve their required SA,
+// independently of SO_MARK. Keep the original private mark on inbound SAs
+// and global policies; outbound SAs are selected by the exact endpoint/ReqID
+// required by each socket. A conflicting outbound SPI is rejected, never
+// adopted. The durable mode bit preserves cleanup of older marked journals.
+func buildScopedXFRMPlanMode(config imssec.Config, mark, clientReqID, serverReqID uint32, socketOutbound bool) (*scopedXFRMPlan, error) {
 	plan, err := imssec.BuildScopedPlan(config, clientReqID, serverReqID)
 	if err != nil || mark == 0 {
 		return nil, ErrXFRMSchema
@@ -122,8 +131,12 @@ func buildScopedXFRMPlan(config imssec.Config, mark, clientReqID, serverReqID ui
 			out.Clear()
 		}
 	}()
-	for _, state := range plan.States {
-		key := scopedXFRMKey{Kind: "state", Src: state.Src, Dst: state.Dst, SPI: state.SPI, Protocol: unix.IPPROTO_ESP, Mark: mark}
+	for ordinal, state := range plan.States {
+		stateMark := mark
+		if socketOutbound && (ordinal == 0 || ordinal == 3) {
+			stateMark = 0
+		}
+		key := scopedXFRMKey{Kind: "state", Src: state.Src, Dst: state.Dst, SPI: state.SPI, Protocol: unix.IPPROTO_ESP, Mark: stateMark}
 		if validateScopedXFRMKey(key) != nil {
 			return nil, ErrXFRMSchema
 		}
@@ -162,7 +175,7 @@ func buildScopedXFRMPlan(config imssec.Config, mark, clientReqID, serverReqID ui
 		cryptWire := crypt.Serialize()
 		wire = scopedXFRMAttr(wire, nl.XFRMA_ALG_CRYPT, cryptWire)
 		clear(cryptWire)
-		wire = scopedXFRMAttr(wire, nl.XFRMA_MARK, scopedXFRMMark(mark))
+		wire = scopedXFRMAttr(wire, nl.XFRMA_MARK, scopedXFRMMark(stateMark))
 		snapshot, err := scopedXFRMSnapshotOf("state", wire)
 		if err != nil {
 			clear(wire)

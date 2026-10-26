@@ -53,6 +53,7 @@ type linuxNetworkKernel struct {
 	kind, mac, namespaceKey, anchorKey string
 	table                              int
 	namespaceCookie                    uint64
+	up                                 bool
 }
 
 func namespaceIdentity(path string) (string, error) {
@@ -103,10 +104,11 @@ func openLinuxNetworkKernel(lease *BearerLease, fixture bool) (*linuxNetworkKern
 		return nil, ErrNetwork
 	}
 	attrs := link.Attrs()
-	if attrs.Index < 1 || attrs.MasterIndex != 0 || attrs.Flags&net.FlagUp == 0 || attrs.MTU < 68 {
+	if attrs.Index < 1 || attrs.MasterIndex != 0 || attrs.MTU < 68 {
 		return nil, ErrNetworkConflict
 	}
 	k.index, k.parent, k.mtu, k.mac, k.kind = attrs.Index, attrs.ParentIndex, attrs.MTU, attrs.HardwareAddr.String(), link.Type()
+	k.up = attrs.Flags&net.FlagUp != 0
 	for _, address := range lease.configuration.Addresses {
 		if address.Address.Addr().Is6() && k.mtu < 1280 {
 			return nil, ErrNetworkConflict
@@ -135,7 +137,7 @@ func openLinuxNetworkKernel(lease *BearerLease, fixture bool) (*linuxNetworkKern
 		single := lease.claim.record.Options.SinglePDN
 		lease.claim.mu.Unlock()
 		if single {
-			if device == "" || !withinDirectory(physical, device) {
+			if !k.up || device == "" || !withinDirectory(physical, device) {
 				return nil, ErrNetworkConflict
 			}
 		} else {
@@ -159,6 +161,13 @@ func openLinuxNetworkKernel(lease *BearerLease, fixture bool) (*linuxNetworkKern
 					return nil, ErrNetworkConflict
 				}
 			}
+		}
+	}
+	if !k.up {
+		// A DOWN interface with existing host configuration belongs to another
+		// manager. Only an empty, proven multiplexed bearer may be activated.
+		if k.parent <= 0 || k.emptyLink(link) != nil {
+			return nil, ErrNetworkConflict
 		}
 	}
 	if err := k.verify(context.Background()); err != nil {
@@ -225,7 +234,7 @@ func (k *linuxNetworkKernel) verify(ctx context.Context) error {
 		return ErrNetwork
 	}
 	a := link.Attrs()
-	if a.Name != k.name || a.ParentIndex != k.parent || a.MasterIndex != 0 || a.HardwareAddr.String() != k.mac || a.MTU != k.mtu || link.Type() != k.kind || a.Flags&net.FlagUp == 0 {
+	if a.Name != k.name || a.ParentIndex != k.parent || a.MasterIndex != 0 || a.HardwareAddr.String() != k.mac || a.MTU != k.mtu || link.Type() != k.kind || (a.Flags&net.FlagUp != 0) != k.up {
 		return ErrNetwork
 	}
 	for _, family := range []int{netlink.FAMILY_V4, netlink.FAMILY_V6} {
@@ -485,6 +494,26 @@ func (k *linuxNetworkKernel) routeHash(op networkOperation) (string, error) {
 }
 func (k *linuxNetworkKernel) find(op networkOperation) (any, bool, error) {
 	switch strings.TrimPrefix(op.Kind, "remove-") {
+	case "accept_ra", "autoconf":
+		value, err := k.ipv6Setting(strings.TrimPrefix(op.Kind, "remove-"), nil)
+		if err != nil {
+			return nil, false, err
+		}
+		if value != 0 {
+			if value == op.Previous {
+				return nil, false, ErrNetworkMissing
+			}
+			return nil, false, ErrNetworkConflict
+		}
+		return &kernelIPv6Snapshot{Kind: strings.TrimPrefix(op.Kind, "remove-"), Index: k.index, Anchor: k.anchorKey}, true, nil
+	case "link":
+		if err := k.verify(context.Background()); err != nil {
+			return nil, false, err
+		}
+		if !k.up {
+			return nil, false, ErrNetworkMissing
+		}
+		return &kernelLinkSnapshot{k.index, k.anchorKey, true}, true, nil
 	case "address":
 		link, err := k.handle.LinkByIndex(k.index)
 		if err != nil {
@@ -582,6 +611,30 @@ func (k *linuxNetworkKernel) observe(op networkOperation) (string, bool, error) 
 }
 func (k *linuxNetworkKernel) apply(op networkOperation) error {
 	switch op.Kind {
+	case "accept_ra", "autoconf":
+		value, err := k.ipv6Setting(op.Kind, nil)
+		if err != nil {
+			return err
+		}
+		if k.up || value != op.Previous || value == 0 {
+			return ErrNetworkConflict
+		}
+		zero := uint32(0)
+		_, err = k.ipv6Setting(op.Kind, &zero)
+		return err
+	case "link":
+		if k.up || k.parent <= 0 || k.verify(context.Background()) != nil {
+			return ErrNetworkConflict
+		}
+		link, err := k.handle.LinkByIndex(k.index)
+		if err != nil || k.emptyLink(link) != nil {
+			return ErrNetworkConflict
+		}
+		if err := k.handle.LinkSetUp(link); err != nil {
+			return err
+		}
+		k.up = true
+		return nil
 	case "address":
 		link, err := k.handle.LinkByIndex(k.index)
 		if err != nil {
@@ -604,6 +657,22 @@ func (k *linuxNetworkKernel) remove(op networkOperation) error {
 		return ErrNetworkConflict
 	}
 	switch item := value.(type) {
+	case *kernelIPv6Snapshot:
+		if k.up {
+			return ErrNetworkConflict
+		}
+		_, err := k.ipv6Setting(item.Kind, &op.Previous)
+		return err
+	case *kernelLinkSnapshot:
+		link, err := k.handle.LinkByIndex(k.index)
+		if err != nil || k.emptyLink(link) != nil {
+			return ErrNetworkConflict
+		}
+		if err := k.handle.LinkSetDown(link); err != nil {
+			return err
+		}
+		k.up = false
+		return nil
 	case *netlink.Addr:
 		link, err := k.handle.LinkByIndex(k.index)
 		if err != nil {
@@ -617,6 +686,83 @@ func (k *linuxNetworkKernel) remove(op networkOperation) error {
 		return k.handle.RouteDel(&item.Route)
 	}
 	return ErrParameters
+}
+
+type kernelLinkSnapshot struct {
+	Index  int
+	Anchor string
+	Up     bool
+}
+
+type kernelIPv6Snapshot struct {
+	Kind   string
+	Index  int
+	Anchor string
+}
+
+// Only a previously proven, pinned bearer interface may change these two
+// settings. Each mutation has its own durable intent and original value.
+func (k *linuxNetworkKernel) ipv6Setting(kind string, wanted *uint32) (uint32, error) {
+	if kind != "accept_ra" && kind != "autoconf" || k.verify(context.Background()) != nil {
+		return 0, ErrNetwork
+	}
+	path := filepath.Join("/proc/sys/net/ipv6/conf", k.name, kind)
+	flags := unix.O_RDONLY | unix.O_CLOEXEC | unix.O_NOFOLLOW
+	if wanted != nil {
+		flags = unix.O_RDWR | unix.O_CLOEXEC | unix.O_NOFOLLOW
+	}
+	fd, err := unix.Open(path, flags, 0)
+	if err != nil {
+		return 0, ErrNetwork
+	}
+	defer unix.Close(fd)
+	if wanted != nil {
+		text := strconv.FormatUint(uint64(*wanted), 10) + "\n"
+		if count, err := unix.Write(fd, []byte(text)); err != nil || count != len(text) {
+			return 0, ErrNetwork
+		}
+		if _, err := unix.Seek(fd, 0, 0); err != nil {
+			return 0, ErrNetwork
+		}
+	}
+	var raw [16]byte
+	count, err := unix.Read(fd, raw[:])
+	if err != nil || count == len(raw) {
+		return 0, ErrNetwork
+	}
+	value, err := strconv.ParseUint(strings.TrimSpace(string(raw[:count])), 10, 32)
+	if err != nil || value > 2 || kind == "autoconf" && value > 1 || wanted != nil && value != uint64(*wanted) {
+		return 0, ErrNetwork
+	}
+	return uint32(value), nil
+}
+
+func (k *linuxNetworkKernel) emptyLink(link netlink.Link) error {
+	if link == nil || link.Attrs().Index != k.index {
+		return ErrNetworkConflict
+	}
+	addresses, err := k.handle.AddrList(link, netlink.FAMILY_ALL)
+	if err != nil || len(addresses) > 128 {
+		return ErrNetwork
+	}
+	for _, address := range addresses {
+		// Link-local IPv6 is generated by the kernel when our link comes UP.
+		if address.IP == nil || !address.IP.IsLinkLocalUnicast() || address.Scope != unix.RT_SCOPE_LINK {
+			return ErrNetworkConflict
+		}
+	}
+	for _, family := range []int{netlink.FAMILY_V4, netlink.FAMILY_V6} {
+		routes, err := k.handle.RouteListFiltered(family, &netlink.Route{LinkIndex: k.index, Table: unix.RT_TABLE_UNSPEC}, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE)
+		if err != nil || len(routes) > 4096 {
+			return ErrNetwork
+		}
+		for _, route := range routes {
+			if route.Protocol != unix.RTPROT_KERNEL || route.Dst == nil || !route.Dst.IP.IsLinkLocalUnicast() && !route.Dst.IP.IsMulticast() {
+				return ErrNetworkConflict
+			}
+		}
+	}
+	return nil
 }
 func (k *linuxNetworkKernel) lookup(endpoint Endpoint, table int) error {
 	return k.lookupMarked(endpoint, table, 0)

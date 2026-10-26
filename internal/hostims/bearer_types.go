@@ -20,6 +20,7 @@ var (
 	ErrJournal    = staticError("host IMS: durable bearer ownership is unavailable")
 	ErrDenied     = staticError("host IMS: cellular bearer authorization denied")
 	ErrTransport  = staticError("host IMS: ModemManager operation failed")
+	ErrRejected   = staticError("host IMS: modem rejected the bearer connection")
 	ErrParameters = staticError("host IMS: unsupported bearer configuration")
 )
 
@@ -34,6 +35,7 @@ type BearerOptions struct {
 	SinglePDN    bool
 	AllowRoaming bool
 	IPFamily     uint32 // MM flags: 1=IPv4, 2=IPv6, 4=IPv4v6; 0=select supported.
+	ProfileID    uint32 // 0=automatic; otherwise an explicitly selected 3GPP profile.
 	Timeout      time.Duration
 }
 
@@ -45,7 +47,7 @@ func (o BearerOptions) normalized() (BearerOptions, error) {
 	if o.Timeout == 0 {
 		o.Timeout = 30 * time.Second
 	}
-	if !validAPN(o.APN) || o.Timeout < 100*time.Millisecond || o.Timeout > time.Minute || o.IPFamily != 0 && o.IPFamily != 1 && o.IPFamily != 2 && o.IPFamily != 4 {
+	if !validAPN(o.APN) || o.ProfileID > 255 || o.Timeout < 100*time.Millisecond || o.Timeout > time.Minute || o.IPFamily != 0 && o.IPFamily != 1 && o.IPFamily != 2 && o.IPFamily != 4 {
 		return o, ErrSelection
 	}
 	return o, nil
@@ -87,6 +89,7 @@ func (s modemSnapshot) Format(out fmt.State, _ rune) {
 type bearerProperties struct {
 	APN                          string
 	APNType, IPFamily, Multiplex uint32
+	ProfileID                    uint32
 	AllowRoaming                 bool
 }
 type bearerSnapshot struct {

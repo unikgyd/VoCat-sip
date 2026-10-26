@@ -11,7 +11,7 @@ func TestTelephonyPolicyKeepsAccessFlagsIndependentFromDefaultRoute(t *testing.T
 	db := openTestStore(t, filepath.Join(t.TempDir(), "access.db"))
 	ctx := context.Background()
 	p := TelephonyPolicy{ICCID: "8944100000000000001", CellularMode: IMSModeHost, AutoConnectCellular: true,
-		AutoConnectWiFi: true, DefaultRoute: IMSModeVoWiFi, WiFiRadioPolicy: "coexist"}
+		AutoConnectWiFi: true, DefaultRoute: IMSModeVoWiFi, WiFiRadioPolicy: "coexist", HostIMSProfileID: 5}
 	config := Device{ID: "modem", Name: "Modem"}
 	if err := db.SaveTelephonyPolicy(ctx, config, p); err != nil {
 		t.Fatal(err)

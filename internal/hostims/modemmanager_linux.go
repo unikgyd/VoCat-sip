@@ -306,6 +306,10 @@ func parseMMBearer(props map[string]dbus.Variant) (bearerSnapshot, error) {
 		return result, err
 	}
 	result.Properties = bearerProperties{APN: apn, APNType: apnType, IPFamily: family, Multiplex: mux, AllowRoaming: roaming}
+	result.Properties.ProfileID, err = mmProfileID(config)
+	if err != nil {
+		return result, err
+	}
 	result.Connected, err = mmBool(props, "Connected")
 	if err != nil {
 		return result, err
@@ -393,6 +397,9 @@ func (b *modemManagerBackend) Create(ctx context.Context, owner, modem string, p
 		return "", ErrSelection
 	}
 	args := map[string]dbus.Variant{"apn": dbus.MakeVariant(props.APN), "apn-type": dbus.MakeVariant(props.APNType), "ip-type": dbus.MakeVariant(props.IPFamily), "multiplex": dbus.MakeVariant(props.Multiplex), "allow-roaming": dbus.MakeVariant(props.AllowRoaming)}
+	if props.ProfileID > 0 {
+		args["profile-id"] = dbus.MakeVariant(int32(props.ProfileID))
+	}
 	var path dbus.ObjectPath
 	if b.connection.Object(owner, dbus.ObjectPath(modem)).CallWithContext(ctx, mmModem+".CreateBearer", 0, args).Store(&path) != nil {
 		return "", ErrTransport
@@ -400,7 +407,32 @@ func (b *modemManagerBackend) Create(ctx context.Context, owner, modem string, p
 	return string(path), nil
 }
 func (b *modemManagerBackend) Connect(ctx context.Context, owner, path string) error {
-	return b.bearerMethod(ctx, owner, path, "Connect")
+	if !validOwner(owner) || !objectPath(path, "Bearer") {
+		return ErrSelection
+	}
+	return modemManagerConnectError(b.connection.Object(owner, dbus.ObjectPath(path)).CallWithContext(ctx, mmBearer+".Connect", 0).Err)
+}
+
+// A MobileEquipment error is an actual negative method reply, unlike a lost
+// bus connection, timeout or cancellation. It permits cleanup of the exact
+// already-created bearer, never adoption/deletion of an unrelated object.
+func modemManagerConnectError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var name string
+	switch reply := err.(type) {
+	case dbus.Error:
+		name = reply.Name
+	case *dbus.Error:
+		if reply != nil {
+			name = reply.Name
+		}
+	}
+	if strings.HasPrefix(name, mmService+".Error.MobileEquipment.") {
+		return ErrRejected
+	}
+	return ErrTransport
 }
 
 func (b *modemManagerBackend) Enable(ctx context.Context, owner, path string) error {
@@ -446,6 +478,21 @@ func mmUint(props map[string]dbus.Variant, key string) (uint32, error) {
 		return 0, ErrParameters
 	}
 	return v, nil
+}
+
+func mmProfileID(props map[string]dbus.Variant) (uint32, error) {
+	value, exists := props["profile-id"]
+	if !exists {
+		return 0, nil
+	}
+	profile, ok := value.Value().(int32)
+	if !ok || profile < -1 || profile > 255 {
+		return 0, ErrParameters
+	}
+	if profile < 1 {
+		return 0, nil
+	}
+	return uint32(profile), nil
 }
 func mmBool(props map[string]dbus.Variant, key string) (bool, error) {
 	v, ok := props[key].Value().(bool)

@@ -66,6 +66,9 @@ func IsPlaceholderIMSI(imsi string) bool {
 // MCC triggers a block (fail-open), so a transient IMSI read failure never
 // denies service to a legitimate card.
 func RegionBlockReason(imsi string) string {
+	if authorizedTestSIM(imsi) {
+		return ""
+	}
 	mcc, _ := CardMCCMNC(imsi)
 	country, blocked := BlockedMCCs[mcc]
 	if !blocked {

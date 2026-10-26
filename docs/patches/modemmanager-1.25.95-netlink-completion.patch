@@ -1,0 +1,12 @@
+--- a/src/mm-netlink.c
++++ b/src/mm-netlink.c
+@@ -230,2 +230,3 @@
+     GTask *task;
++    MsgFunc completion_fn;
+     guint32 sequence_id;
+@@ -234 +235,2 @@
+     sequence_id = tr->sequence_id;
++    completion_fn = tr->completion_fn;
+@@ -242 +244 @@
+-        if (!tr->completion_fn (task, hdr, &error))
++        if (!completion_fn (task, hdr, &error))

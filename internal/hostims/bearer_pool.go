@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"reflect"
 	"strings"
@@ -391,7 +392,7 @@ func propertiesFor(r claimRecord) bearerProperties {
 	if r.Options.SinglePDN {
 		mux = 1
 	}
-	return bearerProperties{APN: r.Options.APN, APNType: 4, IPFamily: r.Family, Multiplex: mux, AllowRoaming: r.Options.AllowRoaming}
+	return bearerProperties{APN: r.Options.APN, APNType: 4, IPFamily: r.Family, Multiplex: mux, AllowRoaming: r.Options.AllowRoaming, ProfileID: r.Options.ProfileID}
 }
 
 func (p *BearerPool) conflicts(ctx context.Context, s Selection, snapshot modemSnapshot, o BearerOptions, owned string) error {
@@ -441,7 +442,12 @@ func (p *BearerPool) owned(ctx context.Context, s Selection, c *bearerClaim) (be
 		return bearerSnapshot{}, err
 	}
 	bearer, err := p.backend.Bearer(ctx, r.Owner, r.Path)
-	if err != nil || bearer.Properties != propertiesFor(r) {
+	expected := propertiesFor(r)
+	actual := bearer.Properties
+	if expected.ProfileID == 0 {
+		actual.ProfileID = 0 // An automatic profile number is not a requested identity.
+	}
+	if err != nil || actual != expected {
 		return bearerSnapshot{}, ErrChanged
 	}
 	if _, err := p.verify(ctx, s); err != nil {
@@ -495,7 +501,12 @@ func (p *BearerPool) mutate(ctx context.Context, s Selection, c *bearerClaim, op
 			done <- ErrUncertain
 			return
 		}
-		if err != nil || operationCtx.Err() != nil {
+		if op == "connect" && operationCtx.Err() == nil && errors.Is(err, ErrRejected) {
+			// The daemon acknowledged a failed Connect on our known object.
+			// Acquire's cleanup still revalidates the original owner and exact
+			// bearer, disconnects if needed, and requires a Delete ACK.
+			next.Pending = ""
+		} else if err != nil || operationCtx.Err() != nil {
 			next.Pending = "unknown"
 			next.Uncertain = true
 			err = ErrUncertain
@@ -530,7 +541,7 @@ func (p *BearerPool) mutate(ctx context.Context, s Selection, c *bearerClaim, op
 			return
 		}
 		if err != nil {
-			done <- ErrUncertain
+			done <- err
 		} else {
 			done <- nil
 		}

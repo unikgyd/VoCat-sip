@@ -159,6 +159,24 @@ func matchBoundRuntime(runtime Runtime, address BearerAddress, apn string) error
 	return nil
 }
 
+// A 3GPP IPv6 PDN owns a /64; the modem can expose a different interface
+// identifier to each WDS client (and after setting that client's IP family).
+// Keep the original MM-assigned host address, but only after the owned CID,
+// USB endpoint/mux and APN were proven and both exact /64 prefixes agree.
+// IPv4, non-/64 addresses, gateways and all remaining runtime fields retain
+// their ordinary exact checks. This never grants access from a prefix alone.
+func normalizeBoundRuntime(runtime Runtime, address BearerAddress, apn string) (Runtime, error) {
+	if runtime.Family == 6 && runtime.IPv6.IsValid() && address.Address.IsValid() &&
+		!address.Address.Addr().Is4() && runtime.IPv6.Bits() == 64 && address.Address.Bits() == 64 &&
+		runtime.IPv6.Masked() == address.Address.Masked() {
+		runtime.IPv6 = address.Address
+	}
+	if err := matchBoundRuntime(runtime, address, apn); err != nil {
+		return Runtime{}, err
+	}
+	return runtime, nil
+}
+
 func mergeBoundRuntimes(rows []Runtime, configuration BearerConfiguration, apn string) (Runtime, error) {
 	if len(rows) != len(configuration.Addresses) || len(rows) < 1 || len(rows) > 2 {
 		return Runtime{}, ErrRuntime

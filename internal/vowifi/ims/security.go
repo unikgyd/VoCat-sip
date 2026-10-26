@@ -548,6 +548,14 @@ func buildXFRMCleanupPlan(config IPSecSAConfig) []xfrmOperation {
 }
 
 func xfrmPolicyArgs(flow xfrmFlow, protocol string, delete bool) []string {
+	// Minimal container images may omit /etc/protocols. iproute2 resolves
+	// selector names through that file; numeric IP protocol IDs are portable.
+	switch protocol {
+	case "tcp":
+		protocol = "6"
+	case "udp":
+		protocol = "17"
+	}
 	args := []string{
 		flow.family,
 		"xfrm", "policy",

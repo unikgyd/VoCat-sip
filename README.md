@@ -31,7 +31,7 @@ The goal is the union of both clients' capabilities, with most implementation wo
 in VoCat-sip. The original [research and evaluation license](LICENSE) and runtime
 authorization checks remain in force.
 
-## Development status — 2026-10-26
+## Development status — 2026-10-27
 
 | Area | Current source status |
 | --- | --- |
@@ -40,14 +40,16 @@ authorization checks remain in force.
 | Independent access | Per-ICCID cellular/Wi-Fi preferences, default routing, session ownership, reconnect controls and UI are implemented. Combined software tests and builds passed. |
 | Management | eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained. Per-SIM startup, live Host IMS identity, owned data/transfer cleanup, durable task restoration, Host IMS handover and coexistence-aware proxy/data controls are integrated. |
 | Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported playback, browser takeover, recording and separate RTCP/statistics are integrated. See the verification record for the tested software scope. |
-| Remaining acceptance | Real modem/SIM lifecycle, USB audio, live playback/takeover, softphone/carrier interoperability, native AMR dependencies and deployment/rollback. |
+| Live Linux acceptance | QDC507/China Telecom Host IMS and EC20/DITO VoWiFi registered simultaneously on the NAS. The authorized Host IMS call reached ringing and negotiated AMR; no answer was received. |
+| Remaining acceptance | Answered two-way audio, USB audio, live playback/takeover, softphone interoperability and other hardware/installation combinations. |
 
 The final combined software run passed: **2,025 native Go tests, 2,020 static Go
 tests, 79 frontend tests, 132 selected race-test executions, 41 isolated kernel
 tests, vet and four Linux builds**. Skip counts, retained failures and hardware
 limits are recorded in [the verification report](docs/VERIFICATION_20261026.md).
-Implementation preceded testing as requested. This is a software-validated
-development candidate; existing installations have not been replaced.
+Implementation preceded testing as requested. The subsequent hardware findings,
+fixes, call result, cleanup and rollback are recorded in the
+[live Linux verification report](docs/VERIFICATION_20261027_LIVE.md).
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the
@@ -65,6 +67,8 @@ SQLite stores configuration and runtime history. See the
 ### Linux integration documentation
 
 - [Host IMS application](docs/HOST_IMS_APPLICATION.md) and [ownership boundaries](docs/HOST_IMS.md).
+- [Explicit test SIM policy](docs/AUTHORIZED_TEST_SIMS.md) for a privately configured authorized subscriber.
+- [Host IMS deployment](docs/HOST_IMS_DEPLOYMENT.md), including existing IMS profiles, firmware handoff and the lab's ModemManager dependency fix.
 - [Host IMS restart cleanup](docs/HOST_IMS_RECOVERY.md), including confirmed journals and unresolved ownership fences.
 - [Final acceptance ledger](docs/PARITY_ACCEPTANCE.md), including the required evidence and remaining hardware acceptance.
 - [Cellular data ownership and handover](docs/CELLULAR_DATA_HANDOVER.md).
@@ -214,15 +218,20 @@ printf '%s\n' "$VOCAT_BOOTSTRAP_PASSWORD" | docker run --rm -i \
   ghcr.io/mengmengcode/vocat:latest bootstrap-admin
 unset VOCAT_BOOTSTRAP_PASSWORD
 
+sudo install -d -m 0700 /run/vocat
 docker run -d \
   --name vocat \
   --restart unless-stopped \
   --network host \
+  --pid host \
   --privileged \
   --user 0:0 \
   -v vocat-data:/opt/vocat/data \
   -v /dev:/dev \
   -v /sys:/sys:ro \
+  -v /run/dbus:/run/dbus:ro \
+  -v /run/vocat:/run/vocat \
+  -v /run/lock:/run/lock \
   ghcr.io/mengmengcode/vocat:latest
 ```
 

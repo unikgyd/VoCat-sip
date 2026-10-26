@@ -19,6 +19,7 @@ vc.jar
 .env
 .env.*
 !.env.example
+/authorized-test-sims*.json
 
 # ---- Frontend build products ----
 web/dist/

@@ -20,9 +20,13 @@ type TelephonyPolicy struct {
 	AutoConnectWiFi     bool   `json:"auto_connect_wifi"`
 	DefaultRoute        string `json:"default_route"`
 	WiFiRadioPolicy     string `json:"wifi_radio_policy"`
+	HostIMSProfileID    uint32 `json:"host_ims_profile_id,omitempty"`
 }
 
 func (p TelephonyPolicy) Validate() error {
+	if p.HostIMSProfileID > 255 {
+		return errors.New("Host IMS profile ID must be 0 (automatic) or 1-255")
+	}
 	if len(p.ICCID) < 10 || len(p.ICCID) > 22 || strings.Trim(p.ICCID, "0123456789") != "" {
 		return errors.New("telephony policy requires the live SIM ICCID")
 	}

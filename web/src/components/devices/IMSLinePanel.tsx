@@ -72,6 +72,14 @@ export function IMSLinePanel({ device, onUpdated }: { device: DeviceDetail; onUp
           <select id={`${id}-cell`} className={selectClass} value={draft.cellularMode} disabled={busy || reader} onChange={e => update({ cellularMode: e.target.value as TelephonyPolicy["cellularMode"] })}>
             <option value="module">{t("模块语音")}</option><option value="host_ims">Host IMS</option>
           </select>
+          {draft.cellularMode === "host_ims" && <details className="text-xs text-gray-500">
+            <summary className="cursor-pointer">{t("IMS 高级设置")}</summary>
+            <label className="mt-2 block" htmlFor={`${id}-profile`}>{t("现有 IMS Profile 编号")}</label>
+            <input id={`${id}-profile`} type="number" min={0} max={255} step={1} className={`${selectClass} mt-1`}
+              value={draft.hostImsProfileId ?? 0} disabled={busy || reader}
+              onChange={e => update({ hostImsProfileId: Number(e.target.value) })} />
+            <p className="mt-2">{t("0 为自动选择。指定模块中已有的 IMS Profile，应用不会修改该 Profile。")}</p>
+          </details>}
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500" role="status">
             <span>{reader ? t("此读卡器不支持蜂窝连接") : saved?.cellularMode === "host_ims" ? `Host IMS · ${t(host.label)}` : t(device.radioRegistered ? "蜂窝已注册" : "蜂窝未注册")}</span>
             {!reader && saved?.autoConnectCellular && device.telephonyPolicy && <Button size="small" variant="text" disabled={busy || changed} onClick={() => void reconnect(saved.cellularMode)}>{t("重连")}</Button>}

@@ -31,6 +31,9 @@ type Config struct {
 	DeviceID string
 	IMS      ims.Config
 	Prepare  func(context.Context) (Access, error)
+	// Diagnostic receives private causes for a trusted, constant-label logger.
+	// Causes must never be placed in public runtime state or protocol logs.
+	Diagnostic func(stage string, cause error)
 }
 
 type State string
@@ -225,7 +228,13 @@ func (r *Runtime) runStart(op *operation) {
 		return
 	}
 	card := r.readCard(access)
-	if !validProvisioning(card) || access.Verify(op.ctx, card.identity) != nil {
+	if !validProvisioning(card) {
+		r.diagnose("card_provisioning", ErrPrepare)
+		r.failStart(op, ErrPrepare, "prepare_failed")
+		return
+	}
+	if err := access.Verify(op.ctx, card.identity); err != nil {
+		r.diagnose("verify_access", err)
 		r.failStart(op, ErrPrepare, "prepare_failed")
 		return
 	}
@@ -241,6 +250,7 @@ func (r *Runtime) runStart(op *operation) {
 		return
 	}
 	if err != nil || nilValue(provider) {
+		r.diagnose("provider_config", err)
 		r.failStart(op, ErrRegistration, "register_failed")
 		return
 	}
@@ -265,6 +275,7 @@ func (r *Runtime) runStart(op *operation) {
 		return
 	}
 	if err != nil || nilValue(session) {
+		r.diagnose("provider_start", err)
 		r.failStart(op, ErrRegistration, "register_failed")
 		return
 	}
@@ -280,6 +291,12 @@ func (r *Runtime) runStart(op *operation) {
 	}
 	r.completeLocked(op, nil, Ready, "")
 	r.mu.Unlock()
+}
+
+func (r *Runtime) diagnose(stage string, cause error) {
+	if r.config.Diagnostic != nil {
+		r.config.Diagnostic(stage, cause)
+	}
 }
 
 func validProvisioning(card cardProvisioning) bool {
@@ -324,7 +341,8 @@ func (r *Runtime) cleanup() error {
 	session, access := r.session, r.access
 	r.mu.Unlock()
 	if !nilValue(session) {
-		if session.Close(ctx) != nil {
+		if err := session.Close(ctx); err != nil {
+			r.diagnose("session_close", err)
 			return ErrCleanup
 		}
 		r.mu.Lock()
@@ -332,7 +350,8 @@ func (r *Runtime) cleanup() error {
 		r.mu.Unlock()
 	}
 	if !nilValue(access) {
-		if access.Close(ctx) != nil {
+		if err := access.Close(ctx); err != nil {
+			r.diagnose("access_close", err)
 			return ErrCleanup
 		}
 		r.mu.Lock()

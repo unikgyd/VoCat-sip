@@ -42,6 +42,7 @@ func newLinuxRuntimeSource(lease *BearerLease, deps runtimeOpenerDependencies) (
 }
 
 type ownedWDSSession struct {
+	lease             *BearerLease
 	guard             func(context.Context) error
 	pin               endpointGuard
 	topology          wdsTopology
@@ -103,7 +104,7 @@ func (s *ownedWDSSession) Query(ctx context.Context, family byte) (Runtime, erro
 		s.revision = s.proxy.wdsRevision()
 		s.watched = true
 	}
-	runtime, err := readBoundRuntime(ctx, s.proxy, cid, s.topology.Binding(), family, s.verify)
+	runtime, err := s.readOriginalRuntime(ctx, cid, family)
 	if err != nil {
 		return Runtime{}, err
 	}
@@ -112,6 +113,22 @@ func (s *ownedWDSSession) Query(ctx context.Context, family byte) (Runtime, erro
 		return Runtime{}, ErrChanged
 	}
 	return runtime, nil
+}
+
+func (s *ownedWDSSession) readOriginalRuntime(ctx context.Context, cid, family byte) (Runtime, error) {
+	if s.lease == nil {
+		return Runtime{}, ErrSelection
+	}
+	runtime, err := readBoundRuntime(ctx, s.proxy, cid, s.topology.Binding(), family, s.verify)
+	if err != nil {
+		return Runtime{}, err
+	}
+	for _, address := range s.lease.configuration.Addresses {
+		if address.Address.Addr().Is4() == (family == 4) {
+			return normalizeBoundRuntime(runtime, address, s.lease.claim.record.Options.APN)
+		}
+	}
+	return Runtime{}, ErrRuntime
 }
 func (s *ownedWDSSession) Close(ctx context.Context) error {
 	if s.closed {
@@ -171,7 +188,7 @@ func openCellularRuntime(ctx context.Context, lease *BearerLease, verify func(co
 	if err != nil {
 		return nil, ErrQMIEndpoint
 	}
-	s := &ownedWDSSession{pin: pin, guard: verify}
+	s := &ownedWDSSession{lease: lease, pin: pin, guard: verify}
 	cleanFailure := func(cause error) (runtimeSession, error) {
 		cleanup, finish := context.WithTimeout(context.Background(), 4*time.Second)
 		defer finish()

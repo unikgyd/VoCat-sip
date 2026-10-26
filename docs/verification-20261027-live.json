@@ -1,0 +1,327 @@
+{
+  "date": "2026-10-27",
+  "timezone": "Asia/Taipei",
+  "sourceBaseline": "958e80a",
+  "software": {
+    "go": {
+      "label": "final4-go",
+      "exit": 0,
+      "seconds": 170.29353880882263,
+      "passed": 2043,
+      "failed": 0,
+      "skipped": 47
+    },
+    "vet": {
+      "label": "final4-vet",
+      "exit": 0,
+      "seconds": 5.086266040802002
+    },
+    "race": {
+      "label": "final4-race",
+      "exit": 0,
+      "seconds": 38.99985194206238,
+      "passed": 52,
+      "failed": 0,
+      "skipped": 0
+    },
+    "arm64Build": {
+      "label": "final4-arm64-build",
+      "exit": 0,
+      "seconds": 88.41058206558228
+    }
+  },
+  "frontend": {
+    "testsPassed": 79,
+    "failed": 0,
+    "typescriptAndProductionBuild": true
+  },
+  "goEnvironment": {
+    "CGO_ENABLED": "0",
+    "GOWORK": "off",
+    "GOFLAGS": "-mod=readonly"
+  },
+  "kernel": {
+    "passed": 42,
+    "skipped": 0,
+    "failed": 0,
+    "policy": "one fresh NET+MNT namespace with private sysfs per case",
+    "cases": [
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestCellularNativeBoundSignalingSockets",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestCellularNativeRTPBindsBearerAndSource",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelCleanupIdentityDoesNotGuessDeathFromBadAnchorOrNamespace",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelCleanupIdentityDoesNotTreatNamespaceMoveAsDeletion",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelCleanupIdentityProvesDeletionWithoutTouchingReusedIndex",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelCleanupIdentityRejectsClosedDriver",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelCleanupIdentitySurvivesDownRenameAndMTUChange",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkCancellationKeepsPendingUntilObservedCleanup",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkDetectsRuleActionReplacement",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkDualStackGateways",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkDualStackSetupBoundSocketsAndCleanup",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkForeignRouteReplacementIsPreserved",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkJournalFailureAfterAckRetainsPendingFence",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkJournalFailureBeforeIntentDoesNotMutate",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkKnownRejectionHasNoUnknownFence",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkLostAckNeverGuessesOwnership",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkMediaLimitAndLastRelease",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkMediaReferenceCountsAndSignalingPin",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkMutationExcludesSIM",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkPolicyOverrideFailsClosedAndRollsBack",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkRejectsExistingDefaultWithoutMutation",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkRejectsMultipathSocketOutsideTCPESPContract",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkRejectsUnmatchedRuntimeBeforeMutation",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkRenameAndMTUChangesInvalidate",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkReusesButNeverDeletesExistingAddress",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkRuntimeBusyDoesNotPoisonClose",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkSocketBindingRejectsUnknownDestinationAndWrongFamily",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkSocketFromAnotherNamespaceIsRejected",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkTwoModemsWithOverlappingDualStackAddresses",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkUnknownIPv6RoutePreferenceIsPreserved",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkWDSProofIsRevalidatedBeforeReuse",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelOwnedDownLinkLifecycle",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelSecurityOwnerNativeDualStackOverlappingModems",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestLinuxIPSecInstallerLifecycle",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestLinuxIPSecRollbackPreservesForeignKernelState",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ike",
+        "test": "TestLinuxUserspaceInstallerLifecycle",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestLinuxXFRMServerRepliesEncryptEphemeralTCPAndUDP",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestLinuxXFRMSharedPlanIncludesRequiredUEClientUDPInbound",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestScopedXFRMNative",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestSecurityTCNativeOverlappingModemESPDelivery",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestSecurityTCNativeOwnedCreateFingerprintAndForeignFence",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestSocketSecurityPolicyNative",
+        "passed": true
+      }
+    ]
+  },
+  "hardware": {
+    "hostIMSRegistered": true,
+    "voWiFiIMSRegistered": true,
+    "simultaneousRegistrationOnFinalBuild": true,
+    "hostIMSShutdownAcknowledged": true,
+    "voWiFiShutdownAndRepeatedStopAcknowledged": true,
+    "call": {
+      "destinationSuffix": "9413",
+      "callsPlaced": 1,
+      "sipRinging": 180,
+      "codec": "AMR",
+      "answered": false,
+      "cancelFinalSIP": 487,
+      "hangupAcknowledged": true,
+      "rtpPacketsSent": 0,
+      "rtpPacketsReceived": 0
+    },
+    "smsSent": false,
+    "voWiFiCallPlaced": false
+  },
+  "artifacts": {
+    "host-fixes-9": "320120d1c6c9875c1a914b1ac6795dfe6b09bdba378da4d85223a920a691b3d5",
+    "cleanup-fixes-2": "9ff7a851144cd5270af20d8fefee453cab870ad48abf1bb46f665e4c3efc8ba1",
+    "arm64": "46a10f9aab63170b66f397e53741b55166cdf0014bb0c728140c4f42d4aa6d26"
+  },
+  "rollback": {
+    "time": 1793035559.5474048,
+    "testContainerStopped": true,
+    "accessIntentsDisabled": true,
+    "hostClaims": 0,
+    "nativeIMSModeRestored": true,
+    "originalModemManagerRestored": true,
+    "distroBinaryUnchanged": true,
+    "temporaryRuntimeOverrideRemoved": true,
+    "onlyOurInhibitorReleased": true,
+    "sameModemsAndSIMs": true,
+    "modems": {
+      "1": {
+        "state": "registered",
+        "power": "on"
+      },
+      "0": {
+        "state": "registered",
+        "power": "on"
+      }
+    },
+    "xfrmStates": 0,
+    "xfrmPolicies": 0,
+    "originalContainersUnchanged": true,
+    "nativeIMSRegistered": true,
+    "modemManagerRestartsAfterRestore": 0
+  },
+  "retainedInitialFailures": [
+    "distribution ModemManager netlink use-after-free",
+    "unsupported NAS LTE extensions/default profile lacked P-CSCF",
+    "owned mux DOWN/IPv6 RA default route",
+    "UIM expected channel-close notification",
+    "socket-policy outbound SA mark mismatch",
+    "broad race suite five-minute timeout",
+    "paired TCP/UDP test-port collision",
+    "first kernel runner lacked namespace-local sysfs",
+    "native socket fixture used invalid CLI mark syntax",
+    "VoWiFi close timeout discarded original owner"
+  ],
+  "privateEvidenceCommitted": false,
+  "remotePushed": false
+}

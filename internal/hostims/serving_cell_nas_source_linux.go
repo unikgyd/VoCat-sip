@@ -353,7 +353,7 @@ func (s *ownedNASCellSession) queryCell(ctx context.Context) error {
 	clear(frame)
 	clearProxyPacket(packet)
 	if err != nil || s.end.Sub(s.start) > 5*time.Second {
-		return ErrRuntime
+		return ErrServingCellUnavailable
 	}
 	if err := s.registeredLTE(ctx); err != nil {
 		return err
@@ -367,8 +367,11 @@ func (s *ownedNASCellSession) queryCell(ctx context.Context) error {
 		if err := s.checkEpoch(ctx); err != nil {
 			return err
 		}
-		after, err := readBoundRuntime(ctx, s.proxy, s.cids[i], s.topology.Binding(), before.Family, s.ownedWDSSession.verify)
+		after, err := s.readOriginalRuntime(ctx, s.cids[i], before.Family)
 		if err != nil {
+			if errors.Is(err, ErrRuntime) {
+				return ErrChanged
+			}
 			return err
 		}
 		if !reflect.DeepEqual(before, canonicalRuntime(after)) {

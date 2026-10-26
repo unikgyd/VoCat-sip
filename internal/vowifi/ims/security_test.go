@@ -274,14 +274,14 @@ func TestXFRMPlanContainsFourStatesAndProtocolSpecificPolicies(t *testing.T) {
 	}
 
 	wantPolicies := map[string]bool{
-		"tcp 40666 50600 out": false,
-		"udp 40666 50600 out": false,
-		"tcp 50600 40666 in":  false,
-		"udp 50600 40666 in":  false,
-		"tcp * 55610 in":      false,
-		"udp * 55610 in":      false,
-		"tcp 55610 * out":     false,
-		"udp 55610 * out":     false,
+		"6 40666 50600 out":  false,
+		"17 40666 50600 out": false,
+		"6 50600 40666 in":   false,
+		"17 50600 40666 in":  false,
+		"6 * 55610 in":       false,
+		"17 * 55610 in":      false,
+		"6 55610 * out":      false,
+		"17 55610 * out":     false,
 	}
 	for _, operation := range install[4:] {
 		sourcePort := "*"

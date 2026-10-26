@@ -25,7 +25,8 @@ func configureHostIMSRuntime(ctx context.Context, logger *slog.Logger, database 
 	recordings ...*callrecord.Service,
 ) (*durableHostIMSController, func(context.Context) error, error) {
 	factory, err := buildHostIMSFactory(ctx, hostIMSFactoryOptions{
-		Store: database, Devices: devices,
+		Logger: logger.With("category", "host_ims"),
+		Store:  database, Devices: devices,
 		IMSConfig: func(ctx context.Context, config store.Device) (ims.Config, error) {
 			value, err := applicationIMSConfig(ctx, config, database, logger.With("category", "host_ims", "device_id", config.ID), incoming, store.IMSModeHost)
 			if err == nil {

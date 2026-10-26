@@ -248,7 +248,7 @@ func TestKernelSecurityLargestCombinedWALFitsPrivateJournal(t *testing.T) {
 	for ordinal := 0; ordinal <= len(endpoints); ordinal++ {
 		security.Operations = append(security.Operations, securityOperation{Kind: "tc", Ordinal: uint8(ordinal), Hash: hashText(fmt.Sprintf("maximum TC %d", ordinal))})
 	}
-	plan, err := buildScopedXFRMPlan(config, security.Mark, security.ClientReqID, security.ServerReqID)
+	plan, err := buildScopedXFRMPlanMode(config, security.Mark, security.ClientReqID, security.ServerReqID, security.SocketOutbound)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,8 +283,15 @@ func TestKernelSecurityLargestCombinedWALFitsPrivateJournal(t *testing.T) {
 		remote := netip.MustParseAddr(fmt.Sprintf("fd98:7654:3210:fedc:1234:5678:9abc:%04x", 0x2000+index))
 		network.Operations = append(network.Operations, networkOperation{Kind: "route", Local: local6, Remote: remote, Gateway: gateway6, MTU: 65535, Hash: hashText(fmt.Sprintf("media %d", index)), Owned: true, Media: true})
 	}
+	for _, kind := range []string{"accept_ra", "autoconf", "link"} {
+		op := networkOperation{Kind: kind, Local: local6, Hash: hashText(kind), Owned: true}
+		if kind != "link" {
+			op.Previous = 1
+		}
+		network.Operations = append(network.Operations, op)
+	}
 	parent.Network = network
-	if len(security.Flows) != 8 || len(security.Operations) != 21 || len(plan.Operations) != 12 || len(network.Operations) != 20 || len(parent.SIMChallenges) != 128 {
+	if len(security.Flows) != 8 || len(security.Operations) != 21 || len(plan.Operations) != 12 || len(network.Operations) != 23 || len(parent.SIMChallenges) != 128 {
 		t.Fatal("capacity fixture does not fill all supported collections")
 	}
 
@@ -325,7 +332,7 @@ func TestKernelSecurityLargestCombinedWALFitsPrivateJournal(t *testing.T) {
 				t.Fatal("maximum combined WAL did not round-trip exactly", err)
 			}
 			decoded, err := decodeClaim(stored)
-			if err != nil || len(decoded.Network.Security.Operations) != 21 || len(decoded.Network.Operations) != 20 || len(decoded.SIMChallenges) != 128 {
+			if err != nil || len(decoded.Network.Security.Operations) != 21 || len(decoded.Network.Operations) != 23 || len(decoded.SIMChallenges) != 128 {
 				t.Fatal("maximum combined WAL lost bounded collections", err)
 			}
 			for _, operation := range decoded.Network.Security.Operations {

@@ -139,6 +139,7 @@ func (s *RuntimeSource) Read(ctx context.Context) (*RuntimeProof, error) {
 	}
 	s.lease.claim.mu.Lock()
 	apn := s.lease.claim.record.Options.APN
+	profileID := s.lease.claim.record.Options.ProfileID
 	s.lease.claim.mu.Unlock()
 	type outcome struct {
 		proof *RuntimeProof
@@ -176,6 +177,10 @@ func (s *RuntimeSource) Read(ctx context.Context) (*RuntimeProof, error) {
 				row, err := session.Query(worker, family)
 				if err != nil {
 					out.err = err
+					break
+				}
+				if profileID != 0 && (row.Profile == nil || row.Profile.Type != 0 || uint32(row.Profile.Index) != profileID) {
+					out.err = ErrRuntime
 					break
 				}
 				if err := matchBoundRuntime(row, address, apn); err != nil {
@@ -255,7 +260,7 @@ func safeRuntimeError(err error) error {
 	if err == nil {
 		return nil
 	}
-	for _, known := range []error{ErrRuntime, ErrPCSCF, ErrWDSUnavailable, ErrQMIEndpoint, ErrQMIProxy, ErrUncertain, ErrJournal, ErrChanged, ErrDenied, ErrBusy, context.Canceled, context.DeadlineExceeded} {
+	for _, known := range []error{ErrServingCellUnavailable, ErrRuntime, ErrPCSCF, ErrWDSUnavailable, ErrQMIEndpoint, ErrQMIProxy, ErrUncertain, ErrJournal, ErrChanged, ErrDenied, ErrBusy, context.Canceled, context.DeadlineExceeded} {
 		if errors.Is(err, known) {
 			return known
 		}

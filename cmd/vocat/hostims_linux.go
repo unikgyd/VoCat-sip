@@ -74,7 +74,11 @@ func (f *linuxHostIMSFactory) Factory(ctx context.Context, id string) (*hostimsr
 	if err != nil {
 		return nil, errHostIMSFactory
 	}
-	return hostimsruntime.NewRuntime(hostimsruntime.Config{DeviceID: id, IMS: imsConfig, Prepare: func(prepare context.Context) (hostimsruntime.Access, error) {
+	return hostimsruntime.NewRuntime(hostimsruntime.Config{DeviceID: id, IMS: imsConfig, Diagnostic: func(stage string, cause error) {
+		if f.opts.Logger != nil {
+			f.opts.Logger.Warn("Host IMS operation failed", "device_id", id, "stage", stage, "reason", hostims.PreparationFailureCode(cause))
+		}
+	}, Prepare: func(prepare context.Context) (hostimsruntime.Access, error) {
 		return f.prepare(prepare, id)
 	}})
 }
@@ -249,6 +253,17 @@ func (f *linuxHostIMSFactory) prepare(ctx context.Context, id string) (hostimsru
 		return nil, hostims.ErrChanged
 	}
 	options := hostims.BearerOptions{APN: vowifisettings.IMSAPN(ctx, f.opts.Store), Timeout: time.Minute}
+	if config.Telephony != nil {
+		options.ProfileID = config.Telephony.HostIMSProfileID
+	}
+	if card, cardErr := f.opts.Store.CardPolicy(ctx, selection.SubscriberICCID()); cardErr == nil {
+		options.IPFamily, err = hostIMSCardIPFamily(card.IPVersion)
+		if err != nil {
+			return nil, err
+		}
+	} else if !errors.Is(cardErr, store.ErrNotFound) {
+		return nil, cardErr
+	}
 	if f.opts.BearerOptions != nil {
 		options, err = f.opts.BearerOptions(ctx, config)
 		if err != nil {
@@ -277,6 +292,9 @@ func (f *linuxHostIMSFactory) prepare(ctx context.Context, id string) (hostimsru
 	f.held[owner] = struct{}{}
 	f.mu.Unlock()
 	access, prepareErr := hostims.PrepareAccess(ctx, lease)
+	if prepareErr != nil && f.opts.Logger != nil {
+		f.opts.Logger.Warn("Host IMS preparation failed", "device_id", id, "stage", "prepare_access", "reason", hostims.PreparationFailureCode(prepareErr))
+	}
 	owner.access = access
 	if access != nil {
 		return owner, prepareErr
@@ -293,6 +311,21 @@ func (f *linuxHostIMSFactory) prepare(ctx context.Context, id string) (hostimsru
 		prepareErr = hostimsruntime.ErrPrepare
 	}
 	return nil, prepareErr
+}
+
+func hostIMSCardIPFamily(version string) (uint32, error) {
+	switch strings.ToUpper(strings.TrimSpace(version)) {
+	case "":
+		return 0, nil
+	case "IP", "IPV4":
+		return 1, nil
+	case "IPV6":
+		return 2, nil
+	case "IPV4V6":
+		return 4, nil
+	default:
+		return 0, hostims.ErrParameters
+	}
 }
 
 // Subscription reads ModemManager metadata only. Cached SIM identifiers must

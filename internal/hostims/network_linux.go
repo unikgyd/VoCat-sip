@@ -285,7 +285,7 @@ func (n *kernelNetworkLease) add(ctx context.Context, op networkOperation) error
 	if n.bearer.pool.authorize(ctx, n.bearer.selection) != nil {
 		return ErrDenied
 	}
-	if len(n.record.Operations) >= 20 {
+	if len(n.record.Operations) >= 23 {
 		return ErrBusy
 	}
 	if err := n.parent(ctx); err != nil {
@@ -370,6 +370,31 @@ func (n *kernelNetworkLease) routeOperation(endpoint Endpoint, media bool) (netw
 func (n *kernelNetworkLease) install(ctx context.Context, caller context.Context) error {
 	if err := n.parent(ctx); err != nil {
 		return err
+	}
+	// ModemManager creates an owned multiplexed interface in the DOWN state;
+	// its bearer Connect does not configure the host network. Journal link UP
+	// before addresses and routes so cleanup restores DOWN last.
+	if kernel, ok := n.driver.(*linuxNetworkKernel); ok && !kernel.up {
+		hasIPv6 := false
+		for _, address := range n.bearer.configuration.Addresses {
+			hasIPv6 = hasIPv6 || address.Address.Addr().Is6()
+		}
+		if hasIPv6 {
+			for _, kind := range []string{"accept_ra", "autoconf"} {
+				previous, err := kernel.ipv6Setting(kind, nil)
+				if err != nil {
+					return err
+				}
+				if previous != 0 {
+					if err := n.add(ctx, networkOperation{Kind: kind, Local: n.bearer.configuration.Addresses[0].Address, Previous: previous}); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		if err := n.add(ctx, networkOperation{Kind: "link", Local: n.bearer.configuration.Addresses[0].Address}); err != nil {
+			return err
+		}
 	}
 	for _, address := range n.bearer.configuration.Addresses {
 		if err := caller.Err(); err != nil {

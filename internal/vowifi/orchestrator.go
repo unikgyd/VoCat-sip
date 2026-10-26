@@ -156,8 +156,14 @@ func (orchestrator *Orchestrator) Enable(ctx context.Context) (State, error) {
 	orchestrator.mu.Unlock()
 	// A failed explicit restore is still a radio lease, not a completed
 	// disable. Only another Disable can acknowledge that cleanup.
-	if !current.Enabled && retained != nil && retained.radioChanged {
+	if !current.Enabled && retained != nil && (retained.radioChanged || retained.ims != nil || retained.tunnel != nil) {
 		return current, ErrCleanupIncomplete
+	}
+	if retained != nil && (retained.ims != nil || retained.tunnel != nil) {
+		if pending := orchestrator.cleanupSessions(retained); len(pending) > 0 {
+			orchestrator.mutate(func(state *State) { state.CleanupErrors = append([]string(nil), pending...) })
+			return orchestrator.State(), fmt.Errorf("%w: %s", ErrCleanupIncomplete, strings.Join(pending, "; "))
+		}
 	}
 
 	now := time.Now().UTC()
@@ -204,7 +210,7 @@ func (orchestrator *Orchestrator) Enable(ctx context.Context) (State, error) {
 		runtimeCancel()
 		cleanupErrors := append(setupCleanupErrors, orchestrator.cleanupSessions(resources)...)
 		orchestrator.mu.Lock()
-		if resources.radioChanged || resources.radioPolicy != "" {
+		if resources.radioChanged || resources.radioPolicy != "" || resources.ims != nil || resources.tunnel != nil {
 			orchestrator.resources = resources
 		} else {
 			orchestrator.resources = nil
@@ -456,7 +462,7 @@ func (orchestrator *Orchestrator) Disable(ctx context.Context) (State, error) {
 	}
 	cleanupErrors := orchestrator.cleanup(resources)
 	orchestrator.mu.Lock()
-	if resources != nil && resources.radioChanged {
+	if resources != nil && (resources.radioChanged || resources.ims != nil || resources.tunnel != nil) {
 		orchestrator.resources = resources
 	} else {
 		orchestrator.resources = nil
@@ -542,7 +548,7 @@ func (orchestrator *Orchestrator) Reconnect(ctx context.Context) (State, error) 
 	// after taking the lifecycle gate: an in-flight Disable may have failed
 	// while this caller was waiting. Setting Enabled=true first would bypass
 	// Enable's cleanup check and issue RF/SIM operations under the old lease.
-	if !current.Enabled && resources != nil && resources.radioChanged {
+	if !current.Enabled && resources != nil && (resources.radioChanged || resources.ims != nil || resources.tunnel != nil) {
 		orchestrator.unlockOperation()
 		return current, ErrCleanupIncomplete
 	}
@@ -878,14 +884,16 @@ func (orchestrator *Orchestrator) cleanupSessions(resources *runtimeResources) [
 	if resources.ims != nil {
 		if err := orchestrator.cleanupCall(resources.ims.Close); err != nil {
 			cleanupErrors = append(cleanupErrors, "close IMS: "+err.Error())
+		} else {
+			resources.ims = nil
 		}
-		resources.ims = nil
 	}
 	if resources.tunnel != nil {
 		if err := orchestrator.cleanupCall(resources.tunnel.Close); err != nil {
 			cleanupErrors = append(cleanupErrors, "close tunnel: "+err.Error())
+		} else {
+			resources.tunnel = nil
 		}
-		resources.tunnel = nil
 	}
 	return cleanupErrors
 }
@@ -998,7 +1006,7 @@ func (orchestrator *Orchestrator) watchRuntimeFailure(
 			cleanupErrors := orchestrator.cleanupSessions(resources)
 			orchestrator.mu.Lock()
 			if orchestrator.resources == resources {
-				if resources.radioChanged || resources.radioPolicy != "" {
+				if resources.radioChanged || resources.radioPolicy != "" || resources.ims != nil || resources.tunnel != nil {
 					orchestrator.resources = resources
 				} else {
 					orchestrator.resources = nil

@@ -28,7 +28,7 @@ func TestXFRMServerRepliesCoverTCPAndUDPWithoutOpeningOtherPeers(t *testing.T) {
 				}
 				args := operation.arguments
 				protocol := argumentAfter(t, args, "proto")
-				if protocol != "tcp" && protocol != "udp" || found[protocol] {
+				if protocol != "6" && protocol != "17" || found[protocol] {
 					t.Fatalf("unexpected server-reply protocol: %q", protocol)
 				}
 				found[protocol] = true

@@ -44,7 +44,14 @@ func imsActiveCalls(controller VoWiFiController, id string) error {
 	active, err := calls.Calls(id)
 	if err != nil {
 		state, stateErr := controller.State(id)
-		if stateErr == nil && !state.Active && !state.AccessReady && !state.IMSReady && (state.Phase == vowifi.PhaseIdle || state.Phase == vowifi.PhaseFailed) {
+		// SIM/access discovery can remain ready after IMS setup fails. That
+		// does not imply a call exists; still require the real Stop cleanup ACK.
+		if stateErr == nil && !state.Active && !state.IMSReady && (state.Phase == vowifi.PhaseIdle || state.Phase == vowifi.PhaseFailed) {
+			return nil
+		}
+		if stateErr == nil && !state.IMSReady && errors.Is(err, vowifi.ErrNotRunning) {
+			// A tunnel can be active before an IMS call controller exists.
+			// Stop must still be able to cancel and join that registration.
 			return nil
 		}
 		return err

@@ -222,11 +222,14 @@ func (f *proxyUIMFixture) serve(connection net.Conn) error {
 				output = append(output, qmi.TLV{Type: 0x10, Value: statusEnvelope(0, statusCard(apps...))})
 			case 0x0047:
 				output = append(output, qmi.TLV{Type: 0x10, Value: append([]byte{1}, slotStatusRaw(1, fixtureCardICCID(f.state.iccid))...)})
-			case 0x003f:
+			case 0x003f, 0x0042:
 				if len(input[1]) != 1 {
 					return errors.New("fixture: missing physical slot")
 				}
 				if aid, ok := input[0x10]; ok {
+					if request.MessageID != 0x0042 {
+						return errors.New("fixture: expected explicit logical channel open")
+					}
 					if len(aid) < 1 || int(aid[0]) != len(aid)-1 {
 						return errors.New("fixture: invalid AID length")
 					}
@@ -236,7 +239,10 @@ func (f *proxyUIMFixture) serve(connection net.Conn) error {
 					}
 					output = append(output, qmi.TLV{Type: 0x10, Value: []byte{channel}}, qmi.TLV{Type: 0x11, Value: []byte{0x90, 0}})
 				} else {
-					if len(input[0x11]) != 1 || !bytes.Equal(input[0x13], []byte{1}) {
+					if request.MessageID != 0x003f {
+						return errors.New("fixture: expected logical channel close")
+					}
+					if len(input[0x11]) != 1 || len(input) != 3 || !bytes.Equal(input[0x13], []byte{0}) {
 						return errors.New("fixture: invalid owned channel close")
 					}
 					if err := card.CloseChannel(context.Background(), input[1][0], input[0x11][0]); err != nil {

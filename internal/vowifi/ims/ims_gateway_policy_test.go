@@ -2,11 +2,13 @@ package ims
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -16,16 +18,27 @@ import (
 func TestIMSGatewayRealSIPOnlySilenceAllowsTransportAndGatewayFallback(t *testing.T) {
 	for _, code := range []int{0, 100, 403, -1} {
 		t.Run(fmt.Sprint(code), func(t *testing.T) {
-			udp, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+			var udp *net.UDPConn
+			var tcp *net.TCPListener
+			var err error
+			for attempt := 0; attempt < 32; attempt++ {
+				tcp, err = net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				udp, err = net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: tcp.Addr().(*net.TCPAddr).Port})
+				if err == nil {
+					break
+				}
+				_ = tcp.Close()
+				if !errors.Is(err, syscall.EADDRINUSE) {
+					t.Fatal(err)
+				}
+			}
 			if err != nil {
-				t.Fatal(err)
+				t.Fatal("no free paired TCP/UDP test port", err)
 			}
 			defer udp.Close()
-			port := udp.LocalAddr().(*net.UDPAddr).Port
-			tcp, err := net.ListenTCP("tcp", &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port})
-			if err != nil {
-				t.Fatal(err)
-			}
 			defer tcp.Close()
 			var tcpCalls atomic.Int32
 			doneTCP := make(chan struct{})

@@ -513,6 +513,38 @@ func TestIMSModeFailedHostCanStopButCleanupFailureRetainsOwner(t *testing.T) {
 	}
 }
 
+func TestIMSModeFailedWiFiAccessCanStopButRequiresCleanupACK(t *testing.T) {
+	config := dispatchConfig("line", store.IMSModeVoWiFi)
+	s, wifi, _, _ := newDispatchTestServer(t, config)
+	wifi.state = vowifi.State{Enabled: true, Phase: vowifi.PhaseFailed, SIMReady: true, AccessReady: true}
+	wifi.callsErr = vowifi.ErrNotRunning
+	wifi.stopErr = errors.New("cleanup not acknowledged")
+	w := dispatchModeRequest(s, config, `{"mode":"module","enabled":false}`)
+	if w.Code != 409 || wifi.stops != 1 {
+		t.Fatal("failed pre-registration access did not reach cleanup", w.Code, wifi.stops)
+	}
+	saved, _ := s.store.Device(context.Background(), "line")
+	if saved.IMSMode != store.IMSModeVoWiFi {
+		t.Fatal("unknown cleanup released Wi-Fi ownership")
+	}
+	wifi.stopErr = nil
+	w = dispatchModeRequest(s, config, `{"mode":"module","enabled":false}`)
+	if w.Code != 202 || wifi.stops != 2 {
+		t.Fatal("failed access cannot stop after cleanup", w.Code, w.Body.String())
+	}
+}
+
+func TestIMSPreRegistrationTunnelCanStopWithoutAdmittingUnknownReadyCalls(t *testing.T) {
+	wifi := &dispatchTestController{state: vowifi.State{Active: true, AccessReady: true, Phase: vowifi.PhaseTunnelReady}, callsErr: vowifi.ErrNotRunning}
+	if err := imsActiveCalls(wifi, "line"); err != nil {
+		t.Fatal("pre-registration tunnel prevented cancellation", err)
+	}
+	wifi.state.IMSReady = true
+	if err := imsActiveCalls(wifi, "line"); err == nil {
+		t.Fatal("an unavailable registered call controller was treated as idle")
+	}
+}
+
 func TestIMSPhysicalAliasConfigurationCannotBorrowHostHardware(t *testing.T) {
 	config := dispatchConfig("line", store.IMSModeHost)
 	config.USBPath = "usb-a"

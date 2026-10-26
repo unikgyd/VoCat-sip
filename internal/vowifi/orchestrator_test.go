@@ -740,10 +740,9 @@ func TestReconnectClosesThenRebuildsTheRuntime(t *testing.T) {
 	}
 }
 
-// A non-fatal teardown error (for example the network rejecting SIP
-// deregistration during IMS close) must not stop a reconnect from rebuilding
-// the runtime; Disable still releases the local IMS, tunnel, and radio layers.
-func TestReconnectToleratesCleanupFailureAndRebuilds(t *testing.T) {
+// A retry must acknowledge the same old session before rebuilding, including
+// when the first close reports a failed SIP deregistration.
+func TestReconnectAcknowledgesOriginalCleanupBeforeRebuild(t *testing.T) {
 	environment := newFakeEnvironment()
 	orchestrator := newTestOrchestrator(t, environment, false)
 	if _, err := orchestrator.Enable(context.Background()); err != nil {
@@ -759,12 +758,33 @@ func TestReconnectToleratesCleanupFailureAndRebuilds(t *testing.T) {
 	if state.Phase != PhaseSMSReady || state.Attempt != 2 {
 		t.Fatalf("Reconnect() state = %+v", state)
 	}
-	if environment.callCount("ims.close") != 1 ||
+	if environment.callCount("ims.close") != 2 ||
 		environment.callCount("tunnel.close") != 1 ||
 		environment.callCount("radio.restore") != 0 ||
 		environment.callCount("radio.snapshot") != 1 ||
 		environment.callCount("tunnel.start") != 2 {
 		t.Fatalf("calls = %#v", environment.callsSnapshot())
+	}
+}
+
+func TestReconnectRetainsFailedCleanupBeforeCreatingReplacement(t *testing.T) {
+	environment := newFakeEnvironment()
+	orchestrator := newTestOrchestrator(t, environment, false)
+	if _, err := orchestrator.Enable(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	environment.setFailure("ims.close", 2)
+	if _, err := orchestrator.Reconnect(context.Background()); !errors.Is(err, ErrCleanupIncomplete) {
+		t.Fatal("unacknowledged old session replaced", err)
+	}
+	if environment.callCount("tunnel.start") != 1 || orchestrator.resources == nil || orchestrator.resources.ims == nil {
+		t.Fatal("failed old close lost ownership")
+	}
+	if _, err := orchestrator.Reconnect(context.Background()); err != nil {
+		t.Fatal("original cleanup could not be retried", err)
+	}
+	if environment.callCount("ims.close") != 3 || environment.callCount("tunnel.start") != 2 {
+		t.Fatal("replacement was not ordered after original ACK")
 	}
 }
 
@@ -925,6 +945,16 @@ func TestDisableCleanupWarningStillSettlesIdle(t *testing.T) {
 		state.LastReason != "disabled_with_cleanup_errors" ||
 		len(state.CleanupErrors) != 1 {
 		t.Fatalf("Disable() warning evidence = %+v", state)
+	}
+	if orchestrator.resources == nil || orchestrator.resources.ims == nil {
+		t.Fatal("failed IMS close owner was discarded")
+	}
+	if _, err := orchestrator.Enable(context.Background()); !errors.Is(err, ErrCleanupIncomplete) {
+		t.Fatal("new activation crossed retained cleanup", err)
+	}
+	state, err = orchestrator.Disable(context.Background())
+	if err != nil || state.LastErrorClass != "" || len(state.CleanupErrors) != 0 || orchestrator.resources != nil || environment.callCount("ims.close") != 2 {
+		t.Fatal("retry did not acknowledge the original IMS cleanup", err, state.LastErrorClass)
 	}
 }
 

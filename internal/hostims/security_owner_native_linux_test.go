@@ -105,7 +105,18 @@ func TestKernelSecurityOwnerNativeDualStackOverlappingModems(t *testing.T) {
 			config.RemoteIP = runtime1.PCSCF[1].AsSlice()
 		}
 		for i, owner := range owners {
-			handle, err := owner.InstallIPSec(ctx, config)
+			ownedConfig := config
+			if i == 1 {
+				if handle, err := owner.InstallIPSec(ctx, ownedConfig); handle != nil || !errors.Is(err, ErrXFRMConflict) {
+					t.Fatal("outbound SPI collision did not preserve original owner", err)
+				}
+				if err := networks[0].Verify(ctx); err != nil {
+					t.Fatal("collision damaged first owner", err)
+				}
+				ownedConfig.PCSCFClientSPI += 0x10000
+				ownedConfig.PCSCFServerSPI += 0x10000
+			}
+			handle, err := owner.InstallIPSec(ctx, ownedConfig)
 			if err != nil {
 				t.Fatalf("install owner=%d ipv6=%v: %v", i, v6, err)
 			}
@@ -122,7 +133,8 @@ func TestKernelSecurityOwnerNativeDualStackOverlappingModems(t *testing.T) {
 			sockets[i] = nativeOwnerProtectedUDP(t, ctx, owner, kernels[i], local.Unmap(), remote.Unmap(), uint16(config.UEClientPort))
 		}
 		// Both real sockets bind the same IP and port, separated by device and
-		// owner mark; all four SPIs are intentionally identical between owners.
+		// owner mark/ReqID. Inbound SPIs overlap; outbound SPIs must be unique
+		// at a shared P-CSCF because socket policies resolve with mark zero.
 		if sockets[0].LocalAddr().String() != sockets[1].LocalAddr().String() {
 			t.Fatal("fixture no longer exercises duplicate local tuple")
 		}

@@ -58,6 +58,7 @@ type kernelSecurityLease struct {
 type securityScopeIdentity struct {
 	mark, client, server uint32
 	flows                []securityFlow
+	socketOutbound       bool
 }
 type kernelSecuritySAHandle struct {
 	owner  *kernelSecurityLease
@@ -156,7 +157,7 @@ func recoverKernelSecurityWith(ctx context.Context, n *kernelNetworkLease, direc
 			return ErrUncertain
 		}
 		s := &kernelSecurityLease{network: n, token: r.Token, xfrm: xfrm, tc: tc, reservations: reservations,
-			identity: securityScopeIdentity{mark: r.Mark, client: r.ClientReqID, server: r.ServerReqID, flows: append([]securityFlow(nil), r.Flows...)}}
+			identity: securityScopeIdentity{mark: r.Mark, client: r.ClientReqID, server: r.ServerReqID, flows: append([]securityFlow(nil), r.Flows...), socketOutbound: r.SocketOutbound}}
 		n.security = s
 		return s.cleanup(worker)
 	}, nil, nil)
@@ -225,7 +226,7 @@ func newSecurityClaim(endpoints []Endpoint) (*securityClaim, error) {
 		return nil, ErrSecurityScope
 	}
 	defer clear(seed)
-	r := &securityClaim{Token: hex.EncodeToString(seed[:32]), Phase: "reserving",
+	r := &securityClaim{Token: hex.EncodeToString(seed[:32]), Phase: "reserving", SocketOutbound: true,
 		Mark:        0x60000000 | binary.LittleEndian.Uint32(seed[32:36])&0x0fffffff,
 		ClientReqID: 0x80000000 | binary.LittleEndian.Uint32(seed[36:40])&0x3fffffff,
 		ServerReqID: 0x80000000 | binary.LittleEndian.Uint32(seed[40:44])&0x3fffffff}
@@ -270,7 +271,7 @@ func prepareKernelSecurityWith(ctx context.Context, n *kernelNetworkLease, direc
 				return err
 			}
 			s := &kernelSecurityLease{network: n, token: r.Token, identity: securityScopeIdentity{
-				mark: r.Mark, client: r.ClientReqID, server: r.ServerReqID, flows: append([]securityFlow(nil), r.Flows...)}}
+				mark: r.Mark, client: r.ClientReqID, server: r.ServerReqID, flows: append([]securityFlow(nil), r.Flows...), socketOutbound: r.SocketOutbound}}
 			working, n.security = s, s
 			if err := s.save(worker, r, "preparing"); err != nil {
 				n.security = nil
@@ -336,7 +337,7 @@ func (s *kernelSecurityLease) record() *securityClaim {
 		return nil
 	}
 	r := s.network.record.Security
-	if !validSecurityClaim(r) || r.Mark != s.identity.mark || r.ClientReqID != s.identity.client || r.ServerReqID != s.identity.server || !sameSecurityFlows(r.Flows, s.identity.flows) {
+	if !validSecurityClaim(r) || r.Mark != s.identity.mark || r.ClientReqID != s.identity.client || r.ServerReqID != s.identity.server || r.SocketOutbound != s.identity.socketOutbound || !sameSecurityFlows(r.Flows, s.identity.flows) {
 		return nil
 	}
 	return cloneSecurityClaim(r)
@@ -509,7 +510,11 @@ func expectedSecurityXFRMKey(record *securityClaim, ordinal uint8) (scopedXFRMKe
 	}
 	if ordinal < 4 {
 		state := plan.States[ordinal]
-		return scopedXFRMKey{Kind: "state", Src: state.Src, Dst: state.Dst, SPI: state.SPI, Protocol: unix.IPPROTO_ESP, Mark: record.Mark}, nil
+		mark := record.Mark
+		if record.SocketOutbound && (ordinal == 0 || ordinal == 3) {
+			mark = 0
+		}
+		return scopedXFRMKey{Kind: "state", Src: state.Src, Dst: state.Dst, SPI: state.SPI, Protocol: unix.IPPROTO_ESP, Mark: mark}, nil
 	}
 	p := plan.Policies[ordinal-4]
 	direction := uint8(0)
@@ -626,7 +631,7 @@ func (s *kernelSecurityLease) InstallIPSec(ctx context.Context, config imssec.Co
 		if !validSecurityAgreement(agreement, r.Flows) {
 			return ErrSecurityScope
 		}
-		plan, err := buildScopedXFRMPlan(copyConfig, r.Mark, r.ClientReqID, r.ServerReqID)
+		plan, err := buildScopedXFRMPlanMode(copyConfig, r.Mark, r.ClientReqID, r.ServerReqID, r.SocketOutbound)
 		if err != nil {
 			return err
 		}

@@ -17,19 +17,21 @@ const maxConfigBytes = 1 << 20
 // Config contains the process-level settings shared by the HTTP and storage
 // layers. Environment variables override values loaded from VOCAT_CONFIG.
 type Config struct {
-	Address             string
-	DatabasePath        string
-	RecordingsDirectory string
-	SessionTTL          time.Duration
-	SecureCookies       bool
-	ShutdownTimeout     time.Duration
-	MaxRequestBodyBytes int64
+	Address                string
+	DatabasePath           string
+	RecordingsDirectory    string
+	AuthorizedTestSIMsFile string
+	SessionTTL             time.Duration
+	SecureCookies          bool
+	ShutdownTimeout        time.Duration
+	MaxRequestBodyBytes    int64
 }
 
 type fileConfig struct {
-	Address             *string `json:"address"`
-	DatabasePath        *string `json:"database_path"`
-	RecordingsDirectory *string `json:"recordings_directory"`
+	Address                *string `json:"address"`
+	DatabasePath           *string `json:"database_path"`
+	RecordingsDirectory    *string `json:"recordings_directory"`
+	AuthorizedTestSIMsFile *string `json:"authorized_test_sims_file"`
 	// Retain the legacy keys only so upgrades do not reject an existing config
 	// file. They are deliberately ignored: administrator credentials are read
 	// exclusively from SQLite.
@@ -119,6 +121,9 @@ func applyFile(cfg *Config, values fileConfig) error {
 	if values.RecordingsDirectory != nil {
 		cfg.RecordingsDirectory = *values.RecordingsDirectory
 	}
+	if values.AuthorizedTestSIMsFile != nil {
+		cfg.AuthorizedTestSIMsFile = *values.AuthorizedTestSIMsFile
+	}
 	if values.SessionTTL != nil {
 		duration, err := time.ParseDuration(*values.SessionTTL)
 		if err != nil {
@@ -152,6 +157,7 @@ func applyEnvironment(cfg *Config) error {
 	applyString("VOCAT_ADDR", &cfg.Address)
 	applyString("VOCAT_DATABASE_PATH", &cfg.DatabasePath)
 	applyString("VOCAT_RECORDINGS_DIRECTORY", &cfg.RecordingsDirectory)
+	applyString("VOCAT_AUTHORIZED_TEST_SIMS_FILE", &cfg.AuthorizedTestSIMsFile)
 
 	if value, ok := os.LookupEnv("VOCAT_SESSION_TTL"); ok {
 		duration, err := time.ParseDuration(value)

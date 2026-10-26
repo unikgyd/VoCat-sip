@@ -95,6 +95,7 @@ type fakeBearerBackend struct {
 	entered          chan struct{}
 	release          chan struct{}
 	failOp           string
+	failError        error
 	noMux            bool
 	badConfiguration bool
 }
@@ -144,6 +145,7 @@ func (b *fakeBearerBackend) before(op, path string) error {
 	block := b.blockOp == op
 	entered, release := b.entered, b.release
 	fail := b.failOp == op
+	failError := b.failError
 	b.mu.Unlock()
 	if block {
 		select {
@@ -153,6 +155,9 @@ func (b *fakeBearerBackend) before(op, path string) error {
 		<-release
 	}
 	if fail {
+		if failError != nil {
+			return failError
+		}
 		return errors.New("private SIM diagnostic must not escape")
 	}
 	return nil

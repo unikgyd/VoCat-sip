@@ -106,7 +106,7 @@ func (s *Server) handleTelephonyPolicy(w http.ResponseWriter, r *http.Request, c
 	if current.Telephony != nil {
 		previous = *current.Telephony
 	}
-	cellChanged := previous.CellularMode != requested.CellularMode || previous.AutoConnectCellular != requested.AutoConnectCellular
+	cellChanged := previous.CellularMode != requested.CellularMode || previous.AutoConnectCellular != requested.AutoConnectCellular || previous.HostIMSProfileID != requested.HostIMSProfileID
 	wifiChanged := previous.AutoConnectWiFi != requested.AutoConnectWiFi || previous.WiFiRadioPolicy != requested.WiFiRadioPolicy
 	if requested.AutoConnectWiFi && s.wifiController() == nil || requested.AutoConnectCellular && requested.CellularMode == store.IMSModeHost && s.hostIMS == nil {
 		writeError(w, 503, "ims_unavailable", "the requested access provider is unavailable")

@@ -252,8 +252,10 @@ local,remote='192.0.2.2','192.0.2.1'
 local6,remote6='2001:db8:1::2','2001:db8:1::1'
 key,ik=b'\x11'*16,b'\x22'*20
 def addsa(src,dst,spi,reqid):
- run('ip','xfrm','state','add','src',src,'dst',dst,'proto','esp','spi',hex(spi),'reqid',str(reqid),
- 'mode','transport','replay-window','32','auth-trunc','hmac(sha1)','0x'+ik.hex(),'96','enc','cbc(aes)','0x'+key.hex())
+ args=['ip','xfrm','state','add','src',src,'dst',dst,'proto','esp','spi',hex(spi),'reqid',str(reqid),
+ 'mode','transport','replay-window','32','auth-trunc','hmac(sha1)','0x'+ik.hex(),'96','enc','cbc(aes)','0x'+key.hex()]
+ if src in (local,local6):args+=['mark','0','mask','0xffffffff']
+ run(*args)
 for src,dst,reqid,spi in [(remote,local,0x6001,0x1001),(remote,local,0x6002,0x1002),(remote6,local6,0x6003,0x1003)]:
  addsa(src,dst,spi,reqid); addsa(dst,src,spi+0x1000,reqid)
 assert not run('ip','xfrm','policy','list','nosock').strip(), 'global policy must remain empty'

@@ -77,7 +77,7 @@ func TestCellularQMIUsesOnlyOwnedChannelAndCID(t *testing.T) {
 			}
 			return uimReply(message, qmi.TLV{Type: 0x10, Value: append([]byte{1}, slotStatusRaw(1, cardHex(t, "981000000000000000f1"))...)}), nil
 		case 3:
-			if message != 0x003f || !bytes.Equal(values[1], []byte{1}) || !bytes.Equal(values[0x10], append([]byte{7}, isimPrefix...)) {
+			if message != 0x0042 || !bytes.Equal(values[1], []byte{1}) || !bytes.Equal(values[0x10], append([]byte{7}, isimPrefix...)) {
 				t.Fatal("wrong channel open")
 			}
 			return uimReply(message, qmi.TLV{Type: 0x10, Value: []byte{4}}, qmi.TLV{Type: 0x11, Value: []byte{0x90, 0}}), nil
@@ -89,7 +89,7 @@ func TestCellularQMIUsesOnlyOwnedChannelAndCID(t *testing.T) {
 			rawResponse = []byte{2, 0, 0x90, 0}
 			return uimReply(message, qmi.TLV{Type: 0x10, Value: rawResponse}), nil
 		case 5:
-			if message != 0x003f || !bytes.Equal(values[0x11], []byte{4}) || !bytes.Equal(values[0x13], []byte{1}) {
+			if message != 0x003f || !bytes.Equal(values[0x11], []byte{4}) || len(values) != 3 || !bytes.Equal(values[0x13], []byte{0}) {
 				t.Fatal("wrong owned channel close")
 			}
 			return uimReply(message), nil

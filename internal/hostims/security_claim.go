@@ -29,15 +29,16 @@ type securityOperation struct {
 }
 
 type securityClaim struct {
-	Token       string                   `json:"t"`
-	Phase       string                   `json:"p"`
-	Mark        uint32                   `json:"m"`
-	ClientReqID uint32                   `json:"c"`
-	ServerReqID uint32                   `json:"s"`
-	Flows       []securityFlow           `json:"f"`
-	Agreement   *securityAgreementRecord `json:"a,omitempty"`
-	Operations  []securityOperation      `json:"o,omitempty"`
-	Pending     *securityOperation       `json:"q,omitempty"`
+	Token          string                   `json:"t"`
+	Phase          string                   `json:"p"`
+	Mark           uint32                   `json:"m"`
+	ClientReqID    uint32                   `json:"c"`
+	ServerReqID    uint32                   `json:"s"`
+	Flows          []securityFlow           `json:"f"`
+	Agreement      *securityAgreementRecord `json:"a,omitempty"`
+	Operations     []securityOperation      `json:"o,omitempty"`
+	Pending        *securityOperation       `json:"q,omitempty"`
+	SocketOutbound bool                     `json:"b,omitempty"`
 }
 
 func cloneSecurityClaim(value *securityClaim) *securityClaim {

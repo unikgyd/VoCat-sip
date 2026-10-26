@@ -21,6 +21,7 @@ type qmiUIMSession struct {
 	release           func() error
 	card              uimCard
 	channels          map[byte]byte
+	channelAIDs       map[byte][]byte
 	uncertain, closed bool
 }
 
@@ -28,7 +29,7 @@ func newQMIUIMSession(sender RequestSender, cid byte, guard func(context.Context
 	if sender == nil || cid == 0 || cid == 255 || guard == nil || release == nil {
 		return nil, ErrSIM
 	}
-	return &qmiUIMSession{sender: sender, cid: cid, guard: guard, release: release, channels: map[byte]byte{}}, nil
+	return &qmiUIMSession{sender: sender, cid: cid, guard: guard, release: release, channels: map[byte]byte{}, channelAIDs: map[byte][]byte{}}, nil
 }
 
 // Caller holds mu. The result code is exposed only internally to distinguish
@@ -194,7 +195,7 @@ func (s *qmiUIMSession) Open(ctx context.Context, slot byte, aid []byte) (byte, 
 	if slot == 0 || slot != s.card.Slot || len(s.channels) != 0 || !bytes.Equal(aid, s.card.USIM) && !(s.card.HasISIM && bytes.Equal(aid, s.card.ISIM)) {
 		return 0, ErrSIMApplication
 	}
-	values, _, err := s.request(ctx, 0x003f, []qmi.TLV{{Type: 1, Value: []byte{slot}}, {Type: 0x10, Value: append([]byte{byte(len(aid))}, aid...)}}, true)
+	values, _, err := s.request(ctx, 0x0042, []qmi.TLV{{Type: 1, Value: []byte{slot}}, {Type: 0x10, Value: append([]byte{byte(len(aid))}, aid...)}}, true)
 	defer clearUIMValues(values)
 	if err != nil {
 		return 0, err
@@ -209,6 +210,7 @@ func (s *qmiUIMSession) Open(ctx context.Context, slot byte, aid []byte) (byte, 
 		return 0, ErrUncertain
 	}
 	s.channels[channel[0]] = slot
+	s.channelAIDs[channel[0]] = append([]byte(nil), aid...)
 	// A successful QMI open can still carry a failed SELECT. Track the owned
 	// channel before rejecting it so cleanup never loses its identity.
 	if sw, ok := values[0x11]; ok && !bytes.Equal(sw, []byte{0x90, 0}) {
@@ -247,7 +249,18 @@ func (s *qmiUIMSession) CloseChannel(ctx context.Context, slot, channel byte) er
 	if slot == 0 || s.channels[channel] != slot {
 		return ErrSIMApplication
 	}
-	values, _, err := s.request(ctx, 0x003f, []qmi.TLV{{Type: 1, Value: []byte{slot}}, {Type: 0x11, Value: []byte{channel}}, {Type: 0x13, Value: []byte{1}}}, true)
+	// Close only our logical channel. TLV 0x13 means Terminate Application,
+	// which can terminate the shared USIM and emit a session-closed indication
+	// before the next identity/AKA operation. Closing a channel does not own
+	// the application's lifetime (the baseband/other clients may use it).
+	if notices, ok := s.sender.(interface {
+		expectOwnedUIMClose(byte, byte, byte, []byte) error
+	}); ok {
+		if err := notices.expectOwnedUIMClose(s.cid, slot, channel, s.channelAIDs[channel]); err != nil {
+			return err
+		}
+	}
+	values, _, err := s.request(ctx, 0x003f, []qmi.TLV{{Type: 1, Value: []byte{slot}}, {Type: 0x11, Value: []byte{channel}}, {Type: 0x13, Value: []byte{0}}}, true)
 	defer clearUIMValues(values)
 	if err != nil {
 		s.uncertain = true
@@ -258,6 +271,7 @@ func (s *qmiUIMSession) CloseChannel(ctx context.Context, slot, channel byte) er
 		return ErrUncertain
 	}
 	delete(s.channels, channel)
+	delete(s.channelAIDs, channel)
 	return nil
 }
 func (s *qmiUIMSession) Uncertain() bool { s.mu.Lock(); defer s.mu.Unlock(); return s.uncertain }

@@ -36,6 +36,7 @@ type proxyQMI struct {
 	nasEvents    atomic.Uint64
 	readDone     chan struct{}
 	closeOnce    sync.Once
+	uimCloses    []ownedUIMClose
 }
 
 func newProxyQMI(connection net.Conn) *proxyQMI {
@@ -296,7 +297,7 @@ func (p *proxyQMI) readLoop() {
 		}
 		if packet.IsIndication {
 			unsolicited++
-			invalid := unsolicited > 64 || packet.ServiceType == qmi.ServiceControl && (packet.MessageID == 0x0024 || packet.MessageID == 0x0027) || packet.ServiceType == qmi.ServiceUIM
+			invalid := unsolicited > 64 || packet.ServiceType == qmi.ServiceControl && (packet.MessageID == 0x0024 || packet.MessageID == 0x0027) || packet.ServiceType == qmi.ServiceUIM && !p.consumeOwnedUIMClose(packet)
 			if packet.ServiceType == qmi.ServiceWDS {
 				p.wdsEvents.Add(1)
 			}

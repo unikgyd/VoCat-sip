@@ -10,6 +10,7 @@ export interface TelephonyPolicy {
   autoConnectWifi: boolean;
   defaultRoute: IMSMode;
   wifiRadioPolicy: "coexist" | "exclusive";
+  hostImsProfileId?: number;
 }
 
 export interface Session {

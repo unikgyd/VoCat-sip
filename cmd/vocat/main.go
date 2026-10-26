@@ -420,6 +420,9 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
 	}
+	if err := device.LoadAuthorizedTestSIMs(cfg.AuthorizedTestSIMsFile); err != nil {
+		return fmt.Errorf("load authorized test SIM policy: %w", err)
+	}
 	carrierProfileDir := filepath.Join(filepath.Dir(cfg.DatabasePath), "carrier-profiles.d")
 	if err := vowifi.LoadCarrierProfileDirectory(carrierProfileDir); err != nil {
 		return fmt.Errorf("load installed carrier profiles: %w", err)

@@ -6,6 +6,7 @@
 #   printf '%s\n' "$VOCAT_BOOTSTRAP_PASSWORD" | docker compose run --rm -T \
 #     --entrypoint /opt/vocat/bin/vocat vocat bootstrap-admin
 #   unset VOCAT_BOOTSTRAP_PASSWORD
+#   sudo install -d -m 0700 /run/vocat
 #   docker compose up -d
 #
 # Build locally from this repo instead of using the GHCR image:
@@ -37,6 +38,7 @@ services:
     # 0.0.0.0:7575 itself); proxy ports opened by the plugin are likewise
     # reachable on the host IP without explicit mapping.
     network_mode: host
+    pid: host
 
     # Modem/QMI/USB-reader hot-plug uses dynamic character devices. Privileged
     # mode mirrors the documented hardware-access docker run command and also
@@ -61,6 +63,11 @@ services:
       # devices added after the container starts.
       - /dev:/dev
       - /sys:/sys:ro
+      # Host IMS uses the host ModemManager and its QMI proxy. Shared lock
+      # directories prevent a second container/process from owning the modem.
+      - /run/dbus:/run/dbus:ro
+      - /run/vocat:/run/vocat
+      - /run/lock:/run/lock
 
 volumes:
   vocat-data:

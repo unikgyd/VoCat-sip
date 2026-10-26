@@ -41,7 +41,7 @@ func decodeNASLTECellLocationFrame(frame []byte, cid byte, transaction uint16) (
 		packet.ClientID != cid || packet.TransactionID != transaction || packet.MessageID != nasGetCellLocationInfo || packet.IsIndication {
 		return nasLTEServingCell{}, ErrServingCellUnavailable
 	}
-	var lte, result []byte
+	var lte, result, extendedEARFCN []byte
 	for _, tlv := range packet.TLVs {
 		switch tlv.Type {
 		case 2:
@@ -55,6 +55,23 @@ func decodeNASLTECellLocationFrame(frame []byte, cid byte, transaction uint16) (
 			if len(tlv.Value) != 4 {
 				return nasLTEServingCell{}, ErrServingCellUnavailable
 			}
+		case 0x26: // Doppler measurement, Hz; FFFF means not measured.
+			if len(tlv.Value) != 2 {
+				return nasLTEServingCell{}, ErrServingCellUnavailable
+			}
+			value := binary.LittleEndian.Uint16(tlv.Value)
+			if value > 400 && value != 0xffff {
+				return nasLTEServingCell{}, ErrServingCellUnavailable
+			}
+		case 0x27: // Extended intrafrequency EARFCN, same solicited response.
+			if len(tlv.Value) != 4 {
+				return nasLTEServingCell{}, ErrServingCellUnavailable
+			}
+			extendedEARFCN = tlv.Value
+		case 0x28: // Extended interfrequency EARFCNs cannot elect the serving cell.
+			if len(tlv.Value) < 1 || len(tlv.Value) != 1+4*int(tlv.Value[0]) {
+				return nasLTEServingCell{}, ErrServingCellUnavailable
+			}
 		default:
 			// This profile deliberately does not accept other serving RATs,
 			// NR/NSA or unknown vendor/extended-EARFCN overlays. In particular
@@ -65,7 +82,16 @@ func decodeNASLTECellLocationFrame(frame []byte, cid byte, transaction uint16) (
 	if len(result) != 4 || binary.LittleEndian.Uint16(result) != 0 || binary.LittleEndian.Uint16(result[2:]) != 0 {
 		return nasLTEServingCell{}, ErrServingCellUnavailable
 	}
-	return decodeNASLTEIntraFrequency(lte)
+	cell, err := decodeNASLTEIntraFrequency(lte)
+	if err != nil {
+		return nasLTEServingCell{}, err
+	}
+	// Do not wrap a wider channel into the old 16-bit profile or combine it
+	// with unrelated overlays. The accepted extension must agree exactly.
+	if extendedEARFCN != nil && binary.LittleEndian.Uint32(extendedEARFCN) != cell.earfcn {
+		return nasLTEServingCell{}, ErrServingCellUnavailable
+	}
+	return cell, nil
 }
 
 // Wire facts are independently implemented from the public libqmi NAS schema:

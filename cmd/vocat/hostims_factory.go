@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"path"
 	"strings"
 
@@ -31,6 +32,7 @@ func hostIMSMetadataInventory(config store.Device, entries []device.Device) []de
 }
 
 type hostIMSFactoryOptions struct {
+	Logger    *slog.Logger
 	Store     *store.Store
 	Devices   hostIMSDeviceInventory
 	IMSConfig func(context.Context, store.Device) (ims.Config, error)
@@ -51,8 +53,15 @@ func hostIMSModeEnabled(config store.Device) bool {
 
 func sameHostIMSPrepareConfig(before, after store.Device) bool {
 	return hostIMSModeEnabled(before) && hostIMSModeEnabled(after) && store.SameSubscription(before, after) && before.ID == after.ID &&
-		before.DeviceType == after.DeviceType && before.ModemIMEI == after.ModemIMEI && before.USBPath == after.USBPath &&
+		hostIMSProfileID(before) == hostIMSProfileID(after) && before.DeviceType == after.DeviceType && before.ModemIMEI == after.ModemIMEI && before.USBPath == after.USBPath &&
 		before.ControlDevice == after.ControlDevice && before.DeviceBackend == after.DeviceBackend
+}
+
+func hostIMSProfileID(config store.Device) uint32 {
+	if config.Telephony == nil {
+		return 0
+	}
+	return config.Telephony.HostIMSProfileID
 }
 
 func hostIMSDigits(value string, min, max int) bool {

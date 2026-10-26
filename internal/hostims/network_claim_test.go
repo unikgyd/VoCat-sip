@@ -31,7 +31,7 @@ func TestNetworkClaimValidationAndClone(t *testing.T) {
 		"address-remote":       func(r *networkClaim) { r.Operations[0].Remote = netip.MustParseAddr("198.51.100.1") },
 		"removed-operation":    func(r *networkClaim) { r.Operations[0].Kind = "remove-address" },
 		"duplicate-operation":  func(r *networkClaim) { r.Operations = append(r.Operations, r.Operations[0]) },
-		"oversize":             func(r *networkClaim) { r.Operations = make([]networkOperation, 21) },
+		"oversize":             func(r *networkClaim) { r.Operations = make([]networkOperation, 24) },
 		"unknown-removal": func(r *networkClaim) {
 			r.Pending = &networkOperation{Kind: "remove-route", Local: r.Operations[0].Local, Remote: netip.MustParseAddr("198.51.100.1"), Owned: true, Hash: hashText("unknown")}
 		},
