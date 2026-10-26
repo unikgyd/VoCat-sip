@@ -32,6 +32,7 @@ import (
 	"vocat/internal/modem"
 	"vocat/internal/pcsc"
 	"vocat/internal/server"
+	"vocat/internal/sipgateway"
 	"vocat/internal/store"
 	"vocat/internal/update"
 	"vocat/internal/vowifi"
@@ -355,6 +356,11 @@ func main() {
 		}
 	case "version", "-v", "--version":
 		runVersion()
+	case "media-check":
+		if err := runMediaCheck(rest, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	case "update":
 		if err := update.Run(logger, rest); err != nil {
 			logger.Error("update failed", "error", err)
@@ -430,6 +436,10 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 		return err
 	}
 	defer database.Close()
+	// IMS can deliver during its startup, before Server.New admits the SIP
+	// listener. Install the pure transactional planner before starting any IMS
+	// receiver, rather than adding recipients later in a history poll.
+	sipgateway.InstallSMSForwarding(database)
 	developerEnabled := isDeveloperEnabled(startupContext, database)
 	pluginRoot := filepath.Join(filepath.Dir(cfg.DatabasePath), "plugins")
 	legacyExportProxyConfig := filepath.Join(pluginRoot, exportproxy.ReservedID, "data", "configs.json")
@@ -542,6 +552,16 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 	defer cancelPolling()
 
 	var onIncomingCall func(context.Context, ims.ReceivedCall) error
+	var incomingCallMu sync.RWMutex
+	forwardIncoming := func(ctx context.Context, call ims.ReceivedCall) error {
+		incomingCallMu.RLock()
+		hook := onIncomingCall
+		incomingCallMu.RUnlock()
+		if hook != nil {
+			return hook(ctx, call)
+		}
+		return nil
+	}
 
 	vowifiManager, err := configureVoWiFiRuntime(
 		deviceStartupContext,
@@ -549,15 +569,23 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 		database,
 		deviceManager,
 		cardReaders,
-		func(ctx context.Context, call ims.ReceivedCall) error {
-			if onIncomingCall != nil {
-				return onIncomingCall(ctx, call)
-			}
-			return nil
-		},
+		forwardIncoming,
 	)
 	if err != nil {
 		return fmt.Errorf("configure VoWiFi runtime: %w", err)
+	}
+	hostIMSManager, closeHostIMS, err := configureHostIMSRuntime(deviceStartupContext, logger, database, deviceManager, developerEnabled, forwardIncoming)
+	if closeHostIMS != nil {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), hostIMSShutdownTimeout)
+			defer cancel()
+			if err := closeHostIMS(ctx); err != nil {
+				logger.Warn("stop Host IMS runtime", "error", err)
+			}
+		}()
+	}
+	if err != nil {
+		return fmt.Errorf("configure Host IMS runtime: %w", err)
 	}
 	// Start background consumers only after the synchronous radio/VoWiFi
 	// startup sequence. A snapshot refresh also takes the device operation
@@ -581,10 +609,32 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 	}()
 
 	handler, err := server.New(server.Options{
-		Store:               database,
-		Auth:                authService,
-		Devices:             deviceManager,
-		VoWiFi:              vowifiManager,
+		Store:   database,
+		Auth:    authService,
+		Devices: deviceManager,
+		VoWiFi:  vowifiManager,
+		HostIMS: hostIMSManager,
+		ReadSubscription: func(ctx context.Context, id string) (vowifi.SIMIdentity, error) {
+			config, err := database.Device(ctx, id)
+			if err != nil {
+				return vowifi.SIMIdentity{}, err
+			}
+			mapper := integration.ATMapper{Store: database, Devices: deviceManager}
+			entry, err := mapper.Get(id)
+			if err != nil {
+				return vowifi.SIMIdentity{}, err
+			}
+			if !entry.Discovered {
+				return vowifi.SIMIdentity{}, nil
+			}
+			if store.HostIMSConfigured(config) {
+				return hostIMSManager.Subscription(ctx, id)
+			}
+			if entry.Snapshot == nil {
+				return vowifi.SIMIdentity{}, nil
+			}
+			return vowifi.SIMIdentity{ICCID: strings.TrimSpace(entry.Snapshot.ICCID), IMSI: strings.TrimSpace(entry.Snapshot.IMSI)}, nil
+		},
 		Logs:                logs,
 		Assets:              web.Dist,
 		Logger:              logger,
@@ -600,19 +650,25 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 	if err != nil {
 		return err
 	}
+	defer handler.CloseSIPGateway()
+	go handler.ReconcileTelephonyPolicies(pollContext)
+	incomingCallMu.Lock()
 	onIncomingCall = func(ctx context.Context, call ims.ReceivedCall) error {
+		handler.ForwardIMSIncomingCall(call.DeviceID, call.CallID)
 		deviceConfig, _ := database.Device(ctx, call.DeviceID)
 		handler.NotifyIncomingCall(ctx, server.IncomingCallNotification{
+			CallID:      call.CallID,
 			DeviceID:    call.DeviceID,
 			DeviceName:  strings.TrimSpace(deviceConfig.Name),
 			DeviceLabel: firstNonEmpty(deviceConfig.Name, deviceConfig.ID, "--"),
 			Caller:      call.Caller,
 			Called:      call.Called,
 			Time:        call.Timestamp,
-			Environment: "vowifi",
+			Environment: firstNonEmpty(call.Access, store.EffectiveIMSMode(deviceConfig)),
 		})
 		return nil
 	}
+	incomingCallMu.Unlock()
 	go handler.StartLogRetentionLoop(pollContext, time.Minute)
 	go handler.StartSMSSyncLoop(pollContext, 15*time.Second)
 	handler.StartCellularDataReconciler(pollContext)
@@ -722,24 +778,31 @@ func configureDeviceBackends(
 		logger.Warn("configure device backends: list devices", "error", err)
 		return
 	}
-	mapper := integration.ATMapper{Store: database, Devices: manager}
-	for _, config := range configs {
-		entry, mapErr := mapper.Get(config.ID)
-		if mapErr != nil {
-			continue
-		}
-		if config.DeviceType == store.DeviceTypeUSBSIMReader {
-			if err := manager.SetSIMPin(entry.ID, config.SIMPIN); err != nil {
-				logger.Warn("configure USB SIM reader", "device_id", config.ID, "error", err)
+	for _, listed := range configs {
+		func() {
+			config, entry, unlock, ok := lockLegacyConfiguredRead(ctx, database, manager, listed.ID)
+			if !ok {
+				return
 			}
-			continue
-		}
-		if err := manager.SetBackend(entry.ID, config.DeviceBackend); err != nil {
-			logger.Warn("configure device backend", "device_id", config.ID, "backend", config.DeviceBackend, "error", err)
-		}
-		if err := manager.SetESIMTransport(entry.ID, config.ESIMTransport); err != nil {
-			logger.Warn("configure eSIM transport", "device_id", config.ID, "transport", config.ESIMTransport, "error", err)
-		}
+			defer unlock()
+			// Host IMS uses the MM-owned control plane. Reconfiguring legacy QMI
+			// telemetry can issue Sync and invalidate its independent clients.
+			if store.HostIMSConfigured(config) {
+				return
+			}
+			if config.DeviceType == store.DeviceTypeUSBSIMReader {
+				if err := manager.SetSIMPin(entry.ID, config.SIMPIN); err != nil {
+					logger.Warn("configure USB SIM reader", "device_id", config.ID, "error", err)
+				}
+				return
+			}
+			if err := manager.SetBackend(entry.ID, config.DeviceBackend); err != nil {
+				logger.Warn("configure device backend", "device_id", config.ID, "backend", config.DeviceBackend, "error", err)
+			}
+			if err := manager.SetESIMTransport(entry.ID, config.ESIMTransport); err != nil {
+				logger.Warn("configure eSIM transport", "device_id", config.ID, "transport", config.ESIMTransport, "error", err)
+			}
+		}()
 	}
 }
 
@@ -757,42 +820,47 @@ func restoreDefaultCellularRadios(
 		logger.Warn("startup cellular recovery: list devices", "error", err)
 		return
 	}
-	mapper := integration.ATMapper{Store: database, Devices: manager}
-	for _, config := range configs {
-		if config.DeviceType == store.DeviceTypeUSBSIMReader {
-			continue
-		}
-		if config.VoWiFiEnabled {
-			continue
-		}
-		entry, err := mapper.Get(config.ID)
-		if err != nil || entry.Snapshot == nil || !entry.Snapshot.FlightMode {
-			continue
-		}
-		iccid := strings.TrimSpace(entry.Snapshot.ICCID)
-		if iccid == "" {
-			continue
-		}
-		if iccid != "" {
-			policy, policyErr := database.CardPolicy(ctx, iccid)
-			switch {
-			case policyErr == nil && policy.AirplaneEnabled:
-				continue
-			case errors.Is(policyErr, store.ErrNotFound):
-				continue
-			case policyErr != nil && !errors.Is(policyErr, store.ErrNotFound):
-				logger.Warn("startup cellular recovery: read card policy", "device_id", config.ID, "error", policyErr)
-				continue
+	for _, listed := range configs {
+		func() {
+			config, entry, unlock, ok := lockLegacyConfiguredRead(ctx, database, manager, listed.ID)
+			if !ok {
+				return
 			}
-		}
-		restoreContext, cancel := startupFlightModeContext(ctx)
-		_, err = manager.SetFlight(restoreContext, entry.ID, false)
-		cancel()
-		if err != nil {
-			logger.Warn("startup cellular recovery failed", "device_id", config.ID, "error", err)
-			continue
-		}
-		logger.Info("restored cellular radio after disabled VoWiFi", "device_id", config.ID, "iccid", iccid)
+			defer unlock()
+			if config.DeviceType == store.DeviceTypeUSBSIMReader {
+				return
+			}
+			if !store.AccessEnabled(config, store.IMSModeModule) {
+				return
+			}
+			if entry.Snapshot == nil || !entry.Snapshot.FlightMode {
+				return
+			}
+			iccid := strings.TrimSpace(entry.Snapshot.ICCID)
+			if iccid == "" {
+				return
+			}
+			if iccid != "" {
+				policy, policyErr := database.CardPolicy(ctx, iccid)
+				switch {
+				case policyErr == nil && policy.AirplaneEnabled:
+					return
+				case errors.Is(policyErr, store.ErrNotFound):
+					return
+				case policyErr != nil && !errors.Is(policyErr, store.ErrNotFound):
+					logger.Warn("startup cellular recovery: read card policy", "device_id", config.ID, "error", policyErr)
+					return
+				}
+			}
+			restoreContext, cancel := startupFlightModeContext(ctx)
+			_, err := manager.SetFlight(restoreContext, entry.ID, false)
+			cancel()
+			if err != nil {
+				logger.Warn("startup cellular recovery failed", "device_id", config.ID, "error", err)
+				return
+			}
+			logger.Info("restored cellular radio after disabled VoWiFi", "device_id", config.ID, "iccid", iccid)
+		}()
 	}
 }
 
@@ -841,21 +909,28 @@ func disableAllDeveloperCellularData(
 		logger.Warn("developer cleanup: list devices", "error", err)
 		return
 	}
-	mapper := integration.ATMapper{Store: database, Devices: manager}
-	for _, config := range configs {
-		if config.DeviceType == store.DeviceTypeUSBSIMReader {
-			continue
-		}
-		entry, err := mapper.Get(config.ID)
-		if err != nil {
-			continue
-		}
-		disableContext, cancel := context.WithTimeout(ctx, 30*time.Second)
-		_, err = manager.SetNetwork(disableContext, entry.ID, device.NetworkRequest{Enabled: false, Backend: config.DeviceBackend})
-		cancel()
-		if err != nil && ctx.Err() == nil {
-			logger.Warn("developer cleanup: stop cellular data", "device_id", config.ID)
-		}
+	for _, listed := range configs {
+		func() {
+			config, entry, unlock, ok := lockLegacyConfiguredRead(ctx, database, manager, listed.ID)
+			if !ok {
+				return
+			}
+			defer unlock()
+			// The dedicated IMS PDN is not developer roaming-data service. Its
+			// lease, never the AT data cleanup, owns its lifecycle.
+			if store.HostIMSConfigured(config) {
+				return
+			}
+			if config.DeviceType == store.DeviceTypeUSBSIMReader {
+				return
+			}
+			disableContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+			_, err = manager.SetNetwork(disableContext, entry.ID, device.NetworkRequest{Enabled: false, Backend: config.DeviceBackend})
+			cancel()
+			if err != nil && ctx.Err() == nil {
+				logger.Warn("developer cleanup: stop cellular data", "device_id", config.ID)
+			}
+		}()
 	}
 }
 
@@ -907,25 +982,14 @@ func configureVoWiFiRuntime(
 		Store:   database,
 		Devices: deviceManager,
 	}
-	ec20Adapter, err := vowifi.NewEC20Adapter(mapper, vowifi.EC20AdapterOptions{
-		// The test deployment is deliberately non-cellular. VoWiFi teardown
-		// may restore CFUN, but it must never reactivate a PDP context.
-		RestoreCellularData: false,
-		// VoWiFi is always fail-closed with respect to cellular RF. Its teardown
-		// leaves CFUN=4; only the explicit airplane-mode-off endpoint restores
-		// CFUN=1.
-		PureAirplanePolicy: func(deviceID string) bool {
-			deviceConfig, configErr := database.Device(context.Background(), deviceID)
-			return configErr == nil && deviceConfig.VoWiFiEnabled
-		},
-	})
+	ec20Adapter, err := vowifi.NewEC20Adapter(mapper, ec20VoWiFiAdapterOptions(database))
 	if err != nil {
 		return nil, err
 	}
 	nativeQMIAdapter, err := vowifi.NewNativeQMIAdapter(nativeQMIControllerMapper{Mapper: mapper, Devices: deviceManager}, func(deviceID string) bool {
 		deviceConfig, configErr := database.Device(context.Background(), deviceID)
-		return configErr == nil && deviceConfig.VoWiFiEnabled
-	})
+		return configErr == nil && store.WiFiExclusive(deviceConfig) && store.AccessEnabled(deviceConfig, store.IMSModeVoWiFi)
+	}, voWiFiSIMReaderOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -935,7 +999,7 @@ func configureVoWiFiRuntime(
 			return pcsc.Selector{}, "", resolveErr
 		}
 		return pcsc.Selector{USBPath: config.USBPath, ReaderName: config.ControlDevice}, config.SIMPIN, nil
-	})
+	}, voWiFiSIMReaderOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -967,12 +1031,15 @@ func configureVoWiFiRuntime(
 		return nil, err
 	}
 	for _, deviceConfig := range configured {
+		if deviceConfig.Telephony == nil && store.HostIMSConfigured(deviceConfig) {
+			continue
+		}
 		if err := manager.Ensure(ctx, deviceConfig.ID); err != nil {
 			_ = manager.Close(context.Background())
 			return nil, fmt.Errorf("register device %q VoWiFi runtime: %w", deviceConfig.ID, err)
 		}
-		if deviceConfig.VoWiFiEnabled {
-			if entry, mapErr := mapper.Get(deviceConfig.ID); mapErr == nil {
+		if store.AccessEnabled(deviceConfig, store.IMSModeVoWiFi) {
+			if entry, mapErr := mapper.Get(deviceConfig.ID); mapErr == nil && store.WiFiExclusive(deviceConfig) {
 				flightErr := protectVoWiFiStartupRadio(ctx, deviceManager, entry.ID)
 				if flightErr != nil {
 					// A modem can be temporarily unavailable while OpenWrt/procd is
@@ -988,6 +1055,14 @@ func configureVoWiFiRuntime(
 				}
 			}
 			requestEnable := func() error {
+				current, unlock, err := lockIMSLineRead(ctx, database, deviceConfig.ID)
+				if err != nil {
+					return err
+				}
+				defer unlock()
+				if !store.AccessEnabled(current, store.IMSModeVoWiFi) {
+					return nil
+				}
 				_, requestErr := manager.RequestEnabled(deviceConfig.ID, true)
 				return requestErr
 			}
@@ -1005,6 +1080,23 @@ func configureVoWiFiRuntime(
 		}
 	}
 	return manager, nil
+}
+
+func voWiFiSIMReaderOptions() vowifi.SIMReaderOptions {
+	return vowifi.SIMReaderOptions{AllowUnresolvedMNCLength: true}
+}
+
+func ec20VoWiFiAdapterOptions(database *store.Store) vowifi.EC20AdapterOptions {
+	return vowifi.EC20AdapterOptions{
+		ReadProfileIdentities:    true,
+		AllowUnresolvedMNCLength: true, // paired with the realm-aware orchestrator
+		// Never reactivate a billable PDP context during VoWiFi teardown.
+		RestoreCellularData: false,
+		PureAirplanePolicy: func(deviceID string) bool {
+			deviceConfig, configErr := database.Device(context.Background(), deviceID)
+			return configErr == nil && store.WiFiExclusive(deviceConfig) && store.AccessEnabled(deviceConfig, store.IMSModeVoWiFi)
+		},
+	}
 }
 
 const (
@@ -1163,19 +1255,58 @@ func newVoWiFiOrchestrator(
 	if err != nil {
 		return nil, fmt.Errorf("device %q IKE provider: %w", deviceConfig.ID, err)
 	}
-	imsProvider, err := ims.NewProvider(adapter, ims.Config{
+	imsConfig, err := applicationIMSConfig(ctx, deviceConfig, database, vowifiLogger, onIncomingCall, store.IMSModeVoWiFi)
+	if err != nil {
+		return nil, err
+	}
+	imsProvider, err := ims.NewProvider(adapter, imsConfig)
+	if err != nil {
+		return nil, fmt.Errorf("device %q IMS provider: %w", deviceConfig.ID, err)
+	}
+	orchestrator, err := vowifi.New(vowifi.Dependencies{
+		IKERetry:  integration.IKERetryStore{Store: database},
+		Discovery: integration.EPDGStore{Store: database},
+		SIM:       guardedSubscriptionReader(database, adapter), AKA: adapter, Radio: adapter,
+		Proxy:  integration.ProxyResolver{Store: database},
+		Tunnel: tunnelProvider, IMS: imsProvider,
+		Phones: integration.PhoneStore{Store: database, DeviceID: deviceConfig.ID},
+	}, vowifi.Options{DeviceID: deviceConfig.ID, AllowIMSWithoutSMS: true,
+		ResolveRadioPolicy: func(ctx context.Context) (vowifi.RadioPolicy, error) {
+			return applicationWiFiRadioPolicy(ctx, database, deviceConfig.ID)
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("device %q VoWiFi orchestrator: %w", deviceConfig.ID, err)
+	}
+	return orchestrator, nil
+}
+
+// Both access modes share application delivery callbacks, not their radio or
+// access lifecycle. Host IMS supplies its own verified identity and security.
+func applicationIMSConfig(
+	_ context.Context, deviceConfig store.Device, database *store.Store,
+	imsLogger *slog.Logger, onIncomingCall func(context.Context, ims.ReceivedCall) error,
+	access ...string,
+) (ims.Config, error) {
+	boundIncoming := onIncomingCall
+	if len(access) == 1 && onIncomingCall != nil {
+		boundIncoming = func(ctx context.Context, call ims.ReceivedCall) error {
+			call.Access = access[0]
+			return onIncomingCall(ctx, call)
+		}
+	}
+	return ims.Config{
 		MTUCompatibility: func(ctx context.Context) bool {
 			return vowifisettings.MTUCompatibility(ctx, database)
 		},
-		Logger: vowifiLogger,
+		Logger: imsLogger,
 		// Carrier-specific transport and SMSC defaults live in the shared data
 		// profile. Prefer network-provided P-CSCF hints, then safely try the
 		// alternate transport only if no SIP response was observed.
 		Transport:             "tcp",
 		AutoTransportFallback: true,
-		OnIncomingCall:        onIncomingCall,
+		OnIncomingCall:        boundIncoming,
 		OnSMS: func(ctx context.Context, message ims.ReceivedSMS) error {
-			localPhone, _ := database.PhoneNumberForICCID(ctx, message.ICCID)
 			modemIMEI := firstNonEmpty(message.ModemIMEI, deviceConfig.ModemIMEI)
 			extra, _ := json.Marshal(map[string]any{
 				"transport":                "ims",
@@ -1200,7 +1331,6 @@ func newVoWiFiOrchestrator(
 				ModemIMEI:  modemIMEI,
 				ICCID:      message.ICCID,
 				IMSI:       message.IMSI,
-				LocalPhone: localPhone,
 				Peer:       message.From,
 				Direction:  "inbound",
 				Body:       message.Text,
@@ -1273,26 +1403,7 @@ func newVoWiFiOrchestrator(
 			})
 			return saveErr
 		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("device %q IMS provider: %w", deviceConfig.ID, err)
-	}
-	orchestrator, err := vowifi.New(vowifi.Dependencies{
-		SIM:    adapter,
-		AKA:    adapter,
-		Radio:  adapter,
-		Proxy:  integration.ProxyResolver{Store: database},
-		Tunnel: tunnelProvider,
-		IMS:    imsProvider,
-		Phones: integration.PhoneStore{Store: database, DeviceID: deviceConfig.ID},
-	}, vowifi.Options{
-		DeviceID:           deviceConfig.ID,
-		AllowIMSWithoutSMS: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("device %q VoWiFi orchestrator: %w", deviceConfig.ID, err)
-	}
-	return orchestrator, nil
+	}, nil
 }
 
 func provisionDiscoveredDevices(
@@ -1422,10 +1533,20 @@ func pollDeviceSnapshots(
 			return
 		}
 		go func() {
+			expectedICCID := strings.TrimSpace(snapshot.ICCID)
+			issued := false
+			defer func() { recoveryTracker.complete(entry.ID, expectedICCID, action, issued, time.Now()) }()
+			unlock, ok := lockLegacyPhysicalRead(ctx, database, manager, entry.ID)
+			if !ok {
+				return
+			}
+			defer unlock()
+			if explicitIMSOwnsPhysical(ctx, database, manager, entry.ID) {
+				return
+			}
 			recoveryContext, cancel := context.WithTimeout(ctx, 3*time.Minute)
 			defer cancel()
-			expectedICCID := strings.TrimSpace(snapshot.ICCID)
-			issued := runRegistrationRecovery(
+			issued = runRegistrationRecovery(
 				recoveryContext,
 				logger,
 				database,
@@ -1434,7 +1555,6 @@ func pollDeviceSnapshots(
 				expectedICCID,
 				action,
 			)
-			recoveryTracker.complete(entry.ID, expectedICCID, action, issued, time.Now())
 		}()
 	}
 	lastFullRefresh := time.Time{}
@@ -1463,6 +1583,9 @@ func pollDeviceSnapshots(
 			if !entry.Discovered || entry.Candidate.DiscoveryIssue != "" {
 				continue
 			}
+			if hostIMSOwnsPhysical(ctx, database, manager, entry.ID) {
+				continue
+			}
 			// Native 410 firmware can miss physical SIM insertion events. Probe it
 			// every five seconds; retain normal discovery/other modem cadence.
 			if !fullRefresh && provisionedDeviceType(entry.Candidate) != store.DeviceTypeWiFi410 {
@@ -1478,6 +1601,11 @@ func pollDeviceSnapshots(
 				case <-ctx.Done():
 					return
 				}
+				unlock, ok := lockLegacyPhysicalRead(ctx, database, manager, entry.ID)
+				if !ok {
+					return
+				}
+				defer unlock()
 				refreshContext, cancelRefresh := context.WithTimeout(ctx, 30*time.Second)
 				snapshot, refreshErr := manager.Refresh(refreshContext, entry.ID)
 				cancelRefresh()
@@ -1485,9 +1613,11 @@ func pollDeviceSnapshots(
 					logger.Warn("modem snapshot refresh failed", "device_id", entry.ID, "error", refreshErr)
 				}
 				if refreshErr == nil && ctx.Err() == nil {
-					enforceCardRegion(ctx, logger, database, manager, entry.ID, &snapshot)
-					enforceDefaultSafeCardPolicy(ctx, logger, database, manager, entry.ID, &snapshot)
-					recoverRegistration(entry, snapshot, recoveryTracker.observe(entry.ID, &snapshot, time.Now()))
+					enforceCardRegionLocked(ctx, logger, database, manager, entry.ID, &snapshot)
+					enforceDefaultSafeCardPolicyLocked(ctx, logger, database, manager, entry.ID, &snapshot)
+					if !explicitIMSOwnsPhysical(ctx, database, manager, entry.ID) {
+						recoverRegistration(entry, snapshot, recoveryTracker.observe(entry.ID, &snapshot, time.Now()))
+					}
 				}
 			}()
 		}
@@ -1517,11 +1647,40 @@ func enforceDefaultSafeCardPolicy(
 	physicalID string,
 	snapshot *device.Snapshot,
 ) {
+	unlock, ok := lockLegacyPhysicalRead(ctx, database, manager, physicalID)
+	if !ok {
+		return
+	}
+	defer unlock()
+	enforceDefaultSafeCardPolicyLocked(ctx, logger, database, manager, physicalID, snapshot)
+}
+
+// Caller retains all matching logical line read locks through RF and writes.
+func enforceDefaultSafeCardPolicyLocked(
+	ctx context.Context, logger *slog.Logger, database *store.Store, manager *device.Manager,
+	physicalID string, snapshot *device.Snapshot,
+) {
 	if snapshot == nil || !snapshot.SIMReady || strings.TrimSpace(snapshot.ICCID) == "" ||
 		device.RegionBlockReason(snapshot.IMSI) != "" {
 		return
 	}
 	iccid := strings.TrimSpace(snapshot.ICCID)
+	// An explicitly selected line is not an unconfigured/new card. In
+	// particular, never force RF off beneath a cellular Host IMS lease.
+	configs, configErr := database.ListDevices(ctx)
+	if configErr != nil {
+		return
+	}
+	mapper := integration.ATMapper{Store: database, Devices: manager}
+	for _, config := range configs {
+		if config.IMSMode == "" {
+			continue
+		}
+		entry, mapErr := mapper.Get(config.ID)
+		if mapErr == nil && entry.ID == physicalID {
+			return
+		}
+	}
 	if _, err := database.CardPolicy(ctx, iccid); err == nil {
 		return
 	} else if !errors.Is(err, store.ErrNotFound) {
@@ -1542,8 +1701,7 @@ func enforceDefaultSafeCardPolicy(
 		logger.Warn("default card policy: persist policy", "iccid", iccid, "error", err)
 		return
 	}
-	mapper := integration.ATMapper{Store: database, Devices: manager}
-	configs, err := database.ListDevices(ctx)
+	configs, err = database.ListDevices(ctx)
 	if err != nil {
 		return
 	}
@@ -1589,90 +1747,100 @@ func reconcileCardPolicies(
 		if err != nil {
 			return
 		}
-		mapper := integration.ATMapper{Store: database, Devices: manager}
-		for _, config := range configs {
-			entry, mapErr := mapper.Get(config.ID)
-			hotSwappableSIM := config.DeviceType == store.DeviceTypeUSBSIMReader || config.DeviceType == store.DeviceTypeWiFi410
-			if mapErr != nil || entry.Snapshot == nil {
-				if hotSwappableSIM && observedCards[config.ID] != "missing" {
-					if state, stateErr := vowifiManager.State(config.ID); stateErr == nil && state.ICCID != "" {
-						_, _ = vowifiManager.RequestReconnect(config.ID)
+		for _, listed := range configs {
+			func() {
+				config, entry, unlock, ok := lockLegacyConfiguredRead(ctx, database, manager, listed.ID)
+				if !ok {
+					return
+				}
+				defer unlock()
+				// Explicit per-modem mode is authoritative. Card defaults are only
+				// for legacy/unconfigured lines; they must not turn Host IMS RF off.
+				if config.IMSMode != "" {
+					return
+				}
+				hotSwappableSIM := config.DeviceType == store.DeviceTypeUSBSIMReader || config.DeviceType == store.DeviceTypeWiFi410
+				if entry.Snapshot == nil {
+					if hotSwappableSIM && observedCards[config.ID] != "missing" {
+						if state, stateErr := vowifiManager.State(config.ID); stateErr == nil && state.ICCID != "" {
+							_, _ = vowifiManager.RequestReconnect(config.ID)
+						}
+						observedCards[config.ID] = "missing"
 					}
-					observedCards[config.ID] = "missing"
+					return
 				}
-				continue
-			}
-			iccid := strings.TrimSpace(entry.Snapshot.ICCID)
-			if iccid == "" {
-				if hotSwappableSIM && observedCards[config.ID] != "missing" {
-					if state, stateErr := vowifiManager.State(config.ID); stateErr == nil && state.ICCID != "" {
-						_, _ = vowifiManager.RequestReconnect(config.ID)
+				iccid := strings.TrimSpace(entry.Snapshot.ICCID)
+				if iccid == "" {
+					if hotSwappableSIM && observedCards[config.ID] != "missing" {
+						if state, stateErr := vowifiManager.State(config.ID); stateErr == nil && state.ICCID != "" {
+							_, _ = vowifiManager.RequestReconnect(config.ID)
+						}
+						observedCards[config.ID] = "missing"
 					}
-					observedCards[config.ID] = "missing"
+					return
 				}
-				continue
-			}
-			previousObserved := observedCards[config.ID]
-			observedCards[config.ID] = iccid
-			policy, policyErr := database.CardPolicy(ctx, iccid)
-			if policyErr != nil {
-				continue
-			}
-			if policy.VoWiFiEnabled && (!policy.AirplaneEnabled || policy.NetworkEnabled) {
-				policy.AirplaneEnabled = true
-				policy.NetworkEnabled = false
-				if err := database.UpsertCardPolicy(ctx, policy); err != nil {
-					logger.Warn("reconcile card policy: normalize RF-safe VoWiFi policy", "device_id", config.ID, "iccid", iccid, "error", err)
-					continue
+				previousObserved := observedCards[config.ID]
+				observedCards[config.ID] = iccid
+				policy, policyErr := database.CardPolicy(ctx, iccid)
+				if policyErr != nil {
+					return
 				}
-			}
-			deviceChanged := false
-			if config.VoWiFiEnabled != policy.VoWiFiEnabled || (policy.VoWiFiEnabled && config.NetworkEnabled) {
-				config.VoWiFiEnabled = policy.VoWiFiEnabled
+				if policy.VoWiFiEnabled && (!policy.AirplaneEnabled || policy.NetworkEnabled) {
+					policy.AirplaneEnabled = true
+					policy.NetworkEnabled = false
+					if err := database.UpsertCardPolicy(ctx, policy); err != nil {
+						logger.Warn("reconcile card policy: normalize RF-safe VoWiFi policy", "device_id", config.ID, "iccid", iccid, "error", err)
+						return
+					}
+				}
+				deviceChanged := false
+				if config.VoWiFiEnabled != policy.VoWiFiEnabled || (policy.VoWiFiEnabled && config.NetworkEnabled) {
+					config.VoWiFiEnabled = policy.VoWiFiEnabled
+					if policy.VoWiFiEnabled {
+						config.NetworkEnabled = false
+					}
+					deviceChanged = true
+				}
+				if config.APN != strings.TrimSpace(policy.APN) {
+					config.APN = strings.TrimSpace(policy.APN)
+					deviceChanged = true
+				}
+				if deviceChanged {
+					if err := database.UpsertDevice(ctx, config); err != nil {
+						logger.Warn("reconcile card policy: update device", "device_id", config.ID, "error", err)
+						return
+					}
+				}
+				state, stateErr := vowifiManager.State(config.ID)
 				if policy.VoWiFiEnabled {
-					config.NetworkEnabled = false
+					if !entry.Snapshot.FlightMode {
+						flightContext, cancel := context.WithTimeout(ctx, flightModeTransitionTimeout)
+						_, _ = manager.SetFlight(flightContext, entry.ID, true)
+						cancel()
+					}
+					switch {
+					case stateErr != nil || !state.Enabled:
+						if shouldDelayWiFi410VoWiFi(config.DeviceType, time.Now(), wifi410StartupNotBefore) {
+							return
+						}
+						_, _ = vowifiManager.RequestEnabled(config.ID, true)
+					case state.ICCID != "" && !strings.EqualFold(strings.TrimSpace(state.ICCID), iccid):
+						_, _ = vowifiManager.RequestReconnect(config.ID)
+					case hotSwappableSIM && previousObserved == "missing":
+						_, _ = vowifiManager.RequestReconnect(config.ID)
+					}
+					return
 				}
-				deviceChanged = true
-			}
-			if config.APN != strings.TrimSpace(policy.APN) {
-				config.APN = strings.TrimSpace(policy.APN)
-				deviceChanged = true
-			}
-			if deviceChanged {
-				if err := database.UpsertDevice(ctx, config); err != nil {
-					logger.Warn("reconcile card policy: update device", "device_id", config.ID, "error", err)
-					continue
+				if stateErr == nil && state.Enabled {
+					_, _ = vowifiManager.RequestEnabled(config.ID, false)
+					return
 				}
-			}
-			state, stateErr := vowifiManager.State(config.ID)
-			if policy.VoWiFiEnabled {
-				if !entry.Snapshot.FlightMode {
+				if policy.AirplaneEnabled != entry.Snapshot.FlightMode {
 					flightContext, cancel := context.WithTimeout(ctx, flightModeTransitionTimeout)
-					_, _ = manager.SetFlight(flightContext, entry.ID, true)
+					_, _ = manager.SetFlight(flightContext, entry.ID, policy.AirplaneEnabled)
 					cancel()
 				}
-				switch {
-				case stateErr != nil || !state.Enabled:
-					if shouldDelayWiFi410VoWiFi(config.DeviceType, time.Now(), wifi410StartupNotBefore) {
-						continue
-					}
-					_, _ = vowifiManager.RequestEnabled(config.ID, true)
-				case state.ICCID != "" && !strings.EqualFold(strings.TrimSpace(state.ICCID), iccid):
-					_, _ = vowifiManager.RequestReconnect(config.ID)
-				case hotSwappableSIM && previousObserved == "missing":
-					_, _ = vowifiManager.RequestReconnect(config.ID)
-				}
-				continue
-			}
-			if stateErr == nil && state.Enabled {
-				_, _ = vowifiManager.RequestEnabled(config.ID, false)
-				continue
-			}
-			if policy.AirplaneEnabled != entry.Snapshot.FlightMode {
-				flightContext, cancel := context.WithTimeout(ctx, flightModeTransitionTimeout)
-				_, _ = manager.SetFlight(flightContext, entry.ID, policy.AirplaneEnabled)
-				cancel()
-			}
+			}()
 		}
 	}
 	reconcile()
@@ -1708,6 +1876,18 @@ func enforceCardRegion(
 	manager *device.Manager,
 	id string,
 	snapshot *device.Snapshot,
+) {
+	unlock, ok := lockLegacyPhysicalRead(ctx, database, manager, id)
+	if !ok {
+		return
+	}
+	defer unlock()
+	enforceCardRegionLocked(ctx, logger, database, manager, id, snapshot)
+}
+
+func enforceCardRegionLocked(
+	ctx context.Context, logger *slog.Logger, database *store.Store, manager *device.Manager,
+	id string, snapshot *device.Snapshot,
 ) {
 	if snapshot == nil || !snapshot.SIMReady {
 		return

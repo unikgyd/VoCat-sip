@@ -16,6 +16,7 @@ import (
 	"vocat/internal/device"
 	"vocat/internal/i18n"
 	"vocat/internal/modem"
+	"vocat/internal/modulecall"
 	"vocat/internal/pcsc"
 	"vocat/internal/store"
 	"vocat/internal/vowifi"
@@ -275,27 +276,34 @@ func (s *Server) handleDevices(w http.ResponseWriter, r *http.Request) bool {
 			config.NetworkEnabled = false
 		}
 		fillConfigFromPhysical(&config, *selected)
+		lock := s.imsModeLock(config.ID)
+		lock.RLock()
+		defer lock.RUnlock()
+		if err := s.saveDeviceWithPhysicalGuard(r.Context(), config, true); err != nil {
+			if errors.Is(err, errPhysicalDeviceAlias) || errors.Is(err, errDeviceAlreadyConfigured) {
+				writeError(w, http.StatusConflict, "physical_device_already_configured", err.Error())
+			} else {
+				s.writeStoreError(w, err)
+			}
+			return true
+		}
 		if pinSetter, ok := s.devices.(interface{ SetSIMPin(string, string) error }); ok {
 			if err := pinSetter.SetSIMPin(selected.ID, config.SIMPIN); err != nil {
-				s.writeDeviceError(w, err)
+				writeError(w, http.StatusBadGateway, "device_config_apply_failed", "configuration was saved, but applying the modem control settings failed; retry")
 				return true
 			}
 		}
 		if selector, ok := s.devices.(interface{ SetBackend(string, string) error }); ok {
 			if err := selector.SetBackend(selected.ID, config.DeviceBackend); err != nil {
-				s.writeDeviceError(w, err)
+				writeError(w, http.StatusBadGateway, "device_config_apply_failed", "configuration was saved, but applying the modem control settings failed; retry")
 				return true
 			}
 		}
 		if selector, ok := s.devices.(interface{ SetESIMTransport(string, string) error }); ok {
 			if err := selector.SetESIMTransport(selected.ID, config.ESIMTransport); err != nil {
-				s.writeDeviceError(w, err)
+				writeError(w, http.StatusBadGateway, "device_config_apply_failed", "configuration was saved, but applying the modem control settings failed; retry")
 				return true
 			}
-		}
-		if err := s.store.UpsertDevice(r.Context(), config); err != nil {
-			s.writeStoreError(w, err)
-			return true
 		}
 		// Persist the physical binding before the first RF command. A newly
 		// enumerated USB modem may still be settling, or ModemManager may not yet
@@ -483,6 +491,13 @@ func (s *Server) handleDevicePath(
 	id string,
 	tail []string,
 ) bool {
+	// Mode writers use TryLock, so nested service RLocks never wait behind a
+	// queued writer. Keep the selected policy stable throughout legacy I/O.
+	if len(tail) > 0 && tail[0] != "ims" && tail[0] != "telephony" && tail[0] != "overview" && tail[0] != "esim" {
+		lock := s.imsModeLock(id)
+		lock.RLock()
+		defer lock.RUnlock()
+	}
 	config, err := s.store.Device(r.Context(), id)
 	if err != nil {
 		s.writeStoreError(w, err)
@@ -491,14 +506,60 @@ func (s *Server) handleDevicePath(
 	if len(tail) == 0 {
 		switch r.Method {
 		case http.MethodDelete:
+			lock := s.imsModeLock(id)
+			if !lock.TryLock() {
+				writeError(w, http.StatusConflict, "ims_busy", "a line operation is in progress")
+				return true
+			}
+			defer lock.Unlock()
+			config, err = s.store.Device(r.Context(), id)
+			if err != nil {
+				s.writeStoreError(w, err)
+				return true
+			}
+			owners, ownerErr := s.imsControllers(config)
+			if ownerErr != nil || len(owners) == 0 && store.EffectiveIMSEnabled(config) {
+				writeError(w, http.StatusConflict, "ims_cleanup_pending", "the IMS owner is unavailable; cleanup cannot be assumed")
+				return true
+			}
+			for _, owner := range owners {
+				if err := imsActiveCalls(owner, id); err != nil {
+					writeError(w, http.StatusConflict, "ims_call_active", err.Error())
+					return true
+				}
+			}
+			if s.callTransportForConfig(config) == "cellular" || config.Telephony != nil && store.CellularMode(config) == store.IMSModeModule {
+				if err := s.requireModuleCallsIdle(r.Context(), config); err != nil {
+					writeError(w, http.StatusConflict, "module_call_state_unknown_or_active", err.Error())
+					return true
+				}
+			}
+			for _, owner := range owners {
+				if err := stopIMSController(r.Context(), owner, id); err != nil {
+					writeError(w, http.StatusConflict, "ims_cleanup_pending", "stop the IMS line completely before removing its configuration")
+					return true
+				}
+			}
 			if err := s.store.DeleteDevice(r.Context(), id); err != nil {
 				s.writeStoreError(w, err)
 				return true
 			}
+			s.moduleCallScopes.Delete(id)
 			writeJSON(w, http.StatusOK, map[string]any{
 				"data": map[string]any{"deleted": true, "physical_device_untouched": true},
 			})
 		case http.MethodPut:
+			lock := s.imsModeLock(id)
+			if !lock.TryLock() {
+				writeError(w, http.StatusConflict, "ims_busy", "a line operation is in progress")
+				return true
+			}
+			defer lock.Unlock()
+			config, err = s.store.Device(r.Context(), id)
+			if err != nil {
+				s.writeStoreError(w, err)
+				return true
+			}
 			var request struct {
 				Config json.RawMessage `json:"config"`
 			}
@@ -524,35 +585,49 @@ func (s *Server) handleDevicePath(
 			// VoWiFi/airplane transitions are transactional device actions. A
 			// general config save must not silently bypass their RF-safe ordering.
 			next.VoWiFiEnabled = config.VoWiFiEnabled
+			next.IMSMode, next.IMSEnabled = config.IMSMode, config.IMSEnabled
+			next.Telephony = config.Telephony
 			if next.Name == id && strings.TrimSpace(payload.Name) == "" {
 				next.Name = config.Name
 			}
 			if next.SIMPIN == "" || next.SIMPIN == store.SecretMask {
 				next.SIMPIN = config.SIMPIN
 			}
-			if _, physicalID, present := s.physicalForConfig(next); present {
+			if store.HostIMSConfigured(config) {
+				// Hardware remapping and transport setters may invalidate a live
+				// SIM/QMI owner. Only non-hardware metadata can be saved here.
+				if next.DeviceType != config.DeviceType || next.Interface != config.Interface || next.ControlDevice != config.ControlDevice || next.ATPort != config.ATPort || next.USBPath != config.USBPath || next.ModemIMEI != config.ModemIMEI || next.SIMPIN != config.SIMPIN || next.DeviceBackend != config.DeviceBackend || next.ESIMTransport != config.ESIMTransport || next.QMIUseProxy != config.QMIUseProxy || next.QMIProxyPath != config.QMIProxyPath || next.QMIProxyExecutable != config.QMIProxyExecutable || next.NetworkEnabled != config.NetworkEnabled {
+					writeError(w, http.StatusConflict, "host_ims_maintenance_required", "switch to module mode after IMS cleanup before changing hardware or modem transport configuration")
+					return true
+				}
+			}
+			if err := s.saveDeviceWithPhysicalGuard(r.Context(), next, false); err != nil {
+				if errors.Is(err, errPhysicalDeviceAlias) {
+					writeError(w, http.StatusConflict, "physical_device_already_configured", err.Error())
+				} else {
+					s.writeStoreError(w, err)
+				}
+				return true
+			}
+			if _, physicalID, present := s.physicalForConfig(next); present && !store.HostIMSConfigured(config) {
 				if pinSetter, ok := s.devices.(interface{ SetSIMPin(string, string) error }); ok {
 					if err := pinSetter.SetSIMPin(physicalID, next.SIMPIN); err != nil {
-						s.writeDeviceError(w, err)
+						writeError(w, http.StatusBadGateway, "device_config_apply_failed", "configuration was saved, but applying the modem control settings failed; retry")
 						return true
 					}
 				}
 				if selector, ok := s.devices.(interface{ SetBackend(string, string) error }); ok {
 					if err := selector.SetBackend(physicalID, next.DeviceBackend); err != nil {
-						s.writeDeviceError(w, err)
+						writeError(w, http.StatusBadGateway, "device_config_apply_failed", "configuration was saved, but applying the modem control settings failed; retry")
 						return true
 					}
 				}
 				if selector, ok := s.devices.(interface{ SetESIMTransport(string, string) error }); ok {
 					if err := selector.SetESIMTransport(physicalID, next.ESIMTransport); err != nil {
-						s.writeDeviceError(w, err)
+						writeError(w, http.StatusBadGateway, "device_config_apply_failed", "configuration was saved, but applying the modem control settings failed; retry")
 						return true
 					}
 				}
-			}
-			if err := s.store.UpsertDevice(r.Context(), next); err != nil {
-				s.writeStoreError(w, err)
-				return true
 			}
 			writeJSON(w, http.StatusOK, map[string]any{
 				"data": map[string]any{"status": "saved", "config": storedDeviceConfig(next)},
@@ -565,6 +640,13 @@ func (s *Server) handleDevicePath(
 	}
 
 	entry, physicalID, physicalPresent := s.physicalForConfig(config)
+	if store.HostIMSConfigured(config) {
+		operation := strings.Join(tail, "/")
+		if tail[0] == "flight-mode" || tail[0] == "network" || tail[0] == "operator_selection" || tail[0] == "cells" || tail[0] == "cell-lock" || tail[0] == "usbnet-mode" || tail[0] == "cellular-ims" || operation == "actions/at" || operation == "actions/refresh" || operation == "actions/reboot" {
+			writeError(w, http.StatusConflict, "host_ims_maintenance_required", "switch to module mode after complete IMS cleanup before changing modem radio/data configuration")
+			return true
+		}
+	}
 	if config.DeviceType == store.DeviceTypeWiFi410 && native410UnsupportedOperation(tail) {
 		writeError(w, http.StatusNotImplemented, "device_feature_unsupported", "this feature is not supported by the native OpenStick 410 backend")
 		return true
@@ -586,6 +668,12 @@ func (s *Server) handleDevicePath(
 		return s.handleE911(w, r, config, tail[2:])
 	}
 	switch strings.Join(tail, "/") {
+	case "telephony":
+		return s.handleTelephonyPolicy(w, r, config)
+	case "telephony/actions/reconnect":
+		return s.handleTelephonyReconnect(w, r, config, "")
+	case "ims":
+		return s.handleIMSMode(w, r, config, physicalPresent)
 	case "overview":
 		if !requireMethod(w, r, http.MethodGet) {
 			return true
@@ -641,7 +729,7 @@ func (s *Server) handleDevicePath(
 		if !s.requirePhysicalDevice(w, physicalPresent) {
 			return true
 		}
-		desiredData := config.NetworkEnabled && !config.VoWiFiEnabled
+		desiredData := config.NetworkEnabled && !(config.VoWiFiEnabled && store.WiFiExclusive(config))
 		iccid := ""
 		if entry.Snapshot != nil {
 			iccid = strings.TrimSpace(entry.Snapshot.ICCID)
@@ -690,6 +778,11 @@ func (s *Server) handleDevicePath(
 			return true
 		}
 		return s.handleUSBNetMode(w, r, physicalID)
+	case "usb-audio":
+		if !s.requirePhysicalDevice(w, physicalPresent) {
+			return true
+		}
+		return s.handleUSBAudioBinding(w, r, physicalID)
 	case "cells":
 		if !s.requirePhysicalDevice(w, physicalPresent) {
 			return true
@@ -722,6 +815,8 @@ func (s *Server) handleDevicePath(
 		return s.handleOperatorScanStream(w, r, physicalID)
 	case "vowifi":
 		return s.handleVoWiFiEnabled(w, r, config, physicalPresent)
+	case "vowifi/discovery":
+		return s.handleEPDGDiscovery(w, r, config)
 	case "vowifi/actions/reconnect":
 		return s.handleVoWiFiReconnect(w, r, config, physicalPresent)
 	case "calls":
@@ -908,6 +1003,14 @@ func (s *Server) handleVoWiFiEnabled(
 	config store.Device,
 	physicalPresent bool,
 ) bool {
+	if config.Telephony != nil {
+		writeError(w, 409, "independent_telephony_policy", "change Wi-Fi intent using the telephony policy endpoint")
+		return true
+	}
+	if config.IMSMode != "" && store.EffectiveIMSMode(config) != store.IMSModeVoWiFi {
+		writeError(w, http.StatusConflict, "ims_mode_conflict", "select VoWiFi using the IMS mode endpoint before changing its legacy switch")
+		return true
+	}
 	if !requireMethod(w, r, http.MethodPatch) {
 		return true
 	}
@@ -944,9 +1047,10 @@ func (s *Server) handleVoWiFiEnabled(
 	// when leaving it: teardown starts from CFUN=4 and is required to remain
 	// there until the user explicitly disables airplane mode.
 	previous := config.VoWiFiEnabled
+	previousIMSEnabled := config.IMSEnabled
 	dataRuntime := s.cellularDataRuntime()
 	s.clearPublicIP(config.ID)
-	desiredData := config.NetworkEnabled && !config.VoWiFiEnabled
+	desiredData := config.NetworkEnabled && !(config.VoWiFiEnabled && store.WiFiExclusive(config))
 	maintenancePhase := "disabled"
 	if desiredData {
 		maintenancePhase = "recovering"
@@ -998,6 +1102,9 @@ func (s *Server) handleVoWiFiEnabled(
 		_ = s.store.UpsertCardPolicy(context.Background(), policy)
 	}
 	config.VoWiFiEnabled = request.Enabled
+	if config.IMSMode != "" {
+		config.IMSEnabled = request.Enabled
+	}
 	config.NetworkEnabled = false
 	if err := s.store.UpsertDevice(r.Context(), config); err != nil {
 		rollbackCardPolicy()
@@ -1023,6 +1130,7 @@ func (s *Server) handleVoWiFiEnabled(
 			return true
 		}
 		config.VoWiFiEnabled = previous
+		config.IMSEnabled = previousIMSEnabled
 		rollbackCardPolicy()
 		if restoreErr := s.store.UpsertDevice(r.Context(), config); restoreErr != nil {
 			s.logger.Error(
@@ -1051,6 +1159,13 @@ func (s *Server) handleVoWiFiReconnect(
 	config store.Device,
 	physicalPresent bool,
 ) bool {
+	if config.Telephony != nil {
+		return s.handleTelephonyReconnect(w, r, config, store.IMSModeVoWiFi)
+	}
+	if config.IMSMode != "" && store.EffectiveIMSMode(config) != store.IMSModeVoWiFi {
+		writeError(w, http.StatusConflict, "ims_mode_conflict", "this device is not using VoWiFi")
+		return true
+	}
 	if !requireMethod(w, r, http.MethodPost) {
 		return true
 	}
@@ -1323,7 +1438,7 @@ func (s *Server) handleFlightMode(w http.ResponseWriter, r *http.Request, config
 		return true
 	}
 	dataRuntime := s.cellularDataRuntime()
-	desiredData := config.NetworkEnabled && !config.VoWiFiEnabled
+	desiredData := config.NetworkEnabled && !(config.VoWiFiEnabled && store.WiFiExclusive(config))
 	if request.Enabled {
 		s.clearPublicIP(config.ID)
 		phase := "disabled"
@@ -1501,7 +1616,7 @@ func (s *Server) handleCellularIMS(
 			return true
 		}
 		if status.Rebooting {
-			desiredData := config.NetworkEnabled && !config.VoWiFiEnabled
+			desiredData := config.NetworkEnabled && !(config.VoWiFiEnabled && store.WiFiExclusive(config))
 			invalidated := s.cellularDataRuntime().invalidateWithModemPhase(config.ID, desiredData, "recovering", "", "rebooting")
 			s.restoreCellularDataAfterModemReboot(config.ID, physicalID, iccid, invalidated.Revision, "cellular IMS reboot")
 		}
@@ -1548,7 +1663,7 @@ func (s *Server) restoreCellularDataAfterModemReboot(configID, physicalID, iccid
 				s.cellularDataRuntime().invalidateIfCurrent(configID, generation, "recovering", true, "failed", err.Error())
 				return
 			}
-			if !config.NetworkEnabled || config.VoWiFiEnabled {
+			if !config.NetworkEnabled || config.VoWiFiEnabled && store.WiFiExclusive(config) {
 				s.cellularDataRuntime().invalidateIfCurrent(configID, generation, "recovering", false, "disabled", "")
 				return
 			}
@@ -1662,7 +1777,7 @@ func (s *Server) handleCellularData(
 			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 			return true
 		}
-		if request.Enabled && config.VoWiFiEnabled {
+		if request.Enabled && config.VoWiFiEnabled && store.WiFiExclusive(config) {
 			writeError(w, http.StatusConflict, "vowifi_owns_radio", "disable VoWiFi before enabling cellular roaming data")
 			return true
 		}
@@ -1778,6 +1893,10 @@ func (s *Server) writeDeviceError(w http.ResponseWriter, err error) {
 		"raw_error", device.HardwareErrorDetail(err),
 	)
 	switch {
+	case errors.Is(err, modulecall.ErrBusy):
+		writeError(w, http.StatusConflict, "module_call_busy", "the module has an owned call; finish its cleanup before maintenance")
+	case errors.Is(err, modulecall.ErrChanged):
+		writeError(w, http.StatusConflict, "module_call_changed", "the physical module or SIM changed; refresh the line")
 	case errors.Is(err, errInvalidUSSDRequest):
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 	case errors.Is(err, vowifi.ErrUSSINotReady):
@@ -1852,6 +1971,9 @@ func (s *Server) dashboardDevices() []map[string]any {
 		vowifiActive, _ := runtime["tunnel_ready"].(bool)
 		result = append(result, map[string]any{
 			"id":                entry["id"],
+			"ims_mode":          entry["ims_mode"],
+			"ims_enabled":       entry["ims_enabled"],
+			"ims_runtime":       entry["ims_runtime"],
 			"name":              entry["name"],
 			"device_type":       entry["device_type"],
 			"interface":         entry["interface"],
@@ -1950,10 +2072,13 @@ func (s *Server) configuredDeviceSummary(
 	result["maintenance_phase"] = dataRuntime.MaintenancePhase
 	result["network_error"] = dataRuntime.LastError
 	result["vowifi_enabled"] = config.VoWiFiEnabled
+	result["ims_mode"] = store.EffectiveIMSMode(config)
+	result["ims_enabled"] = store.EffectiveIMSEnabled(config)
+	result["telephony_policy"] = config.Telephony
 	var runtimeResponse map[string]any
 	runtimeMatchesCard := true
-	if s.vowifi != nil {
-		if runtime, err := s.vowifi.State(config.ID); err == nil {
+	if wifi := s.wifiController(); wifi != nil && (config.Telephony != nil || !store.HostIMSConfigured(config)) {
+		if runtime, err := wifi.State(config.ID); err == nil {
 			runtimeMatchesCard = voWiFiRuntimeMatchesSnapshot(runtime.ICCID, entry)
 			if runtimeMatchesCard {
 				runtimeResponse = liveVoWiFiRuntime(runtime)
@@ -1963,7 +2088,7 @@ func (s *Server) configuredDeviceSummary(
 		}
 	}
 	if runtimeResponse == nil {
-		if runtime, err := s.store.VoWiFiRuntime(context.Background(), config.ID); err == nil {
+		if runtime, err := s.store.VoWiFiRuntime(context.Background(), config.ID); err == nil && (config.Telephony != nil || !store.HostIMSConfigured(config)) {
 			currentICCID := ""
 			var currentSnapshot *device.Snapshot
 			if entry != nil {
@@ -1986,7 +2111,23 @@ func (s *Server) configuredDeviceSummary(
 	if runtimeResponse == nil {
 		runtimeResponse = idleVoWiFiRuntime(config.ID, snapshotForEntry(entry))
 	}
+	bindIKERetryObservation(runtimeResponse, config.ID, entry)
 	result["vowifi_runtime"] = runtimeResponse
+	result["ims_runtime"] = runtimeResponse
+	if store.HostIMSConfigured(config) {
+		selected := idleVoWiFiRuntime(config.ID, snapshotForEntry(entry))
+		if s.hostIMS != nil {
+			if state, err := s.hostIMS.State(config.ID); err == nil && voWiFiRuntimeMatchesSnapshot(state.ICCID, entry) {
+				selected = liveVoWiFiRuntime(state)
+			}
+		}
+		selected["mode"] = store.IMSModeHost
+		delete(selected, "ike_retry") // ePDG retry observations never describe cellular Host IMS.
+		result["cellular_ims_runtime"] = selected
+		if store.EffectiveIMSMode(config) == store.IMSModeHost {
+			result["ims_runtime"] = selected
+		}
+	}
 	if entry != nil {
 		carrier := e911CarrierForSnapshot(entry.Snapshot)
 		result["e911_setup_available"] = carrier.ID != ""
@@ -2088,6 +2229,9 @@ func (s *Server) configuredDeviceStatus(
 	}
 	result := map[string]any{
 		"healthy":               summary["healthy"],
+		"ims_mode":              summary["ims_mode"],
+		"ims_enabled":           summary["ims_enabled"],
+		"ims_runtime":           summary["ims_runtime"],
 		"public_ip":             summary["public_ip"],
 		"network_connected":     summary["network_connected"],
 		"network_phase":         summary["network_phase"],
@@ -2110,7 +2254,7 @@ func storedVoWiFiRuntime(runtime store.VoWiFiRuntime) map[string]any {
 	extra, _ := rawJSONObject(runtime.Extra).(map[string]any)
 	enabled, _ := extra["enabled"].(bool)
 	active, _ := extra["active"].(bool)
-	return map[string]any{
+	result := map[string]any{
 		"device_id":            runtime.DeviceID,
 		"phase":                runtime.Phase,
 		"enabled":              enabled,
@@ -2138,10 +2282,12 @@ func storedVoWiFiRuntime(runtime store.VoWiFiRuntime) map[string]any {
 		"imscore":              rawJSONObject(runtime.IMSCore),
 		"smsip":                rawJSONObject(runtime.SMSIP),
 	}
+	addStoredIKERetryObservation(result, runtime.Extra, runtime.UpdatedAt)
+	return result
 }
 
 func liveVoWiFiRuntime(runtime vowifi.State) map[string]any {
-	return map[string]any{
+	result := map[string]any{
 		"device_id":            runtime.DeviceID,
 		"phase":                string(runtime.Phase),
 		"enabled":              runtime.Enabled,
@@ -2166,13 +2312,17 @@ func liveVoWiFiRuntime(runtime vowifi.State) map[string]any {
 		"last_reason":          runtime.LastReason,
 		"updated_at":           runtime.UpdatedAt,
 		"tunnel": map[string]any{
-			"established":    runtime.TunnelReady,
-			"name":           runtime.TunnelName,
-			"dataplane_mode": runtime.DataplaneMode,
-			"epdg":           runtime.EPDG,
-			"proxy_mode":     runtime.ProxyMode,
-			"proxy_id":       runtime.ProxyID,
-			"security_audit": runtime.Security,
+			"established":     runtime.TunnelReady,
+			"name":            runtime.TunnelName,
+			"dataplane_mode":  runtime.DataplaneMode,
+			"epdg":            runtime.EPDG,
+			"epdg_address":    runtime.EPDGAddress,
+			"epdg_source":     runtime.EPDGSource,
+			"epdg_attempt":    runtime.EPDGAttempt,
+			"epdg_candidates": runtime.EPDGCandidates,
+			"proxy_mode":      runtime.ProxyMode,
+			"proxy_id":        runtime.ProxyID,
+			"security_audit":  runtime.Security,
 		},
 		"imscore": map[string]any{
 			"registered":         runtime.IMSReady,
@@ -2182,6 +2332,8 @@ func liveVoWiFiRuntime(runtime vowifi.State) map[string]any {
 		},
 		"smsip": map[string]any{"ready": runtime.SMSReady},
 	}
+	addIKERetryObservation(result, runtime.IKERetry, runtime.UpdatedAt, false, len(runtime.CleanupErrors) > 0)
+	return result
 }
 
 func snapshotForEntry(entry *device.Device) *device.Snapshot {
@@ -2323,6 +2475,8 @@ func storedDeviceConfig(config store.Device) map[string]any {
 		"qmi_proxy_executable": config.QMIProxyExecutable,
 		"network_enabled":      config.NetworkEnabled,
 		"sms_enabled":          config.SMSEnabled,
+		"ims_mode":             store.EffectiveIMSMode(config),
+		"ims_enabled":          store.EffectiveIMSEnabled(config),
 		"vowifi_enabled":       config.VoWiFiEnabled,
 	}
 }

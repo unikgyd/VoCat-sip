@@ -5,6 +5,7 @@ import {
   DocumentTextRegular,
   GlobeRegular,
   MailRegular,
+  CallRegular,
   SendClockRegular,
   PanelLeftContractRegular,
   PanelLeftExpandRegular,
@@ -25,12 +26,14 @@ import { VersionBadge } from "./VersionBadge";
 import { listPlugins, type InstalledPlugin } from "../../extensions";
 import { api } from "../../api";
 import type { SystemInfo } from "../../types";
+import { GlobalPhone } from "../../phone/PhoneView";
 
 const NAV = [
   { to: "/", label: "仪表盘", icon: BoardRegular, end: true },
   { to: "/devices", label: "设备管理", icon: RouterRegular },
   { to: "/proxy", label: "代理管理", icon: GlobeRegular },
   { to: "/sms", label: "短信检测", icon: MailRegular },
+  { to: "/phone", label: "网页电话", icon: CallRegular },
   { to: "/automatic-tasks", label: "自动任务", icon: SendClockRegular },
   { to: "/logs", label: "实时日志", icon: DocumentTextRegular },
   { to: "/settings", label: "系统设置", icon: SettingsRegular },
@@ -244,6 +247,7 @@ export function AuthenticatedShell({
           </div>
         </main>
       </div>
+      <GlobalPhone />
     </div>
   );
 }

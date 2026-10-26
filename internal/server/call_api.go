@@ -19,8 +19,30 @@ func (s *Server) handleCalls(w http.ResponseWriter, r *http.Request, config stor
 	if !requireMethod(w, r, http.MethodGet) {
 		return true
 	}
-	transport := s.callTransport(config.ID)
-	if transport == "vowifi" {
+	if config.Telephony != nil {
+		calls, err := (sipCarrierBackend{s}).Calls(r.Context(), config.ID)
+		if err != nil {
+			writeError(w, 503, "call_state_unavailable", err.Error())
+			return true
+		}
+		writeJSON(w, 200, map[string]any{"data": map[string]any{"device_id": config.ID, "transport": s.callTransportForConfig(config), "calls": calls}})
+		return true
+	}
+	transport := s.callTransportForConfig(config)
+	if transport == "unavailable" {
+		writeError(w, http.StatusServiceUnavailable, "ims_unavailable", "the selected line policy is unavailable")
+		return true
+	}
+	if transport == "cellular" && s.moduleCalls != nil && s.moduleCalls.Busy(config.ID) {
+		calls, err := s.moduleCalls.Calls(config.ID)
+		if err != nil {
+			writeError(w, 503, "module_call_unavailable", "module call state is unavailable")
+			return true
+		}
+		writeJSON(w, 200, map[string]any{"data": map[string]any{"device_id": config.ID, "transport": "cellular", "calls": calls}})
+		return true
+	}
+	if transport == "vowifi" || transport == "host_ims" {
 		controller, ok := s.vowifi.(VoWiFiCallController)
 		if !ok {
 			writeError(w, http.StatusNotImplemented, "vowifi_voice_unavailable", "the active VoWiFi IMS session does not expose voice-call signalling")
@@ -106,8 +128,38 @@ func (s *Server) handleCallAction(w http.ResponseWriter, r *http.Request, config
 		return true
 	}
 
-	transport := s.callTransport(config.ID)
-	if transport == "vowifi" {
+	transport := s.callTransportForConfig(config)
+	if config.Telephony != nil && action != "dial" {
+		if callID == "" {
+			writeError(w, 400, "call_id_required", "independent access requires an exact call_id")
+			return true
+		}
+		if s.moduleVoiceCall(config.ID, callID) {
+			return s.handleModuleVoiceAction(w, r, config, action, number, callID, duration)
+		}
+		calls, err := (sipCarrierBackend{s}).Calls(r.Context(), config.ID)
+		found := false
+		for _, call := range calls {
+			if call.ID == callID {
+				found = true
+				break
+			}
+		}
+		owner := s.ownerIMSCall(config.ID, callID)
+		if err != nil || !found || owner == nil {
+			writeError(w, 409, "call_not_found", "the exact call owner is unavailable or ambiguous")
+			return true
+		}
+		transport = store.IMSModeVoWiFi
+		if owner == s.hostIMS {
+			transport = store.IMSModeHost
+		}
+	}
+	if transport == "unavailable" {
+		writeError(w, http.StatusServiceUnavailable, "ims_unavailable", "the selected line policy is unavailable")
+		return true
+	}
+	if transport == "vowifi" || transport == "host_ims" {
 		controller, ok := s.vowifi.(VoWiFiCallController)
 		if !ok {
 			writeError(w, http.StatusNotImplemented, "vowifi_voice_unavailable", "the active VoWiFi IMS session does not expose voice-call signalling")
@@ -120,6 +172,9 @@ func (s *Server) handleCallAction(w http.ResponseWriter, r *http.Request, config
 			result, err = controller.DialCall(r.Context(), config.ID, number)
 		case "answer":
 			callID, err = resolveVoWiFiCallID(controller, config.ID, callID, "ringing")
+			if err == nil {
+				err = s.claimLocalSIPAnswer(config.ID, callID)
+			}
 			if err == nil {
 				result, err = controller.AnswerCall(r.Context(), config.ID, callID)
 			}
@@ -153,6 +208,9 @@ func (s *Server) handleCallAction(w http.ResponseWriter, r *http.Request, config
 		}})
 		return true
 	}
+	if s.useModuleVoice(r.Context(), config, callID) {
+		return s.handleModuleVoiceAction(w, r, config, action, number, callID, duration)
+	}
 	operationContext, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	response, err := s.devices.ExecuteAT(operationContext, physicalID, command)
 	cancel()
@@ -170,9 +228,12 @@ func (s *Server) handleCallAction(w http.ResponseWriter, r *http.Request, config
 		return true
 	}
 	if action == "dial" {
+		scope := s.beginModuleCallScope(config, physicalID)
 		if duration > 0 {
-			go s.hangupAfter(config.ID, physicalID, duration)
+			go s.hangupAfter(config.ID, scope, duration)
 		}
+	} else {
+		s.moduleCallScopes.Delete(config.ID)
 	}
 	s.recordAudit(r.Context(), "admin", "call."+action, "device", config.ID, "success", transport)
 	writeJSON(w, http.StatusAccepted, map[string]any{
@@ -216,24 +277,82 @@ func (s *Server) hangupVoWiFiAfter(deviceID, callID string, duration time.Durati
 }
 
 func (s *Server) callTransport(deviceID string) string {
+	if s.store != nil {
+		config, err := s.store.Device(context.Background(), deviceID)
+		if err != nil {
+			return "unavailable"
+		}
+		return s.callTransportForConfig(config)
+	}
+	return s.callTransportForConfig(store.Device{ID: deviceID})
+}
+func (s *Server) callTransportForConfig(config store.Device) string {
+	if config.Telephony != nil {
+		mode := store.EffectiveIMSMode(config)
+		if !store.AccessEnabled(config, mode) {
+			return "unavailable"
+		}
+		if mode == store.IMSModeModule {
+			return "cellular"
+		}
+		return mode
+	}
+	if config.IMSMode != "" {
+		switch config.IMSMode {
+		case store.IMSModeHost, store.IMSModeVoWiFi:
+			return store.EffectiveIMSMode(config) // No unavailable IMS -> AT fallback.
+		case store.IMSModeModule:
+			return "cellular"
+		default:
+			return "unavailable"
+		}
+	}
 	if s.vowifi != nil {
 		// Enabled is only the desired card policy. Calls can use IMS only after
 		// registration has actually completed; otherwise keep using the modem's
 		// circuit-switched call path instead of routing into an unavailable IMS
 		// session.
-		if state, err := s.vowifi.State(deviceID); err == nil && state.IMSReady {
+		if state, err := s.vowifi.State(config.ID); err == nil && state.IMSReady {
 			return "vowifi"
 		}
 	}
 	return "cellular"
 }
 
-func (s *Server) hangupAfter(deviceID, physicalID string, duration time.Duration) {
+type moduleCallScope struct {
+	physicalID, usbGeneration, controlDevice, atPort, usbPath, imei string
+}
+
+func (s *Server) beginModuleCallScope(config store.Device, physicalID string) *moduleCallScope {
+	entry, _, _ := s.physicalForConfig(config)
+	scope := &moduleCallScope{physicalID: physicalID, usbGeneration: entry.Candidate.USBGeneration, controlDevice: config.ControlDevice, atPort: config.ATPort, usbPath: config.USBPath, imei: config.ModemIMEI}
+	s.moduleCallScopes.Store(config.ID, scope)
+	return scope
+}
+func (s *Server) hangupAfter(deviceID string, scope *moduleCallScope, duration time.Duration) {
 	timer := time.NewTimer(duration)
 	defer timer.Stop()
 	<-timer.C
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+	s.hangupModuleScope(ctx, deviceID, scope)
+}
+func (s *Server) hangupModuleScope(ctx context.Context, deviceID string, scope *moduleCallScope) {
+	lock := s.imsModeLock(deviceID)
+	lock.RLock()
+	defer lock.RUnlock()
+	current, ok := s.moduleCallScopes.Load(deviceID)
+	if !ok || current != scope || scope == nil || s.store == nil {
+		return
+	}
+	config, err := s.store.Device(ctx, deviceID)
+	if err != nil || s.callTransportForConfig(config) != "cellular" || config.ControlDevice != scope.controlDevice || config.ATPort != scope.atPort || config.USBPath != scope.usbPath || config.ModemIMEI != scope.imei {
+		return
+	}
+	entry, physicalID, present := s.physicalForConfig(config)
+	if !present || physicalID != scope.physicalID || entry.Candidate.USBGeneration != scope.usbGeneration {
+		return
+	}
 	if _, err := s.devices.ExecuteAT(ctx, physicalID, "ATH"); err != nil {
 		s.logger.Warn("automatic call hangup failed", "device_id", deviceID, "error", err)
 	}

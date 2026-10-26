@@ -72,7 +72,7 @@ export default function DashboardPage() {
   usePolling(fetchUpcomingTasks, TASKS_POLL_INTERVAL);
 
   const total = devices.length;
-  const online = devices.filter((d) => d?.healthy).length;
+  const online = devices.filter((d) => d.imsMode === "host_ims" ? d.imsEnabled && d.imsRuntime?.imsReady : d?.healthy).length;
   const openDevice = (id: string) => navigate(`/devices?device=${encodeURIComponent(id)}&tab=overview`);
 
   return (

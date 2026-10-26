@@ -69,7 +69,7 @@ export function CardPolicyPanel({ deviceId, iccid, policy, deviceOnline, onPolic
         </div>
         <div>
           <div className="text-lg font-bold text-gray-900 dark:text-white">{t("卡策略")}</div>
-		  <div className="text-xs text-gray-500 dark:text-gray-400">{wifiCallingOnly ? t("USB SIM 读卡器仅用于 WiFi Calling，策略跟随 ICCID 保存") : t("VoWiFi / 飞行模式 开关跟着 SIM 卡走，切换即时生效")}</div>
+		  <div className="text-xs text-gray-500 dark:text-gray-400">{currentPolicy?.telephonyPolicy ? t("此 SIM 使用独立线路设置，请在概览的电话线路中调整连接。") : wifiCallingOnly ? t("USB SIM 读卡器仅用于 WiFi Calling，策略跟随 ICCID 保存") : t("VoWiFi / 飞行模式 开关跟着 SIM 卡走，切换即时生效")}</div>
         </div>
       </div>
       {!iccid ? (
@@ -122,7 +122,7 @@ export function CardPolicyPanel({ deviceId, iccid, policy, deviceOnline, onPolic
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-			{!vowifiUnsupported ? <PolicySwitchCard
+			{!currentPolicy?.telephonyPolicy && !vowifiUnsupported ? <PolicySwitchCard
               title="VoWiFi"
               subtitle={t("启用时强制关闭蜂窝射频；关闭 VoWiFi 后仍保持飞行模式")}
               tone="orange"
@@ -132,7 +132,7 @@ export function CardPolicyPanel({ deviceId, iccid, policy, deviceOnline, onPolic
               failed={toggles.vowifiFailed}
               onToggle={toggles.onVoWiFiToggle}
 			/> : null}
-			{!wifiCallingOnly ? <PolicySwitchCard
+			{!currentPolicy?.telephonyPolicy && !wifiCallingOnly ? <PolicySwitchCard
               title={t("飞行模式")}
               subtitle={t("只有手动关闭此开关才允许设备连接基站")}
               tone="indigo"

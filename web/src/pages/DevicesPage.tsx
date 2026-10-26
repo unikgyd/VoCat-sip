@@ -607,8 +607,8 @@ export default function DevicesPage() {
   const filteredDevices = useMemo(() => {
     const q = query.trim().toLowerCase();
     let d = list.slice();
-    if (statusFilter === "online") d = d.filter((c) => isDeviceOnline(c));
-    else if (statusFilter === "offline") d = d.filter((c) => !c?.running && !isRecoveringPhase(c.lifecyclePhase));
+    if (statusFilter === "online") d = d.filter((c) => c.imsMode === "host_ims" ? c.imsEnabled && c.imsRuntime?.imsReady : isDeviceOnline(c));
+    else if (statusFilter === "offline") d = d.filter((c) => c.imsMode === "host_ims" ? !c.imsEnabled || c.imsRuntime?.phase === "failed" : !c?.running && !isRecoveringPhase(c.lifecyclePhase));
     if (q) {
       d = d.filter((c) =>
         `${c?.id || ""} ${c?.name || ""} ${c?.modem?.iccid || ""} ${c?.modem?.imei || ""} ${c?.interface || ""}`

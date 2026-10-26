@@ -287,14 +287,16 @@ type eapAction struct {
 }
 
 type akaClient struct {
-	identity          []byte
-	simIdentity       vowifi.SIMIdentity
-	provider          vowifi.AKAProvider
-	keys              akaKeys
-	lastResponseStage string
-	challengeComplete bool
-	resultIndication  bool
-	protectedSuccess  bool
+	identity             []byte
+	simIdentity          vowifi.SIMIdentity
+	provider             vowifi.AKAProvider
+	keys                 akaKeys
+	lastResponseStage    string
+	challengeComplete    bool
+	challengeStarted     bool
+	identityRetryBlocked bool
+	resultIndication     bool
+	protectedSuccess     bool
 }
 
 // EAPAKAClient reuses the tunnel's authenticated EAP-AKA implementation for
@@ -324,9 +326,13 @@ func newAKAClient(identity vowifi.SIMIdentity, provider vowifi.AKAProvider) (*ak
 	if err != nil {
 		return nil, err
 	}
+	physical, err := vowifi.AKAIdentity(identity)
+	if err != nil {
+		return nil, err
+	}
 	return &akaClient{
 		identity:          nai,
-		simIdentity:       identity,
+		simIdentity:       physical,
 		provider:          provider,
 		lastResponseStage: "in the initial IKE_AUTH identity exchange",
 	}, nil
@@ -374,25 +380,36 @@ func (client *akaClient) handle(ctx context.Context, encoded []byte) (eapAction,
 }
 
 func (client *akaClient) handleAKARequest(ctx context.Context, packet eapPacket) (eapAction, error) {
+	// Even an invalid challenge has crossed the identity-only boundary. A
+	// client-error response must not turn the next EAP-Failure into permission
+	// to try another subscriber identity.
+	if len(packet.Data) > 0 && packet.Data[0] == akaSubtypeChallenge {
+		client.challengeStarted = true
+	}
 	if len(packet.Data) < 3 {
+		client.identityRetryBlocked = true
 		return akaClientErrorResponse(packet.Identifier)
 	}
 	subtype := packet.Data[0]
 	if packet.Data[1] != 0 || packet.Data[2] != 0 {
+		client.identityRetryBlocked = true
 		return akaClientErrorResponse(packet.Identifier)
 	}
 	attributes, err := parseAKAAttributes(packet.Data[3:])
 	if err != nil {
+		client.identityRetryBlocked = true
 		return akaClientErrorResponse(packet.Identifier)
 	}
 	switch subtype {
 	case akaSubtypeIdentity:
 		action, err := client.respondAKAIdentity(packet.Identifier, attributes)
 		if err != nil {
+			client.identityRetryBlocked = true
 			return akaClientErrorResponse(packet.Identifier)
 		}
 		return action, nil
 	case akaSubtypeChallenge:
+		client.challengeStarted = true
 		action, err := client.respondAKAChallenge(ctx, packet.Identifier, attributes, packet)
 		if err != nil && !errors.Is(err, errAKAProvider) &&
 			!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -400,10 +417,13 @@ func (client *akaClient) handleAKARequest(ctx context.Context, packet eapPacket)
 		}
 		return action, err
 	case akaSubtypeNotification:
+		client.identityRetryBlocked = true
 		return client.respondAKANotification(packet.Identifier, attributes, packet)
 	case akaSubtypeReauth:
+		client.identityRetryBlocked = true
 		return akaClientErrorResponse(packet.Identifier)
 	default:
+		client.identityRetryBlocked = true
 		return akaClientErrorResponse(packet.Identifier)
 	}
 }

@@ -26,14 +26,49 @@
 
 Vocat is an open-source web control panel and engineering toolkit for Quectel EC20/EC25-class and China Mobile ML307 series cellular modems. It combines modem discovery, live radio status, AT and USSD terminals, SMS, WiFi Calling, eSIM management, network selection, proxy routing, notifications, audit logs, and release automation in one self-contained service.
 
-The backend is written in Go, the interface is built with React and TypeScript, and the production frontend is embedded into the Go binary. A single executable contains the web application and uses SQLite for persistent state.
+This fork is the Linux client alongside [VoWin](https://github.com/unikgyd/VoWin).
+The goal is the union of both clients' capabilities, with most implementation work
+in VoCat-sip. The original [research and evaluation license](LICENSE) and runtime
+authorization checks remain in force.
+
+## Development status — 2026-10-26
+
+| Area | Current source status |
+| --- | --- |
+| Calls and media | Web phone, physically paired USB PCM, SIP extension/peer bridges and negotiated RFC 4733 DTMF are wired. |
+| Multiple modems | Independent runtime ownership, Host IMS, per-SIM ePDG history and persistent IKE retry admission are present. |
+| Independent access | Per-ICCID cellular/Wi-Fi preferences, default routing, session ownership, reconnect controls and UI are being integrated. **The latest changes have not had the final combined test/build run.** |
+| Management | Existing eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained; independent-access lifecycle integration is still in progress. |
+| Remaining work | Outgoing hold/resume, delayed auto-answer and message playback, SIP INFO compatibility, complete hardware lifecycle and live carrier acceptance. |
+
+This is a development checkpoint, not a release or a claim of complete parity.
+Historical passing runs apply to their archived snapshots only. Implementation is
+being completed before the final combined tests and builds; no tests or builds
+were run for this README/Git cleanup. Existing installations are unchanged.
+
+The backend uses Go, React/TypeScript is embedded in the production binary, and
+SQLite stores configuration and runtime history. See the
+[feature union checklist](docs/FEATURE_UNION.md),
+[independent-access design and remaining work](docs/INDEPENDENT_ACCESS.md), and
+[repository conventions](docs/REPOSITORY.md).
 
 <p align="center">
-  <img src="img\image.png">
-  <img src="img\image-1.png">
+  <img src="img/image.png" alt="VoCat device overview">
+  <img src="img/image-1.png" alt="VoCat management interface">
 </p>
 
 ## Features
+
+### Linux integration documentation
+
+- [Host IMS application](docs/HOST_IMS_APPLICATION.md) and [ownership boundaries](docs/HOST_IMS.md).
+- [Web phone](docs/WEB_PHONE.md), [USB module voice](docs/MODULE_VOICE.md), [AMR media](docs/AMR_MEDIA.md), and [DTMF](docs/SIP_DTMF.md).
+- [SIP gateway](docs/SIP_GATEWAY.md), [carrier calls](docs/CARRIER_OUTGOING.md), [incoming calls](docs/CARRIER_INCOMING.md), and [SMS bridge](docs/CARRIER_SMS.md).
+- [SMS query API](docs/SMS_API.md) and [ePDG discovery](docs/EPDG_DISCOVERY.md).
+
+Software wiring and synthetic or loopback evidence are distinct from hardware,
+softphone, carrier and installation acceptance. See the feature checklist above
+for the current boundaries.
 
 | Area | What Vocat provides |
 | --- | --- |

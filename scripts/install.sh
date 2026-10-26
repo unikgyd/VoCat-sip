@@ -355,13 +355,24 @@ else
     CURL_DL_OPTS=(-fsSL)
 fi
 
+# Pure selection helper: do not infer glibc merely from a successful getconf
+# invocation. Unknown/empty responses must remain on the static flavor.
+runtime_asset_suffix() {
+    case "$(getconf GNU_LIBC_VERSION 2>/dev/null || true)" in
+        glibc\ *) printf '%s' "" ;;
+        *) printf '%s' "-static" ;;
+    esac
+}
+
 download_and_verify() {
     VOCAT_TMP=$(mktemp -d)
     trap 'rm -rf "$VOCAT_TMP"' EXIT
     local base="https://github.com/${REPO}/releases/download/v${TARGET_VERSION}"
-    local asset="vocat-linux-${ARCH}"
+    local suffix
+    suffix="$(runtime_asset_suffix)"
+    local asset="vocat-linux-${ARCH}${suffix}"
     if [ -n "$ARCH_FALLBACK" ] && ! curl -fsIL -o /dev/null "${base}/${asset}"; then
-        asset="vocat-linux-${ARCH_FALLBACK}"
+        asset="vocat-linux-${ARCH_FALLBACK}${suffix}"
     fi
     msg "下载 $asset ..." "Downloading $asset ..."
     curl "${CURL_DL_OPTS[@]}" -o "${VOCAT_TMP}/vocat" "${base}/${asset}" || die "下载二进制失败。" "Failed to download the binary."
@@ -377,6 +388,14 @@ download_and_verify() {
     "${VOCAT_TMP}/vocat" version >/dev/null 2>&1 || die \
         "下载的二进制文件无法在此系统上运行；未更改当前安装的版本。" \
         "The downloaded binary cannot run on this host; the installed version was not changed."
+    # Diagnostics only: never access a modem or ask for a SIM during install.
+    "${VOCAT_TMP}/vocat" media-check || die \
+        "媒体能力自检无法运行，未替换已安装程序。" \
+        "Media capability check could not run; the installed program was not changed."
+    if [ -z "$suffix" ] && ! "${VOCAT_TMP}/vocat" media-check --require-amr --json >/dev/null 2>&1; then
+        msg "AMR 不可用；Debian/Ubuntu 请安装 libopencore-amrnb0。当前仅有 G.711，不代表运营商语音可用。" \
+            "AMR unavailable: on Debian/Ubuntu install libopencore-amrnb0. G.711 alone does not prove carrier audio is usable." >&2
+    fi
 }
 
 # --- Install binary ----------------------------------------------------------

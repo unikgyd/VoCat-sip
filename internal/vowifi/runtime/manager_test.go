@@ -12,6 +12,16 @@ import (
 
 type fakeSIM struct{}
 
+func TestSMSBoundSendDoesNotCreateOrStartMissingRuntime(t *testing.T) {
+	manager := &Manager{entries: map[string]*entry{}}
+	if _, err := manager.SendSMSForSubscription(context.Background(), "missing", "001010000000001", "synthetic", vowifi.SMSSubmitRequest{}); !errors.Is(err, ErrNotRegistered) {
+		t.Fatal(err)
+	}
+	if len(manager.entries) != 0 {
+		t.Fatal("SMS created a modem runtime")
+	}
+}
+
 func (fakeSIM) ReadIdentity(context.Context, string) (vowifi.SIMIdentity, error) {
 	return vowifi.SIMIdentity{
 		ICCID:           "8944100000000000000",
@@ -341,7 +351,10 @@ func TestManagerReEnablesWhenSwitchChangesDuringDisable(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if state.Phase == want {
+			manager.mu.Lock()
+			busy := manager.entries["ec20"].busy
+			manager.mu.Unlock()
+			if state.Phase == want && !busy {
 				return
 			}
 			time.Sleep(time.Millisecond)

@@ -69,7 +69,7 @@ export function EsimCardPolicyInline({ deviceId, iccid, isActiveCard, deviceOnli
       ) : (
         <>
           {noteText ? <div className="text-[11px] text-amber-600 dark:text-amber-400">{noteText}</div> : null}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {policy?.telephonyPolicy ? <p className="text-xs text-gray-500">{t("此 SIM 使用独立线路设置，请在概览的电话线路中调整连接。")}</p> : <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <PolicySwitchCard
               compact
               title="VoWiFi"
@@ -88,7 +88,7 @@ export function EsimCardPolicyInline({ deviceId, iccid, isActiveCard, deviceOnli
               failed={toggles.airplaneFailed}
               onToggle={toggles.onAirplaneToggle}
             />
-          </div>
+          </div>}
           <CardPolicyMBN
             iccid={iccid}
             policy={policy}

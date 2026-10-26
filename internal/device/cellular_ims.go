@@ -143,6 +143,9 @@ func (manager *Manager) SetCellularIMS(ctx context.Context, id string, mode Cell
 	if err := manager.validateActive(id, state); err != nil {
 		return CellularIMSStatus{}, err
 	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
+		return CellularIMSStatus{}, err
+	}
 	client, err := manager.clientLocked(ctx, state, manager.candidateFor(state))
 	if err != nil {
 		manager.setResult(id, state, nil, err)

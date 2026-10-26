@@ -525,6 +525,17 @@ func matchCarrierProfileRule(rule carrierProfileRule, identity SIMIdentity) (int
 	}
 	matches = append(matches, rule.MatchAny...)
 	for _, match := range matches {
+		// Subscriber rewriting is identity-sensitive. A shared HPLMN cannot
+		// waive explicit IMSI/ICCID constraints (e.g. other 204-04 subscribers
+		// are not DITO). Ordinary non-rewriting profile matching stays intact.
+		if rule.Identity.SubscriberIMSIRewrite.FromPrefix != "" {
+			if len(match.IMSIPrefixes) > 0 && !matchesAny(match.IMSIPrefixes, func(prefix string) bool { return strings.HasPrefix(identity.IMSI, strings.TrimSpace(prefix)) }) {
+				continue
+			}
+			if len(match.ICCIDPrefixes) > 0 && !matchesAny(match.ICCIDPrefixes, func(prefix string) bool { return strings.HasPrefix(identity.ICCID, strings.TrimSpace(prefix)) }) {
+				continue
+			}
+		}
 		score, source, matched := matchCarrierProfile(match, identity)
 		if matched && score > bestScore {
 			bestScore = score
@@ -864,8 +875,27 @@ func IsATT310280(identity SIMIdentity) bool {
 }
 
 func applyAssignedCarrierRoute(identity SIMIdentity) SIMIdentity {
+	addDiscovery := func(plmn string) {
+		if !isNDigits(plmn, 5, 6) {
+			return
+		}
+		for _, old := range identity.DiscoveryPLMNs {
+			if old == plmn {
+				return
+			}
+		}
+		if len(identity.DiscoveryPLMNs) < 16 {
+			identity.DiscoveryPLMNs = append(append([]string(nil), identity.DiscoveryPLMNs...), plmn)
+		}
+	}
+	if mcc, mnc, ok := HomePLMNFromICCID(identity.ICCID); ok && mcc != identity.HomeMCC {
+		addDiscovery(mcc + mnc)
+	}
 	profile := ResolveCarrierProfile(identity)
 	if profile.ID != CarrierProfileStandard && profile.RouteMCC != "" {
+		if identity.HomeMCC != profile.RouteMCC || identity.HomeMNC != profile.RouteMNC {
+			addDiscovery(identity.HomeMCC + identity.HomeMNC)
+		}
 		identity.HomeMCC = profile.RouteMCC
 		identity.HomeMNC = profile.RouteMNC
 		if profile.EPDG != "" {
@@ -876,16 +906,7 @@ func applyAssignedCarrierRoute(identity SIMIdentity) SIMIdentity {
 		return identity
 	}
 
-	if strings.TrimSpace(identity.ICCID) != "" {
-		if mcc, mnc, ok := HomePLMNFromICCID(identity.ICCID); ok {
-			imsiCountry := CountryCodeForMCC(identity.HomeMCC)
-			iccidCountry := CountryCodeForMCC(mcc)
-			if identity.HomeMCC == "" || (imsiCountry != "" && iccidCountry != "" && imsiCountry != iccidCountry) {
-				identity.HomeMCC = mcc
-				identity.HomeMNC = mnc
-			}
-		}
-	}
+	// Issuer-country hints above never replace authentication identity.
 	if strings.TrimSpace(identity.EPDG) == "" && identity.HomeMCC != "" && identity.HomeMNC != "" {
 		identity.EPDG = standardEPDGHostname(identity.HomeMCC, identity.HomeMNC)
 	}

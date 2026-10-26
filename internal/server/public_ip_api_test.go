@@ -119,13 +119,14 @@ func TestCellularConnectedAutomaticallyDetectsPublicIP(t *testing.T) {
 	}
 	if err := database.UpsertDevice(ctx, store.Device{
 		ID: "ec20", Name: "EC20", DeviceType: store.DeviceTypePCIeEC20EC25,
+		ModemIMEI: "000000000000001",
 		Interface: "wwan0", NetworkEnabled: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
 	controller := &publicIPDeviceController{fakeDeviceController: fakeDeviceController{entry: device.Device{
-		ID:       "physical-1",
-		Snapshot: &device.Snapshot{DeviceID: "physical-1", SIMReady: true, ICCID: "89441000000000000001"},
+		ID: "physical-1", Discovered: true,
+		Snapshot: &device.Snapshot{DeviceID: "physical-1", IMEI: "000000000000001", SIMReady: true, ICCID: "89441000000000000001"},
 	}}}
 	called := make(chan string, 1)
 	server := &Server{

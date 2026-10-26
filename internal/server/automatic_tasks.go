@@ -186,6 +186,9 @@ func (scheduler *automaticTaskScheduler) execute(run store.AutomaticTaskRun) {
 }
 
 func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticTask, progress automaticTaskProgress) (output string, err error) {
+	lock := s.imsModeLock(task.DeviceID)
+	lock.RLock()
+	defer lock.RUnlock()
 	if err := validateAutomaticTaskAvailability(s.developerActive(ctx), task.TaskType, task.Environment); err != nil {
 		return "", automaticTaskExecutionError{err: err, retryable: false}
 	}
@@ -214,6 +217,10 @@ func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticT
 
 		if task.RevertProfile && revertState.needed {
 			progress("正在切回执行前的 eSIM Profile")
+			if stopErr := s.quiesceVoWiFiForProfileSwitch(cleanupContext, task.DeviceID); stopErr != nil {
+				err = errors.Join(err, fmt.Errorf("stop access before restoring profile: %w", stopErr))
+				return
+			}
 			_, _ = s.devices.SetFlight(cleanupContext, physicalID, true)
 			if switchBackErr := s.devices.ESIMSwitchProfile(cleanupContext, physicalID, revertState.initialICCID, revertState.initialAID); switchBackErr != nil {
 				s.logger.Warn("automatic task failed to revert to initial profile", "device_id", task.DeviceID, "initial_iccid", revertState.initialICCID, "error", switchBackErr)
@@ -221,7 +228,7 @@ func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticT
 				if err == nil {
 					output = ""
 					err = automaticTaskExecutionError{
-						err: fmt.Errorf("task finished, but failed to revert to previous profile %s: %w", revertState.initialICCID, switchBackErr),
+						err:       fmt.Errorf("task finished, but failed to revert to previous profile %s: %w", revertState.initialICCID, switchBackErr),
 						retryable: false,
 					}
 				} else {
@@ -238,7 +245,7 @@ func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticT
 				if err == nil {
 					output = ""
 					err = automaticTaskExecutionError{
-						err: fmt.Errorf("reverted to profile %s, but failed to restore policy: %w", revertState.initialICCID, restoreErr),
+						err:       fmt.Errorf("reverted to profile %s, but failed to restore policy: %w", revertState.initialICCID, restoreErr),
 						retryable: false,
 					}
 				} else {
@@ -300,6 +307,11 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 	if err != nil {
 		return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, fmt.Errorf("read device: %w", err)
 	}
+	if store.HostIMSConfigured(config) {
+		// These legacy tasks explicitly switch profiles/radio/data policies.
+		// They cannot silently replace a selected Host IMS owner's transport.
+		return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, errors.New("switch to module or VoWiFi mode before using legacy automatic radio/profile tasks")
+	}
 	if err := validateAutomaticTaskDeviceCapabilities(config, task.TaskType, task.Environment); err != nil {
 		return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, err
 	}
@@ -319,6 +331,11 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 		return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, fmt.Errorf("read initial card policy: %w", policyErr)
 	}
 	initialSnapshot := automaticTaskEnvironmentSnapshot{config: config, policy: initialPolicy}
+	if config.Telephony != nil {
+		if err := s.stopTelephonyAccess(ctx, config); err != nil {
+			return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, err
+		}
+	}
 
 	var initialAID string
 	if info, infoErr := s.devices.ESIMListProfiles(ctx, physicalID); infoErr == nil {
@@ -355,7 +372,7 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 		}
 	}
 	progress("正在切换到任务指定的 eSIM Profile")
-	desiredData := config.NetworkEnabled && !config.VoWiFiEnabled
+	desiredData := config.NetworkEnabled && !(config.VoWiFiEnabled && store.WiFiExclusive(config))
 	dataRuntime := s.cellularDataRuntime()
 	s.clearPublicIP(config.ID)
 	dataRuntime.invalidateWithMaintenancePhase(config.ID, desiredData, "recovering", "", "profile_switching")
@@ -375,7 +392,7 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 			if restoreErr := s.store.UpsertDevice(cleanupContext, config); restoreErr != nil {
 				err = errors.Join(err, fmt.Errorf("restore device intent before profile switch: %w", restoreErr))
 			} else {
-				desiredData = config.NetworkEnabled && !config.VoWiFiEnabled
+				desiredData = config.NetworkEnabled && !(config.VoWiFiEnabled && store.WiFiExclusive(config))
 			}
 		}
 		return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, fmt.Errorf("enter airplane mode before profile switch: %w", err)
@@ -397,17 +414,39 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 	dataRuntime.invalidate(config.ID, false, "disabled", "")
 	switchCompleted = true
 	entry.Snapshot = &snapshot
+	if config.Telephony != nil {
+		card, policyErr := s.store.CardPolicy(ctx, snapshot.ICCID)
+		if errors.Is(policyErr, store.ErrNotFound) {
+			card = defaultCardPolicy(snapshot.ICCID)
+		} else if policyErr != nil {
+			return store.Device{}, device.Device{}, "", revertState, policyErr
+		}
+		policy, policyErr := s.store.TelephonyForCard(ctx, config, card)
+		if policyErr != nil {
+			return store.Device{}, device.Device{}, "", revertState, policyErr
+		}
+		config.Telephony = &policy
+		config.NetworkEnabled = false
+		config.APN = card.APN
+		card.VoWiFiEnabled = false
+		if err := s.store.SaveTelephonyPolicy(ctx, config, policy, card); err != nil {
+			return store.Device{}, device.Device{}, "", revertState, err
+		}
+	}
 	return config, entry, physicalID, revertState, nil
 }
 
 func (s *Server) prepareAutomaticTaskEnvironment(ctx context.Context, config *store.Device, entry device.Device, physicalID string, task store.AutomaticTask, progress automaticTaskProgress) error {
+	if config.Telephony != nil {
+		return s.prepareIndependentTaskEnvironment(ctx, config, physicalID, task, progress)
+	}
 	iccid := strings.TrimSpace(task.ProfileICCID)
 	if task.Environment == "vowifi" {
 		progress("正在准备 VoWiFi 执行环境")
 		if task.TaskType == "public_ip" {
 			return errors.New("public IP tasks cannot run over VoWiFi")
 		}
-		desiredData := config.NetworkEnabled && !config.VoWiFiEnabled
+		desiredData := config.NetworkEnabled && !(config.VoWiFiEnabled && store.WiFiExclusive(config))
 		dataRuntime := s.cellularDataRuntime()
 		s.clearPublicIP(config.ID)
 		dataRuntime.invalidateWithMaintenancePhase(config.ID, desiredData, "recovering", "", "vowifi")
@@ -645,6 +684,9 @@ func (s *Server) restoreAutomaticTaskEnvironment(physicalID string, snapshot aut
 	cleanupContext, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	config, policy := snapshot.config, snapshot.policy
+	if config.Telephony != nil {
+		return s.restoreIndependentTaskEnvironment(cleanupContext, physicalID, snapshot)
+	}
 	desiredNetwork := policy.NetworkEnabled && !policy.VoWiFiEnabled && !policy.AirplaneEnabled
 	config.APN = policy.APN
 	config.NetworkEnabled = desiredNetwork
@@ -914,17 +956,17 @@ func (s *Server) handleAutomaticTaskRunNow(w http.ResponseWriter, r *http.Reques
 
 func (s *Server) decodeAutomaticTask(r *http.Request, id int64) (store.AutomaticTask, error) {
 	var request struct {
-		Name         string               `json:"name"`
-		Enabled      bool                 `json:"enabled"`
-		DeviceID     string               `json:"device_id"`
-		ProfileICCID string               `json:"profile_iccid"`
-		ProfileAID   string               `json:"profile_aid"`
-		TaskType     string               `json:"task_type"`
-		Environment  string               `json:"environment"`
-		IntervalDays int                  `json:"interval_days"`
-		StartDate    string               `json:"start_date"`
-		RunTime      string               `json:"run_time"`
-		Timezone     string               `json:"timezone"`
+		Name               string               `json:"name"`
+		Enabled            bool                 `json:"enabled"`
+		DeviceID           string               `json:"device_id"`
+		ProfileICCID       string               `json:"profile_iccid"`
+		ProfileAID         string               `json:"profile_aid"`
+		TaskType           string               `json:"task_type"`
+		Environment        string               `json:"environment"`
+		IntervalDays       int                  `json:"interval_days"`
+		StartDate          string               `json:"start_date"`
+		RunTime            string               `json:"run_time"`
+		Timezone           string               `json:"timezone"`
 		RetryCount         int                  `json:"retry_count"`
 		Notify             bool                 `json:"notify"`
 		RevertProfile      *bool                `json:"revert_profile"`

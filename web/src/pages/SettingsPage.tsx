@@ -30,8 +30,10 @@ import { HTTPSCard } from "../components/settings/HTTPSCard";
 import { DeviceQuotaCard } from "../components/settings/DeviceQuotaCard";
 import { SMSRateLimitCard } from "../components/settings/SMSRateLimitCard";
 import { SMSAutoClearCard } from "../components/settings/SMSAutoClearCard";
+import { SMSAPICard } from "../components/settings/SMSAPICard";
 
 import { VoWiFiMTUCard } from "../components/settings/VoWiFiMTUCard";
+import { SipGatewayCard } from "../components/settings/SipGatewayCard";
 
 const EMPTY_PASSWORD: PasswordForm = { oldPassword: "", newPassword: "", confirmPassword: "" };
 
@@ -521,6 +523,8 @@ export default function SettingsPage() {
           onSave={onSaveSecurity}
         />
         <VoWiFiMTUCard />
+        <SipGatewayCard />
+        <SMSAPICard />
         <SMSAutoClearCard
           enabled={smsAutoClear}
           loading={loadingSMSSettings}

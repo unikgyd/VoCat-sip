@@ -14,13 +14,21 @@ import (
 )
 
 func TestIncomingCallCanRingAndAnswerWithMediaOffer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	client, peer := net.Pipe()
 	defer client.Close()
 	defer peer.Close()
 	session := &Session{
 		fromTag: "local-tag", calls: make(map[string]*imsCall), conn: client,
 		identity: identitySet{user: "subscriber"}, transport: "udp",
+		refreshContext: ctx,
 	}
+	t.Cleanup(func() {
+		for _, call := range session.calls {
+			_ = call.media.Close()
+		}
+	})
 	packet, err := parseSIPPacket([]byte(strings.Join([]string{
 		"INVITE sip:subscriber@example.test SIP/2.0",
 		"Via: SIP/2.0/UDP 192.0.2.10:5060;branch=z9hG4bK-incoming",
@@ -142,6 +150,8 @@ func TestRejectedOutgoingCallRetainsSIPReason(t *testing.T) {
 }
 
 func TestCancelledOutgoingInviteDoesNotBecomeFailedOn487(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	call := &imsCall{
 		public:     vowifi.Call{ID: "cancelled", State: "dialing"},
 		callID:     "cancelled",
@@ -151,7 +161,7 @@ func TestCancelledOutgoingInviteDoesNotBecomeFailedOn487(t *testing.T) {
 	session := &Session{
 		calls:          map[string]*imsCall{call.callID: call},
 		transactions:   make(map[sipTransactionKey]chan *sipResponse),
-		refreshContext: context.Background(),
+		refreshContext: ctx,
 	}
 	key := sipTransactionKey{callID: call.callID, cseq: 1, method: "INVITE"}
 	go session.watchOutgoingCall(call, key)

@@ -983,7 +983,7 @@ func newStableInstanceTestSession(t *testing.T, request vowifi.IMSRequest) *Sess
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(session.abort)
+	t.Cleanup(func() { _ = session.abort() })
 	return session
 }
 

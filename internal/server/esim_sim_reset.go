@@ -83,7 +83,7 @@ func (s *Server) resetSIMForESIM(ctx context.Context, configuredID, physicalID s
 		// 重新读取保存的配置，避免恢复期间覆盖用户刚修改的 VoWiFi 意愿。
 		config, restoreErr := s.store.Device(restoreCtx, configuredID)
 		if restoreErr == nil && s.vowifi != nil {
-			_, restoreErr = s.vowifi.RequestEnabled(configuredID, config.VoWiFiEnabled)
+			_, restoreErr = s.vowifi.RequestEnabled(configuredID, config.Telephony != nil || store.EffectiveIMSEnabled(config))
 		}
 		if restoreErr != nil {
 			err = errors.Join(err, fmt.Errorf("restore VoWiFi after SIM reset: %w", restoreErr))

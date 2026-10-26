@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"vocat/internal/vowifi"
@@ -30,9 +31,35 @@ type datagramTransport interface {
 }
 
 type transportConfig struct {
-	Resolver *net.Resolver
-	Dialer   *net.Dialer
-	Timeout  time.Duration
+	ExcludedAddresses     []string
+	Resolver              *net.Resolver
+	Dialer                *net.Dialer
+	Timeout               time.Duration
+	GeographicDNSFallback bool
+	BeforeIKEEndpoint     func(context.Context, string) error
+}
+
+// INIT retransmissions and address fallback happen below Provider.Start. The
+// admission must therefore run immediately before each actual INIT write, with
+// the gateway destination (not a SOCKS relay). Established AUTH/DELETE/ESP must
+// remain usable after an authenticated rejection installs a new restriction.
+func (config transportConfig) admitIKEInit(ctx context.Context, header ikeHeader, remote *net.UDPAddr) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if header.Exchange == exchangeIKEInit && header.MessageID == 0 && config.BeforeIKEEndpoint != nil {
+		if remote == nil || remote.IP.To16() == nil {
+			return fmt.Errorf("%w: IKE transport has no peer address", vowifi.ErrIKERetryBinding)
+		}
+		if err := config.BeforeIKEEndpoint(ctx, remote.IP.String()); err != nil {
+			return err
+		}
+	}
+	return ctx.Err()
+}
+
+func ikeRetryPolicyFailure(err error) bool {
+	return errors.Is(err, vowifi.ErrIKERetryBlocked) || errors.Is(err, vowifi.ErrIKERetryStore) || errors.Is(err, vowifi.ErrIKERetryBinding)
 }
 
 func newDatagramTransport(
@@ -50,12 +77,22 @@ func newDatagramTransport(
 	if config.Timeout <= 0 {
 		config.Timeout = 12 * time.Second
 	}
-	addresses, err := resolveEPDG(ctx, config.Resolver, host)
+	addresses, err := resolveEPDGOptions(ctx, config.Resolver, host, config.GeographicDNSFallback)
 	if err != nil {
-		return nil, fmt.Errorf("ike: resolve ePDG: %w", err)
+		return nil, &vowifi.EPDGAccessError{Cause: fmt.Errorf("ike: resolve ePDG: %w", err)}
 	}
 	var remoteIPs []net.IP
 	for _, address := range addresses {
+		excluded := false
+		for _, value := range config.ExcludedAddresses {
+			if ip := net.ParseIP(value); ip != nil && ip.Equal(address.IP) {
+				excluded = true
+				break
+			}
+		}
+		if excluded {
+			continue
+		}
 		candidate := address.IP.To4()
 		if candidate == nil {
 			candidate = address.IP.To16()
@@ -75,6 +112,9 @@ func newDatagramTransport(
 		}
 	}
 	if len(remoteIPs) == 0 {
+		if len(config.ExcludedAddresses) > 0 {
+			return nil, vowifi.ErrEPDGAddressesExhausted
+		}
 		return nil, errors.New("ike: ePDG did not resolve to an IP address")
 	}
 	remotes := make([]*net.UDPAddr, 0, len(remoteIPs))
@@ -83,7 +123,7 @@ func newDatagramTransport(
 	}
 	switch route.Mode {
 	case "", vowifi.ProxyModeDirect:
-		return newDirectUDP(ctx, config, remotes[0])
+		return newDirectUDPCandidates(ctx, config, remotes)
 	case vowifi.ProxyModeSOCKS5:
 		return newSOCKS5UDP(ctx, config, route, remotes)
 	default:
@@ -198,6 +238,30 @@ type directUDP struct {
 	conn    *net.UDPConn
 	remote  *net.UDPAddr
 	floated bool
+	remotes []*net.UDPAddr
+	pinned  bool
+}
+
+func recoverableEPDGNetworkError(err error) bool {
+	if ikeRetryPolicyFailure(err) {
+		return false
+	}
+	return isNetworkTimeout(err) || errors.Is(err, syscall.ENETUNREACH) || errors.Is(err, syscall.EHOSTUNREACH) || errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, syscall.ECONNRESET)
+}
+func newDirectUDPCandidates(ctx context.Context, config transportConfig, remotes []*net.UDPAddr) (*directUDP, error) {
+	var lastErr error
+	for i, remote := range remotes {
+		transport, err := newDirectUDP(ctx, config, remote)
+		if err == nil {
+			transport.remotes = cloneUDPAddrs(remotes[i:])
+			return transport, nil
+		}
+		lastErr = err
+		if ctx.Err() != nil || !recoverableEPDGNetworkError(err) {
+			return nil, err
+		}
+	}
+	return nil, lastErr
 }
 
 func newDirectUDP(ctx context.Context, config transportConfig, remote *net.UDPAddr) (*directUDP, error) {
@@ -221,7 +285,10 @@ func (transport *directUDP) dial(ctx context.Context, bind4500 bool) error {
 	}
 	connection, err := dialer.DialContext(ctx, "udp", transport.remote.String())
 	if err != nil && bind4500 {
-		dialer.LocalAddr = nil
+		// A busy local 4500 may require an ephemeral port, not a different
+		// interface. Retain the selected/explicit source-address constraint.
+		local := dialer.LocalAddr.(*net.UDPAddr)
+		dialer.LocalAddr = &net.UDPAddr{IP: append(net.IP(nil), local.IP...), Zone: local.Zone}
 		connection, err = dialer.DialContext(ctx, "udp", transport.remote.String())
 	}
 	if err != nil {
@@ -282,14 +349,59 @@ func (transport *directUDP) RoundTrip(ctx context.Context, packet []byte) ([]byt
 }
 
 func (transport *directUDP) RoundTripExchange(ctx context.Context, packets [][]byte) ([][]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	transport.mu.Lock()
 	defer transport.mu.Unlock()
+	if len(packets) == 0 {
+		return nil, errors.New("ike: outbound packet list is empty")
+	}
+	header, _, err := parseIKEPacket(packets[0])
+	if err != nil {
+		return nil, err
+	}
+	if !transport.pinned && !transport.floated && header.Exchange == exchangeIKEInit && header.MessageID == 0 && len(transport.remotes) > 1 {
+		var lastErr error
+		for _, remote := range transport.remotes {
+			if !transport.remote.IP.Equal(remote.IP) || transport.remote.Port != remote.Port {
+				transport.remote = cloneUDPAddr(remote)
+				if err = transport.dial(ctx, false); err != nil {
+					lastErr = err
+					if ctx.Err() != nil || !recoverableEPDGNetworkError(err) {
+						return nil, err
+					}
+					continue
+				}
+			}
+			responses, err := transport.roundTripFragmentsLocked(ctx, packets)
+			if err == nil {
+				transport.pinned = true
+				return responses, nil
+			}
+			lastErr = err
+			if ctx.Err() != nil || !recoverableEPDGNetworkError(err) {
+				return nil, err
+			}
+		}
+		return nil, lastErr
+	}
+	responses, err := transport.roundTripFragmentsLocked(ctx, packets)
+	if err == nil && header.Exchange == exchangeIKEInit && header.MessageID == 0 {
+		transport.pinned = true
+	}
+	return responses, err
+}
+func (transport *directUDP) roundTripFragmentsLocked(ctx context.Context, packets [][]byte) ([][]byte, error) {
 	if transport.conn == nil {
 		return nil, errors.New("ike: UDP transport is closed")
 	}
 	if len(packets) == 0 {
 		return nil, errors.New("ike: outbound packet list is empty")
 	}
+	connection := transport.conn
+	stopCancel := context.AfterFunc(ctx, func() { _ = connection.SetReadDeadline(time.Now()) })
+	defer stopCancel()
 	requestHeader, _, err := parseIKEPacket(packets[0])
 	if err != nil {
 		return nil, fmt.Errorf("ike: invalid outbound packet: %w", err)
@@ -304,6 +416,9 @@ func (transport *directUDP) RoundTripExchange(ctx context.Context, packets [][]b
 	}
 	writeAll := func(values [][]byte) error {
 		for _, value := range values {
+			if err := transport.config.admitIKEInit(ctx, requestHeader, transport.remote); err != nil {
+				return err
+			}
 			if err := transport.conn.SetWriteDeadline(deadlineFor(ctx, transport.config.Timeout)); err != nil {
 				return err
 			}
@@ -315,7 +430,13 @@ func (transport *directUDP) RoundTripExchange(ctx context.Context, packets [][]b
 	}
 	read := func(buffer []byte, attemptDeadline time.Time) (int, error) {
 		for {
+			if err := ctx.Err(); err != nil {
+				return 0, err
+			}
 			if err := transport.conn.SetReadDeadline(attemptDeadline); err != nil {
+				return 0, err
+			}
+			if err := ctx.Err(); err != nil {
 				return 0, err
 			}
 			n, err := transport.conn.Read(buffer)
@@ -513,7 +634,11 @@ func newSOCKS5UDP(
 			relay.IP = append(net.IP(nil), peer.IP...)
 		}
 	}
-	udpConnection, err := net.DialUDP("udp", nil, relay)
+	local, err := socksLocalAddress(config.Dialer.LocalAddr)
+	if err != nil {
+		return fail(err)
+	}
+	udpConnection, err := net.DialUDP("udp", local, relay)
 	if err != nil {
 		return fail(fmt.Errorf("ike: dial SOCKS5 UDP relay: %w", err))
 	}
@@ -526,6 +651,18 @@ func newSOCKS5UDP(
 		remote:  cloneUDPAddr(remotes[0]),
 		remotes: cloneUDPAddrs(remotes),
 	}, nil
+}
+func socksLocalAddress(address net.Addr) (*net.UDPAddr, error) {
+	switch value := address.(type) {
+	case nil:
+		return nil, nil
+	case *net.UDPAddr:
+		return cloneUDPAddr(value), nil
+	case *net.TCPAddr:
+		return &net.UDPAddr{IP: append(net.IP(nil), value.IP...), Port: value.Port, Zone: value.Zone}, nil
+	default:
+		return nil, errors.New("ike: SOCKS5 UDP relay requires an IP source-address constraint")
+	}
 }
 
 func socksUserPassword(connection net.Conn, username, password string) error {
@@ -643,6 +780,9 @@ func (transport *socks5UDP) RoundTrip(ctx context.Context, packet []byte) ([]byt
 }
 
 func (transport *socks5UDP) RoundTripExchange(ctx context.Context, packets [][]byte) ([][]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	transport.mu.Lock()
 	defer transport.mu.Unlock()
 	if transport.udp == nil {
@@ -679,6 +819,9 @@ func (transport *socks5UDP) RoundTripExchange(ctx context.Context, packets [][]b
 }
 
 func (transport *socks5UDP) roundTripFragmentsLocked(ctx context.Context, packets [][]byte, requestHeader ikeHeader) ([][]byte, error) {
+	connection := transport.udp
+	stopCancel := context.AfterFunc(ctx, func() { _ = connection.SetReadDeadline(time.Now()) })
+	defer stopCancel()
 	var datagrams [][]byte
 	for _, pkt := range packets {
 		wireIKE := pkt
@@ -693,6 +836,9 @@ func (transport *socks5UDP) roundTripFragmentsLocked(ctx context.Context, packet
 	}
 	writeAll := func(values [][]byte) error {
 		for _, value := range values {
+			if err := transport.config.admitIKEInit(ctx, requestHeader, transport.remote); err != nil {
+				return err
+			}
 			if err := transport.udp.SetWriteDeadline(deadlineFor(ctx, transport.config.Timeout)); err != nil {
 				return err
 			}
@@ -704,7 +850,7 @@ func (transport *socks5UDP) roundTripFragmentsLocked(ctx context.Context, packet
 	}
 	read := func(buffer []byte, attemptDeadline time.Time) (int, error) {
 		for {
-			payload, err := readExpectedSOCKS5Datagram(
+			payload, err := readExpectedSOCKS5DatagramContext(ctx,
 				transport.udp,
 				transport.remote,
 				buffer,
@@ -757,6 +903,9 @@ func repeatedCookieChallenge(request, response []byte) bool {
 }
 
 func isNetworkTimeout(err error) bool {
+	if ikeRetryPolicyFailure(err) {
+		return false
+	}
 	var networkError net.Error
 	return errors.As(err, &networkError) && networkError.Timeout()
 }
@@ -895,11 +1044,20 @@ func readExpectedSOCKS5Datagram(
 	wire []byte,
 	deadline time.Time,
 ) ([]byte, error) {
+	return readExpectedSOCKS5DatagramContext(context.Background(), connection, remote, wire, deadline)
+}
+func readExpectedSOCKS5DatagramContext(ctx context.Context, connection *net.UDPConn, remote *net.UDPAddr, wire []byte, deadline time.Time) ([]byte, error) {
 	if connection == nil || remote == nil {
 		return nil, errors.New("ike: SOCKS5 UDP transport is closed")
 	}
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if err := connection.SetReadDeadline(deadline); err != nil {
+			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		n, err := connection.Read(wire)

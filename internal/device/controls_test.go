@@ -115,6 +115,11 @@ func newStartedNativeQMITestManager(t *testing.T) (*Manager, *staticOpener, stri
 		RadioOff:      true,
 	}
 	manager.mu.Unlock()
+	// This fixture covers synchronous DMS only. Reserve the independent NAS
+	// job so its goroutine cannot share this unsynchronized radio fake.
+	manager.nativeQMIRegistrationMu.Lock()
+	manager.nativeQMIRegistrationInFlight[id] = struct{}{}
+	manager.nativeQMIRegistrationMu.Unlock()
 	t.Cleanup(func() { _ = manager.Stop(context.Background()) })
 	return manager, opener, id
 }

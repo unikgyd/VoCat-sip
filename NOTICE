@@ -8,3 +8,275 @@ VoCat uses the following Go module for native Qualcomm QMI support:
 
 The full MIT license text is included in:
 LICENSES/quectel-qmi-go-MIT.txt
+
+Same-card subscriber identity planning (local research modifications,
+2026-10-26): independently written EC20 AT+CIMI / EF_IMSI observations with
+before-and-after source checks, bounded per-ICCID private identity history,
+successful-IMS priority and legal-home plans. Wire EAP/SIP use the chosen
+identity; AKA and incoming business callbacks retain the physical reader
+identity. A precise, cleaned-up identity-only EAP rejection can permit the
+next candidate, never a challenge, malformed exchange, backoff or failed
+cleanup. Native QMI live multi-source support and real carrier/multi-modem
+acceptance remain incomplete. Tests use synthetic SIMs, encrypted transcripts,
+loopback SIP and file-backed SQLite on root@10.0.0.2, not WSL or live services.
+No protocol source is copied across licenses and no dependency is added.
+Original LICENSE and regional/device/SIM authorization controls are unchanged.
+
+Local research modifications (2026-10-23): the RTP PCM bridge advertises and
+negotiates only its implemented G.711 codecs, checks clock/channel/static
+payload assignments, and rejects unsupported codecs instead of treating them
+as mu-law. Regression cases accompany these changes. The original license
+and authorization mechanisms have not been removed or changed.
+
+Optional native AMR-NB backend (local research modifications, 2026-10-23):
+github.com/ebitengine/purego v0.11.2 (Apache-2.0; Go-derived portions BSD-3-Clause)
+is used behind the Linux vocat_native_amr build tag. License texts are retained
+in LICENSES/purego-Apache-2.0.txt and LICENSES/Go-BSD-3-Clause.txt.
+OpenCORE-AMR is loaded from the host library; it is not embedded or copied into
+this repository. The adapter uses its public API, with independently written
+RFC 4867 packet handling and synthetic cross-client regression samples.
+
+Optional SIP extension registration service (local research modifications,
+2026-10-23): independently written configuration, authentication, registration,
+network limits, HTTP settings and UI. Subsequent MESSAGE and call work is
+described below; carrier bridging remains incomplete. No license controls change.
+SIP parsing and transactions use github.com/emiago/sipgo v1.6.0 (BSD-2-Clause).
+The independent Digest test client uses github.com/icholy/digest v1.1.0 (MIT).
+SIP library transitive modules github.com/gobwas/ws v1.3.2,
+github.com/gobwas/pool v0.2.1 and github.com/gobwas/httphead v0.1.0 are MIT.
+Their license texts are retained under LICENSES/ alongside existing Go and
+dependency notices. This does not change the license of the VoCat application.
+
+Optional extension MESSAGE (local research modifications, 2026-10-23):
+independent per-account permission, canonical identity domain, observed-source
+UDP delivery, response validation, bounded fanout, runtime retry protection and
+UI controls. This is not a carrier SMS or call gateway. The original LICENSE
+and authorization mechanisms remain unchanged. Protocol-only response identity
+fixtures are shared with the independently written Windows implementation.
+
+Optional internal extension calls (local research modifications, 2026-10-23):
+independently written two-leg B2BUA, authenticated identity, same-account contact
+fanout, first answer selection, bounded cancellation/late-answer handling,
+dialog validation, G.711 RTP anchoring/transcoding, lifecycle limits and UI.
+Only synthetic internal endpoints have been tested; no modem/carrier/Asterisk
+bridge is implied. The original LICENSE and authorization mechanisms remain
+unchanged. This adds no new third-party dependency or bundled codec library.
+
+ePDG discovery alignment (local research modifications, 2026-10-23): independently
+written per-card settings, host/PLMN candidates, registered-host history, dual-stack
+system lookup, bounded initial UDP failover, cancellation and source binding,
+private settings API and bilingual UI. Geographic public DNS fallback is now
+explicit opt-in, rather than an automatic system-DNS bypass. Identity-sensitive
+carrier rules retain explicit subscriber constraints. Eighteen input/output
+examples are shared with Windows tests, not its protocol implementation.
+Original LICENSE and authorization mechanisms remain unchanged; real-carrier and
+full multi-IMSI/inner-address-family acceptance remain incomplete.
+
+IMS call lifecycle hardening (local research modifications, 2026-10-23):
+independently written per-session admission, single-owner answering, cached
+incoming INVITE responses, cancellation/late-2xx drain, UDP retransmissions,
+dialog termination checks, ACK recovery and context-bounded runtime writes.
+This is carrier-client groundwork, not a completed SIP-to-modem gateway.
+Tests use synthetic identities and peers. No new dependency, license change,
+authorization bypass, production Asterisk update or actual carrier call.
+
+Optional outgoing IMS carrier bridge (local research modifications, 2026-10-23):
+independently written line/extension policy, private durable attempt reservation,
+registered-VoWiFi-only adapter, PCM/G.711 RTP bridge, call lifecycle and settings UI.
+Synthetic tests include module isolation, cancellation, both hangup directions,
+restart deduplication and media buffers. No new third-party dependency or copied
+protocol implementation. Original LICENSE and all authorization controls remain;
+Host IMS, USB audio and Asterisk trunks are incomplete. Carrier incoming group
+ringing is implemented in the subsequent milestone described below.
+
+Optional incoming IMS carrier bridge (local research modifications, 2026-10-23):
+independently written per-line recipient permission, multi-account SIP forks,
+shared local/web/Telegram answer ownership, late-answer cleanup, bidirectional
+PCM/RTP and browser media ownership fencing. Reviewed against existing VoSharp
+fork/claim behavior; no cross-license protocol source copied. Synthetic SIP/PCM
+tests and native Linux tests in an isolated root@10.0.0.2 directory only; no WSL,
+new service installation, actual SIM operation or production Asterisk update.
+Original LICENSE and all existing authorization controls remain unchanged.
+
+Browser phone (local research modifications, 2026-10-23): independently written
+authenticated IMS-only web call actions, durable paid-attempt reservation, per-call
+exclusive PCM leases, bounded disconnect cleanup, cross-page incoming UI and a
+self-hosted AudioWorklet. Browser permission is obtained before Dial/Answer.
+Synthetic HTTP/WS, PCM, UI and native Linux tests only; no actual carrier call,
+SIM access, new dependency, license change or authorization bypass.
+
+Optional mobile SMS bridge (local research modifications, 2026-10-23):
+independently written send/receive permissions, private durable attempt ledger,
+offline recipient outbox, modem/SIM-bound reply identities, lifecycle-locked SIM
+verification and settings UI. Shared synthetic C#/Rust operation identities only;
+no cross-license protocol source copied. Native Linux tests use the designated
+isolated root@10.0.0.2 directory. No actual SIM/SMS, WSL or Asterisk update.
+Original LICENSE and regional/device/SIM authorization controls are unchanged.
+
+Inner CP family recovery (local research modifications, 2026-10-25): independently
+written bounded dual/IPv6/IPv4 request plans, same-endpoint/proxy/home binding,
+strict pre-EAP notification classification and post-verified-AUTH configuration
+classification, teardown-before-replacement, CP lengths and CHILD_SA policy
+validation. Synthetic encrypted transcripts exercise real EAP MAC/final AUTH;
+no operator, modem, production service or WSL is used. No cross-license protocol
+source copied, dependency added or authorization control removed.
+
+Fixed SMS peer readiness (local research modifications, 2026-10-24):
+independently written bodyless OPTIONS probe, runtime-owned bounded singleflight
+and short reachability cache, with exact response identity and pinned challenge
+policy checks. No OPTIONS authentication proof or SMS/SIM identity is sent.
+Probe, durable claim, MESSAGE authentication and retransmissions share one
+operation deadline; unreachable peers retain the original queued record and
+expiry, and local registered recipients are not blocked by peer aliases.
+Readiness never replaces current durable authority or per-datagram guards.
+Validation uses synthetic SQLite/UDP in owned directories on root@10.0.0.2,
+not carrier traffic, installed applications, production services or WSL.
+No new dependency or cross-license protocol source copying. Original LICENSE
+and regional/device/SIM authorization controls are unchanged.
+
+SMS wire/source and canonical reply alignment (local research modifications,
+2026-10-24): independently written MT-only UDP transaction ownership validates
+each payload transmission, including automatic retransmissions, against its
+original durable claim and current source. A read-only SQLite snapshot binds
+private settings, the claim ledger and actual Inbox. Private journal v3 freezes
+the original canonical reply target at admission; legacy national/unknown
+senders cannot acquire a paid reply by applying a newer country policy.
+Only the pinned sipgo public behavior and independent Windows invariants are
+reviewed as references; no cross-license protocol implementation is copied.
+New real-Store/loopback tests are staged separately from production acceptance.
+No new third-party dependency, original LICENSE change or authorization bypass.
+
+Optional fixed-peer SIP relay (local research modifications, 2026-10-24):
+independently written default-off private UDP peer configuration, separate
+inbound/outbound Digest credentials, per-direction/per-line permissions and
+coexistence with the local registrar. Peer calls retain per-attempt INVITE
+identity, cancellation, bounded late-answer cleanup and the original deadline;
+SMS uses disjoint durable recipient identities and fail-closed unknown results.
+The listener now waits for its existing UDP connection pool to be ready before
+publishing outbound capability, and SMS admission rechecks a concurrent logical
+operation after external readiness checks. No new third-party dependency,
+outbound REGISTER client, automatic PBX configuration or license bypass.
+Verification uses synthetic IMS backends and isolated test endpoints only;
+it is not carrier registration, production deployment or real media acceptance.
+Original LICENSE and regional/device/SIM authorization controls are unchanged.
+
+Host IMS owned security boundaries (local research modifications, 2026-10-24):
+Subsequent prepared-access/runtime integration independently composes the exact
+card/AKA, solicited NAS/WDS sample, host network/security owner and real IMS
+Provider. Host query-window age is explicit product policy, not a hardware
+measurement timestamp or continuous cell proof. Cellular PANI refreshes after
+successful current-access validation. Failed/canceled startup retains ownership
+for bounded ordered cleanup; no VoWiFi RF-off or baseband restore is invoked.
+Application device mapping, mode selection, service dispatch/UI and live modem,
+carrier/media acceptance remain incomplete. No cross-license protocol source
+copying, new dependencies, original-license changes or authorization bypass.
+
+Earlier boundary stage:
+independently implemented same-bearer security capability, pre-I/O required ESP
+socket-policy boundary, failed-start ownership transfer, and a stdlib-only
+shared 4-state/8-policy plan including UE-client UDP inbound protection. Strict
+single-response NAS LTE decoding remains candidate-only, not fresh cell proof.
+Linux kernel mechanism tests use disposable NET/MNT namespaces only; the full
+production namespace/mark/TC/WAL security owner remains incomplete and may not
+fall back to a global installer. Reciprocal Windows PPP index/LUID and raw-send
+route proof were independently hardened. No protocol code copied across
+licenses, new dependency, real communication or production service update.
+Original LICENSE and regional/device/SIM authorization controls are unchanged.
+
+Subsequent owned-security implementation (local research modifications,
+2026-10-24): independently written private kernelSecurityLease, explicit
+namespace-bound raw XFRM and TC sockets, ingress ESP marking, persistent
+mark/reqid reservations, keyless acknowledged-operation WAL and exact cleanup.
+Cleanup identity checks do not require a live PDN and do not authorize deletion
+on a replacement netdev with a reused interface index. Known-ACK journals have
+cleanup-only security recovery under the re-established original network lease;
+unknown ACKs remain fenced. The owned NAS transaction source proves a query
+window, not continuous cell coverage or hardware sample time. These components
+do not enable a complete Host IMS modem mode or full cold-start PDN/network
+recovery. Tests are synthetic/private-namespace only on root@10.0.0.2, without
+real carrier traffic or changes to existing services. No new dependency or
+cross-license protocol source copying. Original LICENSE and regional/device/SIM
+authorization controls are unchanged.
+
+Host IMS owned kernel network groundwork (local research modifications,
+2026-10-23): independently written namespace/device/socket verification,
+private policy tables, acknowledged-add journaling, snapshot-protected cleanup,
+and reference-counted media host routes. Rust ownership behavior was reviewed
+as a design reference; no cross-license protocol source was copied. Tests use
+synthetic ModemManager state and disposable network/mount namespaces on the
+designated root@10.0.0.2 host. This is not an enabled Host IMS line, a production
+WDS/P-CSCF origin connector, or completed SIP/RTP socket integration.
+Dependencies github.com/vishvananda/netlink v1.3.1 and
+github.com/vishvananda/netns v0.0.5 are Apache-2.0, copyright 2014
+Vishvananda Ishaya and Docker, Inc. Their common full license is retained in
+third_party/licenses/vishvananda-netlink-netns-Apache-2.0.txt.
+Original LICENSE and regional/device/SIM authorization controls are unchanged.
+
+Host IMS bearer owner (local research modifications, 2026-10-23): independently
+written ModemManager D-Bus backend, per-modem ownership, machine-wide live FD
+locks, private SQLite compare-and-swap intentions, retained late-reply observer
+and explicit confirmed-path recovery. Tests use synthetic modems on a private
+D-Bus daemon; the system modem/SIM probe is read-only. No actual bearer creation,
+IMS registration, calls/SMS, production Asterisk change or WSL use. Application
+integration, UIM/ISIM/AKA and owned kernel routing remain incomplete.
+New dependency github.com/godbus/dbus/v5 v5.2.2 is BSD-2-Clause; its notice is in
+third_party/licenses/godbus-dbus.txt and included in container/release packaging.
+Original LICENSE and regional/device/SIM authorization controls are unchanged.
+
+Host IMS foundations (local research modifications, 2026-10-23): independently
+written cellular-bearer verification contract for the existing IMS client,
+LTE PANI, mandatory security, access-specific transport caching, strict WDS
+dual-stack P-CSCF decoder and acknowledged-add-only XFRM rollback. Shared
+synthetic PANI vectors and reciprocal C# QMI boundary fixes; no cross-license
+protocol source copied. Native kernel tests run only in a new network namespace
+on the designated root@10.0.0.2 host. Production bearer/UIM owners and mode UI
+remain incomplete; no actual carrier REGISTER, calls/SMS or Asterisk update.
+Original LICENSE and regional/device/SIM authorization controls are unchanged.
+
+Host IMS owned WDS source (local research modifications, 2026-10-23):
+independently written USB function/mux topology proof, owned per-family WDS CIDs,
+strict correlated runtime reads, durable lifecycle fencing and revalidation in
+the private kernel network lease. Known CID release is required before exposing
+a proof; unknown resources remain rooted in the application-wide claim. UIM
+uncertainty retention was strengthened by the same lifetime rule. Public QMI
+message layouts and ModemManager behavior were reviewed, not copied as protocol
+source. Tests use synthetic modem/USB metadata, private Unix sockets and isolated
+Linux kernel namespaces on root@10.0.0.2 only. Actual firmware compatibility,
+native endpoint mappings, DNS-only resolution, application Host IMS mode and
+real SIP/RTP integration remain incomplete. No new dependency, license change,
+authorization bypass, actual modem operation or production service update.
+Original LICENSE and regional/device/SIM authorization controls are unchanged.
+
+Host IMS datapath boundaries (local research modifications, 2026-10-24):
+independently written same-bearer socket binding for initial/protected SIP and
+automatic port probes, accepted-socket shutdown fence, and strict server-pair
+TCP/UDP ESP reply selectors. RTP consumers use owned route references, atomic
+target changes, bounded cleanup, dialog identity/sequence checks and transaction
+cancellation separate from active-call ownership. A read-only cached-location observer
+explicitly cannot yield fresh PANI. Validation uses private D-Bus and isolated
+Linux namespaces, never carrier traffic or existing services. Reciprocal C# route
+cancellation hardening is independently implemented, not protocol source copied
+across licenses. Production Host IMS mode, fresh cell proof and XFRM namespace/
+multi-modem isolation remain incomplete. No new third-party dependency.
+Original LICENSE and regional/device/SIM authorization controls are unchanged.
+
+MT SIP MESSAGE parts (local research modifications, 2026-10-24): independently
+written scalar-safe application chunks, explicit human-visible part numbering,
+per-contact complete-copy aggregation and strict UTF-16-unit input accounting.
+A logical SMS retains one durable claim and operation budget across all parts;
+accepted prefixes followed by a failed part stay Unknown without automatic
+resumption. Every actual datagram retains the original source/authority guard
+and 1300-byte packet cap, including authentication retries. Shared independent
+Unicode fixtures execute on Go and C#; this is not carrier UDH or transparent
+softphone reassembly. No cross-license protocol source copied or new dependency.
+Validation uses synthetic Windows tests and owned Linux directories on the
+designated root@10.0.0.2 host, not live SIMs or production services; no WSL.
+Original LICENSE and regional/device/SIM authorization controls are unchanged.
+VoWin feature union work (local modifications, 2026-10-26): independently
+implemented RFC 4733 telephone-event negotiation, bounded RTP event send/receive,
+exact-dialog web-phone controls and keypad, per-server/per-dialog incoming-call
+notification deduplication, concurrent notification delivery and bounded independent
+modem call polling. Existing Windows behavior is the functional reference; no
+C# protocol source was copied. SIP extension/peer DTMF bridging, module USB media,
+hold/resume, auto-answer and full hardware acceptance remain incomplete. No new
+third-party dependency. Original license and authorization controls are unchanged.

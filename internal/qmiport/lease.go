@@ -60,7 +60,16 @@ func Acquire(ctx context.Context, path string) (*Lease, error) {
 	return processCoordinator.acquire(ctx, path)
 }
 
+// AcquireSequence shares the same operation gate without opening a raw device
+// descriptor. USB cdc-wdm proxy clients do not need the native-WWAN keeper.
+func AcquireSequence(ctx context.Context, path string) (*Lease, error) {
+	return processCoordinator.acquireSequence(ctx, path, false)
+}
+
 func (coordinator *coordinator) acquire(ctx context.Context, path string) (*Lease, error) {
+	return coordinator.acquireSequence(ctx, path, true)
+}
+func (coordinator *coordinator) acquireSequence(ctx context.Context, path string, keeper bool) (*Lease, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -82,9 +91,15 @@ func (coordinator *coordinator) acquire(ctx context.Context, path string) (*Leas
 		return nil, ctx.Err()
 	case <-item.gate:
 	}
-	if err := coordinator.ensureKeeper(path, item); err != nil {
+	if err := ctx.Err(); err != nil {
 		item.gate <- struct{}{}
-		return nil, fmt.Errorf("keep QMI control port %s open: %w", path, err)
+		return nil, err
+	}
+	if keeper {
+		if err := coordinator.ensureKeeper(path, item); err != nil {
+			item.gate <- struct{}{}
+			return nil, fmt.Errorf("keep QMI control port %s open: %w", path, err)
+		}
 	}
 	return &Lease{entry: item}, nil
 }

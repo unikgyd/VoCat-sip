@@ -1,0 +1,198 @@
+package ims
+
+import (
+	"context"
+	"io"
+	"net"
+	"net/netip"
+	"time"
+
+	"vocat/internal/vowifi"
+)
+
+const cellularRTPTimeout = 15 * time.Second
+const maxRetiredCellularRoutes = 32
+
+type cellularRTPRoute struct {
+	route vowifi.CellularMediaRoute
+	err   error // cleanupMu protects this; raw owner errors never leave this boundary
+}
+
+func (media *rtpMedia) beginRemoteChange(parent context.Context) (context.Context, func(), error) {
+	select {
+	case <-media.closed:
+		return nil, nil, io.EOF
+	default:
+	}
+	ctx, cancel := context.WithTimeout(parent, cellularRTPTimeout)
+	stop := context.AfterFunc(media.lifetime, cancel)
+	select {
+	case <-ctx.Done():
+		stop()
+		cancel()
+		return nil, nil, ctx.Err()
+	case <-media.configureGate:
+	}
+	return ctx, func() { stop(); cancel(); media.configureGate <- struct{}{} }, nil
+}
+
+func (media *rtpMedia) acquireRemoteRoute(ctx context.Context, remote net.IP) (vowifi.CellularMediaRoute, error) {
+	if media.network == nil {
+		return nil, nil
+	}
+	local := addressIP(media.conn.LocalAddr())
+	localAddress, localOK := netip.AddrFromSlice(local)
+	remoteAddress, remoteOK := netip.AddrFromSlice(remote)
+	if !localOK || !remoteOK || local.IsUnspecified() || localAddress.Unmap().Is4() != remoteAddress.Unmap().Is4() {
+		return nil, ErrCellularAccess
+	}
+	media.cleanupMu.Lock()
+	// Reserve space for both the currently active lease and a late new result
+	// racing Close. Never let failed retirement grow an unbounded queue.
+	full := len(media.retiredRoutes) >= maxRetiredCellularRoutes-2
+	media.cleanupMu.Unlock()
+	if full {
+		return nil, ErrCellularAccess
+	}
+	route, err := media.network.AcquireMediaRoute(ctx, localAddress.Unmap(), remoteAddress.Unmap())
+	if err != nil || route == nil || ctx.Err() != nil {
+		if route != nil {
+			media.retireCellularRoute(route)
+		}
+		select {
+		case <-media.closed:
+			return nil, io.EOF
+		default:
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, ErrCellularAccess
+	}
+	return route, nil
+}
+
+func (media *rtpMedia) retireCellularRoute(route vowifi.CellularMediaRoute) {
+	media.cleanupMu.Lock()
+	media.retiredRoutes = append(media.retiredRoutes, &cellularRTPRoute{route: route})
+	media.cleanupMu.Unlock()
+	media.startCellularRouteCleanup()
+}
+
+// One bounded pass per media, never one permanent retry goroutine per failed
+// route. Failed handles stay owned by this media until a later explicit drain.
+func (media *rtpMedia) startCellularRouteCleanup() {
+	media.cleanupMu.Lock()
+	if media.cleanupRunning || len(media.retiredRoutes) == 0 {
+		media.cleanupMu.Unlock()
+		return
+	}
+	media.cleanupRunning = true
+	done := make(chan struct{})
+	media.cleanupDone = done
+	media.cleanupMu.Unlock()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), cellularRTPTimeout)
+		defer cancel()
+		attempted := make(map[*cellularRTPRoute]bool)
+		for ctx.Err() == nil && len(attempted) < maxRetiredCellularRoutes {
+			media.cleanupMu.Lock()
+			var current *cellularRTPRoute
+			for _, entry := range media.retiredRoutes {
+				if !attempted[entry] {
+					current = entry
+					break
+				}
+			}
+			media.cleanupMu.Unlock()
+			if current == nil {
+				// Check and publish the end of this pass under the same lock as
+				// retireCellularRoute, so a newly queued handle cannot be stranded.
+				media.cleanupMu.Lock()
+				for _, entry := range media.retiredRoutes {
+					if !attempted[entry] {
+						current = entry
+						break
+					}
+				}
+				if current == nil {
+					media.cleanupRunning = false
+					close(done)
+					media.cleanupMu.Unlock()
+					return
+				}
+				media.cleanupMu.Unlock()
+			}
+			attempted[current] = true
+			err := current.route.Close(ctx)
+			media.cleanupMu.Lock()
+			current.err = err
+			if err == nil {
+				for index, entry := range media.retiredRoutes {
+					if entry == current {
+						media.retiredRoutes = append(media.retiredRoutes[:index], media.retiredRoutes[index+1:]...)
+						break
+					}
+				}
+			}
+			media.cleanupMu.Unlock()
+		}
+		media.cleanupMu.Lock()
+		media.cleanupRunning = false
+		close(done)
+		media.cleanupMu.Unlock()
+	}()
+}
+
+func (media *rtpMedia) cellularRouteCleanupError() error {
+	media.cleanupMu.Lock()
+	defer media.cleanupMu.Unlock()
+	for _, route := range media.retiredRoutes {
+		if route.err != nil {
+			return ErrCellularAccess
+		}
+	}
+	return nil
+}
+
+func (media *rtpMedia) hasCellularRouteCleanup() bool {
+	if media.network != nil {
+		select {
+		case <-media.configureGate:
+			media.configureGate <- struct{}{}
+		default:
+			return true // a late acquisition may still hand back a route
+		}
+	}
+	media.cleanupMu.Lock()
+	defer media.cleanupMu.Unlock()
+	return len(media.retiredRoutes) != 0 || media.cleanupRunning
+}
+
+// DrainCellularRoutes is for explicit session teardown, outside callMu and
+// signaling response locks. Close itself only cancels I/O and queues cleanup.
+func (media *rtpMedia) DrainCellularRoutes(ctx context.Context) error {
+	// Join an in-flight acquisition before inspecting retirement. Close first
+	// canceled it; a late result is queued before configureGate is released.
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-media.configureGate:
+		media.configureGate <- struct{}{}
+	}
+	media.startCellularRouteCleanup()
+	media.cleanupMu.Lock()
+	done := media.cleanupDone
+	media.cleanupMu.Unlock()
+	if done != nil {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-done:
+		}
+	}
+	if media.hasCellularRouteCleanup() {
+		return ErrCellularAccess
+	}
+	return nil
+}

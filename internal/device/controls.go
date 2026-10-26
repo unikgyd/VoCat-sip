@@ -91,6 +91,9 @@ func (manager *Manager) CancelUSSD(ctx context.Context, sessionID string) error 
 	if err := manager.validateActive(deviceID, state); err != nil {
 		return err
 	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
+		return err
+	}
 	client, err := manager.clientLocked(ctx, state, manager.candidateFor(state))
 	if err != nil {
 		manager.setResult(deviceID, state, nil, err)
@@ -119,6 +122,9 @@ func (manager *Manager) runUSSD(
 	state.opMu.Lock()
 	defer state.opMu.Unlock()
 	if err := manager.validateActive(id, state); err != nil {
+		return USSDResult{}, err
+	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
 		return USSDResult{}, err
 	}
 	client, err := manager.clientLocked(ctx, state, manager.candidateFor(state))
@@ -275,6 +281,9 @@ func (manager *Manager) SetFlight(
 	state.opMu.Lock()
 	defer state.opMu.Unlock()
 	if err := manager.validateActive(id, state); err != nil {
+		return FlightResult{}, err
+	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
 		return FlightResult{}, err
 	}
 	if manager.candidateFor(state).HardwareKind == "pcsc" {

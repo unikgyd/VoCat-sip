@@ -329,7 +329,7 @@ func TestEC20AdapterDiscoversFullUSIMAIDFromEFDIRWhenCUADFails(t *testing.T) {
 	transcript := &ec20Transcript{
 		t: t,
 		steps: append(
-			identityTranscriptStepsWithoutEFAD("310280000000001"),
+			identityTranscriptATTSteps(),
 			[]ec20TranscriptStep{
 				{command: "AT+CCID", lines: []string{"+CCID: 8944101234567890123"}},
 				{command: "AT+CUAD", err: errors.New("+CME ERROR: 13"), final: "+CME ERROR: 13"},
@@ -496,6 +496,9 @@ func TestEC20AdapterReadsExplicitHomePLMNAndKnownAssignmentFallback(
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			transcript := &ec20Transcript{t: t, steps: test.steps}
+			if test.name == "assigned HPLMN when EF_AD omits MNC length" {
+				transcript.steps = append(transcript.steps, identityDiscoverySteps("234150123456789")...)
+			}
 			adapter, err := NewEC20Adapter(transcript, EC20AdapterOptions{})
 			if err != nil {
 				t.Fatal(err)
@@ -533,7 +536,7 @@ func TestAssignedHomePLMNIncludesLebaraUKCores(t *testing.T) {
 
 func TestEC20AdapterTreatsATT310280AsThreeDigitMNC(t *testing.T) {
 	t.Parallel()
-	transcript := &ec20Transcript{t: t, steps: identityTranscriptStepsWithoutEFAD("310280000000001")}
+	transcript := &ec20Transcript{t: t, steps: identityTranscriptATTSteps()}
 	adapter, err := NewEC20Adapter(transcript, EC20AdapterOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -650,13 +653,26 @@ func TestEC20AdapterNeverStartsCellularDataByDefault(t *testing.T) {
 }
 
 func identityTranscriptSteps(imsi string) []ec20TranscriptStep {
-	return append(
+	steps := append(
 		identityTranscriptStepsWithoutEFAD(imsi),
 		ec20TranscriptStep{
 			command: "AT+CRSM=176,28589,0,0,4",
 			lines:   []string{`+CRSM: 144,0,"00000002"`},
 		},
 	)
+	return append(steps, identityDiscoverySteps(imsi)...)
+}
+
+func identityTranscriptATTSteps() []ec20TranscriptStep {
+	return append(identityTranscriptStepsWithoutEFAD("310280000000001"), identityDiscoverySteps("310280000000001")...)
+}
+
+func identityDiscoverySteps(imsi string) []ec20TranscriptStep {
+	return []ec20TranscriptStep{
+		{command: "AT+CRSM=176,28633,0,0,0", lines: []string{`+CRSM: 144,0,"FFFFFF"`}},
+		{command: "AT+CIMI", lines: []string{imsi}},
+		{command: "AT+CCID", lines: []string{"+CCID: 8944101234567890123"}},
+	}
 }
 
 func identityTranscriptStepsWithoutEFAD(imsi string) []ec20TranscriptStep {
@@ -759,6 +775,9 @@ func TestEC20AdapterISIMStrictUsesCUADFullAID(t *testing.T) {
 			{command: "AT+CIMI", lines: []string{"310280000000001"}},
 			{command: "AT+CCID", lines: []string{"+CCID: 8901000000000000001"}},
 			{command: "AT+CGSN", lines: []string{"860000000000001"}},
+			{command: "AT+CRSM=176,28633,0,0,0", lines: []string{`+CRSM: 144,0,"FFFFFF"`}},
+			{command: "AT+CIMI", lines: []string{"310280000000001"}},
+			{command: "AT+CCID", lines: []string{"+CCID: 8901000000000000001"}},
 			{command: "AT+CUAD", lines: []string{`+CUAD: "` + cuad + `"`}},
 			{command: "AT+CCID", lines: []string{"+CCID: 8901000000000000001"}},
 			{command: `AT+CCHO="` + fullISIM + `"`, lines: []string{"+CCHO: 1"}},

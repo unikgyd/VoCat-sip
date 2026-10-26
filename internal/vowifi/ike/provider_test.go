@@ -170,8 +170,9 @@ func (transport *firstAuthCaptureTransport) verifyIKECookie(packet []byte) error
 		return errors.New("test: first retried IKE_SA_INIT payload is not the expected COOKIE")
 	}
 	cookies := payloadsOfType(payloads, payloadNotify)
-	if len(cookies) != 4 {
-		return fmt.Errorf("test: retried IKE_SA_INIT has %d notify payloads, want 4", len(cookies))
+	// RFC 7427 adds our SHA-2 signature-hash advertisement to the unchanged INIT offer.
+	if len(cookies) != 5 {
+		return fmt.Errorf("test: retried IKE_SA_INIT has %d notify payloads, want 5", len(cookies))
 	}
 	found := false
 	for _, item := range cookies {

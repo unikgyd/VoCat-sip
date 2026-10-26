@@ -36,7 +36,10 @@ func (s *Server) startUSSD(ctx context.Context, config store.Device, physicalID,
 			return device.USSDResult{Code: code, Text: "Software Version: " + runtime.Firmware, Status: "final"}, nil
 		}
 	}
-	if !config.VoWiFiEnabled {
+	if store.EffectiveIMSMode(config) == store.IMSModeModule {
+		if config.Telephony != nil && !store.AccessEnabled(config, store.IMSModeModule) {
+			return device.USSDResult{}, vowifi.ErrUSSINotReady
+		}
 		s.logUSSDRoute(config.ID, physicalID, "cellular")
 		return s.devices.USSD(ctx, physicalID, code)
 	}
@@ -93,8 +96,12 @@ func (s *Server) continueUSSD(ctx context.Context, sessionID, input string) (dev
 	if input == "" {
 		return device.USSDResult{}, fmt.Errorf("%w: USSI continue input is empty", errInvalidUSSDRequest)
 	}
-	if err := s.requireUSSI(deviceID); err != nil {
-		return device.USSDResult{}, err
+	// A continuation follows its original network dialog even after the
+	// default route changes. The owning runtime checks its own readiness.
+	if _, dispatched := s.vowifi.(*imsServiceDispatch); !dispatched {
+		if err := s.requireUSSI(deviceID); err != nil {
+			return device.USSDResult{}, err
+		}
 	}
 	result, err := s.vowifi.(imsUSSIController).SendUSSI(ctx, deviceID, vowifi.USSISubmitRequest{SessionID: networkID, Input: input})
 	if err != nil {

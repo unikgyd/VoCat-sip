@@ -18,6 +18,8 @@ import AutomaticTasksPage from "./pages/AutomaticTasksPage";
 import LogsPage from "./pages/LogsPage";
 import SettingsPage from "./pages/SettingsPage";
 import ExtensionPage from "./pages/ExtensionPage";
+import PhonePage from "./phone/PhoneView";
+import { PhoneProvider } from "./phone/PhoneProvider";
 
 const THEME_KEY = "theme";
 const DISCLAIMER_KEY = "vocat_disclaimer_agreed_at";
@@ -105,7 +107,7 @@ function AppRoot() {
           path="/"
           element={
             <RequireAuth>
-              <AuthenticatedShell isDark={isDark} onToggleTheme={toggle} />
+              <PhoneProvider><AuthenticatedShell isDark={isDark} onToggleTheme={toggle} /></PhoneProvider>
             </RequireAuth>
           }
         >
@@ -114,6 +116,7 @@ function AppRoot() {
           <Route path="proxy" element={<ProxyPage />} />
           <Route path="export-proxy" element={<ExportProxyPage />} />
           <Route path="sms" element={<SmsPage />} />
+          <Route path="phone" element={<PhonePage />} />
           <Route path="automatic-tasks" element={<AutomaticTasksPage />} />
           <Route path="extensions/:pluginId/:contributionId" element={<ExtensionPage />} />
           <Route path="logs" element={<LogsPage />} />

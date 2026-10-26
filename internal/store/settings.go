@@ -377,6 +377,10 @@ func maskedJSONValue(value json.RawMessage) bool {
 }
 
 func (s *Store) UpsertCardPolicy(ctx context.Context, value CardPolicy) error {
+	return upsertCardPolicy(ctx, s.db, value)
+}
+
+func upsertCardPolicy(ctx context.Context, executor contextExecer, value CardPolicy) error {
 	value.ICCID = strings.TrimSpace(value.ICCID)
 	value.CustomPhoneNumber = strings.TrimSpace(value.CustomPhoneNumber)
 	if value.ICCID == "" {
@@ -398,7 +402,7 @@ func (s *Store) UpsertCardPolicy(ctx context.Context, value CardPolicy) error {
 		updatedAt = now
 	}
 	value.MBNProfile = strings.TrimSpace(value.MBNProfile)
-	_, err := s.db.ExecContext(ctx, `
+	_, err := executor.ExecContext(ctx, `
 		INSERT INTO card_policies (
 			iccid, network_enabled, vowifi_enabled, airplane_enabled,
 			apn, ip_version, custom_phone_number, mbn_profile, cellular_ims_enabled, cellular_ims_managed,

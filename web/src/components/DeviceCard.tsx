@@ -7,11 +7,15 @@ import { cx, signalBars, signalColor } from "../lib/utils";
 import { deviceTypeImage } from "../lib/deviceTypes";
 import { StatusDot } from "./ui/StatusDot";
 import { useI18n } from "../lib/i18n";
+import { hostIMSStatus } from "./devices/imsLineModel";
+import { voWiFiStatus } from "./devices/voWifiStatusModel";
 
 const BAR_HEIGHTS = ["h-1/4", "h-2/4", "h-3/4", "h-full"];
 
 export function DeviceCard({ device, onOpen }: { device: DashboardDevice; onOpen: (id: string) => void }) {
   const { t } = useI18n();
+  const host = device.imsMode === "host_ims" ? hostIMSStatus(device) : null;
+  const status = host || (device.imsMode === "vowifi" ? voWiFiStatus(device) : null);
   const mode = `${device.networkDuplex ? `${device.networkDuplex} ` : ""}${device.networkMode || ""}`.trim();
   const up = mode.toUpperCase();
   const has = mode.length > 0;
@@ -45,9 +49,9 @@ export function DeviceCard({ device, onOpen }: { device: DashboardDevice; onOpen
             <div>
               <h3 className="text-base font-bold text-gray-800 dark:text-gray-100">{device.name || device.id}</h3>
               <div className="mt-0.5 flex items-center gap-1.5">
-                <StatusDot tone={device.healthy ? "success" : "danger"} size="md" animated={device.healthy} />
-                <span className={cx("text-xs font-medium", device.healthy ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
-                  {device.healthy ? t("在线") : t("离线")}
+                <StatusDot tone={status?.tone || (device.healthy ? "success" : "danger")} size="md" animated={status?.animated ?? device.healthy} />
+                <span className={cx("text-xs font-medium", status ? status.tone === "success" ? "text-green-600 dark:text-green-400" : status.tone === "warning" ? "text-amber-600 dark:text-amber-400" : status.tone === "danger" ? "text-red-600 dark:text-red-400" : "text-gray-500" : device.healthy ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
+                  {status ? t(status.label) : device.healthy ? t("在线") : t("离线")}
                 </span>
               </div>
             </div>
@@ -58,15 +62,15 @@ export function DeviceCard({ device, onOpen }: { device: DashboardDevice; onOpen
             <div className="flex min-w-0 items-center gap-2">
               <div className="flex items-center gap-1.5 opacity-80">
                 <NetIcon className={cx("h-[18px] w-[18px]", netColor)} />
-                {!device.vowifiActive && mode && second ? (
+                {!host && !device.vowifiActive && mode && second ? (
                   <span className={cx("text-[11px] font-bold leading-none tracking-tighter", isLte ? "hidden xl:inline" : "")}>{second}</span>
                 ) : null}
               </div>
               <span className="min-w-0 flex-1 truncate whitespace-nowrap text-sm font-medium text-gray-700 dark:text-gray-300">
-                {device.vowifiActive ? "Wi-Fi Calling" : device.operator || t("检测中...")}
+                {host ? "Host IMS" : device.vowifiActive ? "Wi-Fi Calling" : device.operator || t("检测中...")}
               </span>
             </div>
-            {!device.vowifiActive && (
+            {!host && !device.vowifiActive && (
               <div className="flex items-center gap-1" title={t("信号强度")}>
                 <div className="flex h-3 items-end gap-[2px]">
                   {[1, 2, 3, 4].map((b) => (

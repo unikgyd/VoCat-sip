@@ -143,6 +143,9 @@ func (manager *Manager) SetCellLock(
 	}
 	defer state.opMu.Unlock()
 	// Select the dialect even if the current configuration is not a single target.
+	if err := manager.requireNoModuleVoice(state); err != nil {
+		return CellLockStatus{}, err
+	}
 	dialect, _, err := queries.readLock(manager, ctx, state)
 	if err != nil {
 		return CellLockStatus{}, fmt.Errorf("read cell lock configuration: %w", err)

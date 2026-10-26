@@ -45,20 +45,21 @@ func TestIncomingCallNotificationTextFormatting(t *testing.T) {
 
 func TestIncomingCallDeduplication(t *testing.T) {
 	now := time.Now()
-	key := "test-device:+8613800000000"
+	key := callNotificationKey{device: "test-device", caller: "+8613800000000"}
+	var history callNotificationHistory
 
 	// First call should not be suppressed
-	if shouldSuppressDuplicateCall(key, now, time.Minute) {
+	if history.shouldSuppressDuplicateCall(key, now, time.Minute) {
 		t.Fatal("first call unexpectedly suppressed")
 	}
 
 	// Immediate duplicate should be suppressed
-	if !shouldSuppressDuplicateCall(key, now.Add(5*time.Second), time.Minute) {
+	if !history.shouldSuppressDuplicateCall(key, now.Add(5*time.Second), time.Minute) {
 		t.Fatal("duplicate call within window was not suppressed")
 	}
 
 	// Call after window should be allowed
-	if shouldSuppressDuplicateCall(key, now.Add(70*time.Second), time.Minute) {
+	if history.shouldSuppressDuplicateCall(key, now.Add(70*time.Second), time.Minute) {
 		t.Fatal("call after window was suppressed")
 	}
 }

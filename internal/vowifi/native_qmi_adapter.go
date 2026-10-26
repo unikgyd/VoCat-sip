@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"vocat/internal/modem"
 )
 
 // NativeQMIController is implemented by device.Manager. It exposes only the
@@ -25,6 +26,7 @@ type NativeQMIAdapter struct {
 	pureAirplanePolicy func(string) bool
 	mu                 sync.Mutex
 	bindings           map[string]nativeQMIBinding
+	options            SIMReaderOptions
 }
 
 type nativeQMIBinding struct {
@@ -40,11 +42,18 @@ var _ PreferredAKAProvider = (*NativeQMIAdapter)(nil)
 var _ SMSCenterReader = (*NativeQMIAdapter)(nil)
 var _ RadioController = (*NativeQMIAdapter)(nil)
 
-func NewNativeQMIAdapter(controller NativeQMIController, purePolicy func(string) bool) (*NativeQMIAdapter, error) {
+func NewNativeQMIAdapter(controller NativeQMIController, purePolicy func(string) bool, options ...SIMReaderOptions) (*NativeQMIAdapter, error) {
 	if controller == nil {
 		return nil, errors.New("vocat: native QMI controller is required")
 	}
-	return &NativeQMIAdapter{controller: controller, pureAirplanePolicy: purePolicy, bindings: make(map[string]nativeQMIBinding)}, nil
+	if len(options) > 1 {
+		return nil, errors.New("vocat: only one SIM reader policy is allowed")
+	}
+	policy := SIMReaderOptions{}
+	if len(options) == 1 {
+		policy = options[0]
+	}
+	return &NativeQMIAdapter{controller: controller, pureAirplanePolicy: purePolicy, bindings: make(map[string]nativeQMIBinding), options: policy}, nil
 }
 
 func (adapter *NativeQMIAdapter) ReadIdentity(ctx context.Context, deviceID string) (SIMIdentity, error) {
@@ -53,10 +62,25 @@ func (adapter *NativeQMIAdapter) ReadIdentity(ctx context.Context, deviceID stri
 		return SIMIdentity{}, errors.New("vocat: native QMI device ID is required")
 	}
 	iccid, imsi, imei, mcc, mnc, err := adapter.controller.ReadNativeQMIIdentity(ctx, deviceID)
-	if err != nil {
+	unknown := modem.OnlyHomeMNCLengthUnavailable(err) && adapter.options.AllowUnresolvedMNCLength
+	if err != nil && !unknown {
 		return SIMIdentity{}, err
 	}
-	identity := applyAssignedCarrierRoute(SIMIdentity{ICCID: strings.TrimSpace(iccid), IMSI: strings.TrimSpace(imsi), IMEI: strings.TrimSpace(imei), HomeMCC: strings.TrimSpace(mcc), HomeMNC: strings.TrimSpace(mnc)})
+	iccid, imsi, imei, mcc, mnc = strings.TrimSpace(iccid), strings.TrimSpace(imsi), strings.TrimSpace(imei), strings.TrimSpace(mcc), strings.TrimSpace(mnc)
+	if !validDigits(imsi, 6, 16) {
+		return SIMIdentity{}, ErrInvalidIdentity
+	}
+	if unknown {
+		if assignedMCC, assignedMNC, ok := assignedHomePLMN(imsi); ok {
+			mcc, mnc = assignedMCC, assignedMNC
+			unknown = false
+		} else {
+			mcc, mnc = imsi[:3], imsi[3:5]
+		}
+	} else if !validConfiguredHomePLMN(imsi, mcc, mnc) {
+		return SIMIdentity{}, ErrInvalidIdentity
+	}
+	identity := applyAssignedCarrierRoute(SIMIdentity{ICCID: iccid, IMSI: imsi, IMEI: imei, HomeMCC: mcc, HomeMNC: mnc, HomeMNCUncertain: unknown})
 	if reader, ok := adapter.controller.(SIMMetadataReader); ok {
 		if metadata, metadataErr := reader.ReadSIMMetadata(ctx, deviceID); metadataErr == nil {
 			identity.SPN = strings.TrimSpace(metadata.SPN)
@@ -65,11 +89,18 @@ func (adapter *NativeQMIAdapter) ReadIdentity(ctx context.Context, deviceID stri
 			identity = applyAssignedCarrierRoute(identity)
 		}
 	}
+	if ResolveCarrierProfile(identity).RouteMCC != "" {
+		identity.HomeMNCUncertain = false
+	}
 	if err := identity.validate(); err != nil {
 		return SIMIdentity{}, err
 	}
+	binding := nativeQMIBinding{deviceID: deviceID, iccid: identity.ICCID, imsi: identity.IMSI}
+	if err := adapter.verify(ctx, binding, identity); err != nil {
+		return SIMIdentity{}, err
+	}
 	adapter.mu.Lock()
-	adapter.bindings[identity.ICCID] = nativeQMIBinding{deviceID: deviceID, iccid: identity.ICCID, imsi: identity.IMSI}
+	adapter.bindings[identity.ICCID] = binding
 	adapter.mu.Unlock()
 	return identity, nil
 }
@@ -95,9 +126,15 @@ func (adapter *NativeQMIAdapter) binding(identity SIMIdentity) (nativeQMIBinding
 	return binding, nil
 }
 
-func (adapter *NativeQMIAdapter) verify(ctx context.Context, binding nativeQMIBinding) error {
-	iccid, imsi, _, _, _, err := adapter.controller.ReadNativeQMIIdentity(ctx, binding.deviceID)
-	if err != nil {
+func (adapter *NativeQMIAdapter) verify(ctx context.Context, binding nativeQMIBinding, identity SIMIdentity) error {
+	iccid, imsi, _, mcc, mnc, err := adapter.controller.ReadNativeQMIIdentity(ctx, binding.deviceID)
+	if err != nil && !(adapter.options.AllowUnresolvedMNCLength && modem.OnlyHomeMNCLengthUnavailable(err)) {
+		return err
+	}
+	if err == nil && (identity.HomeMNCUncertain || ResolveCarrierProfile(identity).RouteMCC == "") && (strings.TrimSpace(mcc) != identity.HomeMCC || strings.TrimSpace(mnc) != identity.HomeMNC) {
+		return ErrEC20IdentityChanged
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if strings.TrimSpace(iccid) != binding.iccid || strings.TrimSpace(imsi) != binding.imsi {
@@ -111,7 +148,7 @@ func (adapter *NativeQMIAdapter) CheckReady(ctx context.Context, identity SIMIde
 	if err != nil {
 		return AKAEvidence{}, err
 	}
-	if err := adapter.verify(ctx, binding); err != nil {
+	if err := adapter.verify(ctx, binding, identity); err != nil {
 		return AKAEvidence{}, err
 	}
 	aid, application, err := adapter.controller.ProbeNativeQMIApplication(ctx, binding.deviceID, "")
@@ -148,7 +185,7 @@ func (adapter *NativeQMIAdapter) AuthenticateWithPreference(ctx context.Context,
 	if strictISIM && binding.application != "ISIM" {
 		return AKAResult{}, ErrEC20ApplicationAbsent
 	}
-	if err := adapter.verify(ctx, binding); err != nil {
+	if err := adapter.verify(ctx, binding, identity); err != nil {
 		return AKAResult{}, err
 	}
 	raw, err := adapter.controller.AuthenticateNativeQMI(ctx, binding.deviceID, binding.aid, buildUSIMAuthenticateAPDU(challenge))

@@ -21,6 +21,9 @@ Usage:
   vocat serve        Run the server in the foreground (use from a TTY when
                      vocat without arguments would enter the menu).
   vocat version      Print the build version and exit.
+  vocat media-check  Check local G.711 / AMR codec support without accessing
+                     any modem, SIM, network, database or audio device.
+                     Flags: --json --require-amr.
   vocat doctor       Diagnose USB modem, AT, QMI, PC/SC and proxy UDP paths.
                      Use --repair-dji-qmi on Linux to restore the factory-ID
                      DJI/Baiwang 2ca3:4006 AT/QMI interface bindings and wake

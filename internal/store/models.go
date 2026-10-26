@@ -39,6 +39,9 @@ type Device struct {
 	NetworkEnabled     bool
 	SMSEnabled         bool
 	VoWiFiEnabled      bool
+	IMSMode            string
+	IMSEnabled         bool
+	Telephony          *TelephonyPolicy
 	Extra              json.RawMessage
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
@@ -126,28 +129,28 @@ type PhoneAssociation struct {
 }
 
 type AutomaticTask struct {
-	ID           int64           `json:"id"`
-	Name         string          `json:"name"`
-	Enabled      bool            `json:"enabled"`
-	DeviceID     string          `json:"device_id"`
-	ProfileICCID string          `json:"profile_iccid"`
-	ProfileAID   string          `json:"profile_aid"`
-	TaskType     string          `json:"task_type"`
-	Environment  string          `json:"environment"`
-	IntervalDays int             `json:"interval_days"`
-	StartDate    string          `json:"start_date"`
-	RunTime      string          `json:"run_time"`
-	Timezone     string          `json:"timezone"`
-	Payload      json.RawMessage `json:"payload"`
-	RetryCount   int             `json:"retry_count"`
-	Notify       bool            `json:"notify"`
-	RevertProfile bool           `json:"revert_profile"`
-	NextRunAt    time.Time       `json:"next_run_at"`
-	LastRunAt    time.Time       `json:"last_run_at,omitempty"`
-	LastStatus   string          `json:"last_status"`
-	LastError    string          `json:"last_error"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	ID            int64           `json:"id"`
+	Name          string          `json:"name"`
+	Enabled       bool            `json:"enabled"`
+	DeviceID      string          `json:"device_id"`
+	ProfileICCID  string          `json:"profile_iccid"`
+	ProfileAID    string          `json:"profile_aid"`
+	TaskType      string          `json:"task_type"`
+	Environment   string          `json:"environment"`
+	IntervalDays  int             `json:"interval_days"`
+	StartDate     string          `json:"start_date"`
+	RunTime       string          `json:"run_time"`
+	Timezone      string          `json:"timezone"`
+	Payload       json.RawMessage `json:"payload"`
+	RetryCount    int             `json:"retry_count"`
+	Notify        bool            `json:"notify"`
+	RevertProfile bool            `json:"revert_profile"`
+	NextRunAt     time.Time       `json:"next_run_at"`
+	LastRunAt     time.Time       `json:"last_run_at,omitempty"`
+	LastStatus    string          `json:"last_status"`
+	LastError     string          `json:"last_error"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
 }
 
 type AutomaticTaskRun struct {

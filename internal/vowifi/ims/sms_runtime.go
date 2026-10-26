@@ -16,6 +16,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf16"
 
@@ -164,10 +165,7 @@ func (session *Session) readMainConnection() {
 			return
 		}
 		session.dispatchPacket(packet, func(response []byte) error {
-			session.writeMu.Lock()
-			defer session.writeMu.Unlock()
-			_, err := session.conn.Write(response)
-			return err
+			return session.writeRuntimePacket(session.callContext(), response)
 		})
 	}
 }
@@ -185,10 +183,14 @@ func (session *Session) acceptProtectedTCP() {
 			_ = connection.Close()
 			continue
 		}
-		session.inboundMu.Lock()
-		session.inboundConnections[connection] = struct{}{}
-		session.inboundMu.Unlock()
-		session.receiveDone.Add(1)
+		if err := session.bindAcceptedCellularTCP(connection); err != nil {
+			_ = connection.Close()
+			continue
+		}
+		if !session.trackInboundConnection(connection) {
+			_ = connection.Close()
+			continue
+		}
 		go session.readInboundTCP(connection)
 	}
 }
@@ -202,6 +204,7 @@ func (session *Session) readInboundTCP(connection net.Conn) {
 		_ = connection.Close()
 	}()
 	reader := bufio.NewReader(connection)
+	var replyWriteMu sync.Mutex
 	for {
 		packet, err := readSIPPacket(reader)
 		if err != nil {
@@ -213,8 +216,7 @@ func (session *Session) readInboundTCP(connection net.Conn) {
 			return
 		}
 		session.dispatchPacket(packet, func(response []byte) error {
-			_, err := connection.Write(response)
-			return err
+			return writeSIPPacket(session.callContext(), &replyWriteMu, connection.SetWriteDeadline, connection.Write, response)
 		})
 	}
 }
@@ -240,8 +242,8 @@ func (session *Session) readProtectedUDP() {
 			continue
 		}
 		session.dispatchPacket(packet, func(response []byte) error {
-			_, err := session.protectedUDP.WriteToUDP(response, remote)
-			return err
+			return writeSIPPacket(session.callContext(), &session.protectedWriteMu, session.protectedUDP.SetWriteDeadline,
+				func(packet []byte) (int, error) { return session.protectedUDP.WriteToUDP(packet, remote) }, response)
 		})
 	}
 }
@@ -311,10 +313,7 @@ func (session *Session) exchangeRuntime(
 	}()
 
 	writeRequest := func() error {
-		session.writeMu.Lock()
-		defer session.writeMu.Unlock()
-		_, err := session.conn.Write(request)
-		return err
+		return session.writeRuntimePacket(ctx, request)
 	}
 	if err := writeRequest(); err != nil {
 		return nil, fmt.Errorf("ims: send SIP %s: %w", key.method, err)
@@ -325,7 +324,7 @@ func (session *Session) exchangeRuntime(
 	var retransmit <-chan time.Time
 	retransmitInterval := sipMessageRetransmitT1
 	retransmitCount := 0
-	if session.transport == "udp" && key.method == "MESSAGE" {
+	if session.transport == "udp" && key.method != "INVITE" && key.method != "ACK" {
 		retransmitTimer = time.NewTimer(retransmitInterval)
 		retransmit = retransmitTimer.C
 		defer retransmitTimer.Stop()
@@ -348,9 +347,14 @@ func (session *Session) exchangeRuntime(
 				return nil, fmt.Errorf("ims: retransmit SIP %s: %w", key.method, err)
 			}
 			retransmitCount++
-			session.logOutboundSMS(slog.LevelDebug, "IMS SIP MESSAGE retransmitted",
-				"stage", "sip_retransmit", "call_id", key.callID,
-				"cseq", key.cseq, "attempt", retransmitCount)
+			if key.method == "MESSAGE" {
+				session.logOutboundSMS(slog.LevelDebug, "IMS SIP MESSAGE retransmitted",
+					"stage", "sip_retransmit", "call_id", key.callID,
+					"cseq", key.cseq, "attempt", retransmitCount)
+			} else if session.provider.config.Logger != nil {
+				session.provider.config.Logger.Debug("IMS SIP request retransmitted",
+					"method", key.method, "attempt", retransmitCount)
+			}
 			retransmitInterval *= 2
 			if retransmitInterval > sipMessageRetransmitMax {
 				retransmitInterval = sipMessageRetransmitMax
@@ -531,12 +535,12 @@ func (session *Session) processSMSMessage(request *sipRequest) {
 		if session.provider.config.OnSIMDataDownload == nil {
 			session.logInboundSMS(slog.LevelWarn, "IMS SIM data download has no UICC handler", request,
 				"stage", "uicc", "rp_reference", int(rpdu.reference))
-      session.sendLoggedDeliveryReport(request, []byte{0x02, rpdu.reference}, "rp_ack")
+			session.sendLoggedDeliveryReport(request, []byte{0x02, rpdu.reference}, "rp_ack")
 			return
 		}
 		if err := session.provider.config.OnSIMDataDownload(context.Background(), SIMDataDownload{
 			DeviceID: session.request.DeviceID,
-			IMSI:     session.request.Identity.IMSI,
+			IMSI:     session.sourceIMSI(),
 			PID:      byte(message.ProtocolID),
 			DCS:      byte(message.DataCodingScheme),
 			TPDU:     append([]byte(nil), rpdu.tpdu...),
@@ -560,7 +564,7 @@ func (session *Session) processSMSMessage(request *sipRequest) {
 			DeviceID:               session.request.DeviceID,
 			ICCID:                  session.request.Identity.ICCID,
 			ModemIMEI:              strings.TrimSpace(session.request.Identity.IMEI),
-			IMSI:                   session.request.Identity.IMSI,
+			IMSI:                   session.sourceIMSI(),
 			To:                     message.To,
 			MessageReference:       intPtrValue(message.MessageReference),
 			StatusCode:             intPtrValue(message.StatusCode),
@@ -606,7 +610,7 @@ func (session *Session) processSMSMessage(request *sipRequest) {
 			DeviceID:               session.request.DeviceID,
 			ICCID:                  session.request.Identity.ICCID,
 			ModemIMEI:              strings.TrimSpace(session.request.Identity.IMEI),
-			IMSI:                   session.request.Identity.IMSI,
+			IMSI:                   session.sourceIMSI(),
 			From:                   message.From,
 			Text:                   message.Text,
 			Timestamp:              receivedAt,
@@ -789,7 +793,7 @@ func (session *Session) processUSSIMessage(request *sipRequest) {
 		MessageID: fmt.Sprintf("ims-ussd:%s", callID),
 		DeviceID:  session.request.DeviceID,
 		ICCID:     session.request.Identity.ICCID,
-		IMSI:      session.request.Identity.IMSI,
+		IMSI:      session.sourceIMSI(),
 		From:      firstURI(request.value("P-Asserted-Identity")),
 		Text:      text,
 		DCS:       dcs,
@@ -871,6 +875,12 @@ func extractUSSDString(body []byte) (raw []byte, dcs *int, text string) {
 // menu reply in request.Input. USSI does not require the +g.3gpp.smsip contact
 // to be confirmed — only IMS registration.
 func (session *Session) SendUSSI(ctx context.Context, request vowifi.USSISubmitRequest) (vowifi.USSISubmitResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := session.verifyCellularAccess(ctx); err != nil {
+		return vowifi.USSISubmitResult{}, err
+	}
 	return session.sendUSSI(ctx, request)
 }
 
@@ -965,6 +975,9 @@ func (session *Session) SendSMS(ctx context.Context, request vowifi.SMSSubmitReq
 	defer session.smsMu.Unlock()
 
 	if err := ctx.Err(); err != nil {
+		return vowifi.SMSSubmitResult{}, err
+	}
+	if err := session.verifyCellularAccess(ctx); err != nil {
 		return vowifi.SMSSubmitResult{}, err
 	}
 	session.mu.Lock()
@@ -1391,8 +1404,25 @@ func (session *Session) isClosed() bool {
 	return session.closed
 }
 
+func (session *Session) trackInboundConnection(connection net.Conn) bool {
+	session.inboundMu.Lock()
+	defer session.inboundMu.Unlock()
+	if session.inboundStopping || session.callContext().Err() != nil {
+		return false
+	}
+	if session.inboundConnections == nil {
+		session.inboundConnections = make(map[net.Conn]struct{})
+	}
+	session.inboundConnections[connection] = struct{}{}
+	// The accept loop itself holds a receiveDone reference. Pair this Add
+	// with registration under the same stopping fence as Close's snapshot.
+	session.receiveDone.Add(1)
+	return true
+}
+
 func (session *Session) closeInboundConnections() {
 	session.inboundMu.Lock()
+	session.inboundStopping = true
 	connections := make([]net.Conn, 0, len(session.inboundConnections))
 	for connection := range session.inboundConnections {
 		connections = append(connections, connection)

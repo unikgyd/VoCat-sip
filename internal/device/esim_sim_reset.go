@@ -32,6 +32,9 @@ func (manager *Manager) ResetSIM(ctx context.Context, id string) error {
 	if err := manager.validateActive(id, state); err != nil {
 		return err
 	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
+		return err
+	}
 	client, err := manager.clientLocked(ctx, state, candidate)
 	if err != nil {
 		return err

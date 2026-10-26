@@ -18,6 +18,7 @@ import (
 
 	"github.com/iniwex5/quectel-qmi-go/pkg/qmi"
 
+	"vocat/internal/hostims"
 	"vocat/internal/modem"
 )
 
@@ -228,6 +229,16 @@ func (session *productionQMIDataSession) RuntimeIPv4(ctx context.Context) (qmiIP
 		}
 	}
 	return result, nil
+}
+
+// IMSRuntime is a read-only capability for the forthcoming Host IMS owner.
+// It must be called under the same lifecycle gate as this session's WDS CID.
+// A decoded address is not proof that host routes, SIM or bearer are ready.
+func (session *productionQMIDataSession) IMSRuntime(ctx context.Context) (hostims.Runtime, error) {
+	if session == nil || session.client == nil || session.wds == nil {
+		return hostims.Runtime{}, hostims.ErrRuntime
+	}
+	return hostims.ReadRuntime(ctx, session.client, session.wds.ClientID())
 }
 
 func (session *productionQMIDataSession) Close() error {

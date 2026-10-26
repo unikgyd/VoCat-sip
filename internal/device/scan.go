@@ -41,6 +41,9 @@ func (manager *Manager) ScanOperators(
 	if err := manager.validateActive(id, state); err != nil {
 		return OperatorScanResult{}, err
 	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
+		return OperatorScanResult{}, err
+	}
 	client, err := manager.clientLocked(ctx, state, manager.candidateFor(state))
 	if err != nil {
 		manager.setResult(id, state, nil, err)

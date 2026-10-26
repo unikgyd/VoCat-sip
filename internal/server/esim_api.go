@@ -29,6 +29,23 @@ func (s *Server) handleESIM(w http.ResponseWriter, r *http.Request, rest []strin
 	if len(configuredIDs) > 0 && strings.TrimSpace(configuredIDs[0]) != "" {
 		configuredID = strings.TrimSpace(configuredIDs[0])
 	}
+	gate := s.imsModeLock(configuredID)
+	if !gate.TryLock() {
+		writeError(w, 409, "ims_busy", "a line operation is in progress")
+		return true
+	}
+	defer gate.Unlock()
+	if s.store != nil {
+		config, err := s.store.Device(r.Context(), configuredID)
+		if err != nil {
+			s.writeStoreError(w, err)
+			return true
+		}
+		if store.HostIMSConfigured(config) {
+			writeError(w, http.StatusConflict, "host_ims_maintenance_required", "switch to module mode after complete IMS cleanup before using legacy SIM/profile access")
+			return true
+		}
+	}
 	if len(rest) == 0 || (len(rest) == 1 && strings.TrimSpace(rest[0]) == "") {
 		if !requireMethod(w, r, http.MethodGet) {
 			return true
@@ -474,6 +491,22 @@ func (s *Server) handleEsimSwitch(w http.ResponseWriter, r *http.Request, config
 		s.writeDeviceError(w, err)
 		return
 	}
+	if current, configErr := s.store.Device(r.Context(), configuredID); configErr == nil && current.Telephony != nil {
+		identity, identityErr := s.observedTelephonySubscription(r.Context(), current)
+		if identityErr != nil || identity.ICCID != iccid {
+			writeError(w, 409, "sim_identity_changed", "the switched profile could not be verified before restoring its access")
+			return
+		}
+		endMaintenance()
+		if err := s.reconcileTelephonySubscription(r.Context(), current, identity); err != nil {
+			s.writeDeviceError(w, err)
+			return
+		}
+		dataRuntime.invalidate(configuredID, false, "disabled", "")
+		switchCompleted = true
+		writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"status": "switched", "iccid": iccid, "verified": true}})
+		return
+	}
 	policy, err := s.store.CardPolicy(r.Context(), iccid)
 	if errors.Is(err, store.ErrNotFound) {
 		policy = defaultCardPolicy(iccid)
@@ -517,7 +550,7 @@ func (s *Server) handleEsimSwitch(w http.ResponseWriter, r *http.Request, config
 	canRestoreFlightImmediately := s.vowifi == nil
 	if s.vowifi != nil {
 		state, stateErr := s.vowifi.State(configuredID)
-		if policy.VoWiFiEnabled {
+		if store.EffectiveIMSEnabled(config) {
 			switch {
 			case stateErr == nil && state.Enabled:
 				_, err = s.vowifi.RequestReconnect(configuredID)
@@ -547,6 +580,9 @@ func (s *Server) handleEsimSwitch(w http.ResponseWriter, r *http.Request, config
 func (s *Server) quiesceVoWiFiForProfileSwitch(ctx context.Context, configuredID string) error {
 	if s.vowifi == nil {
 		return nil
+	}
+	if stopper, ok := s.vowifi.(imsDeviceStopper); ok {
+		return stopper.StopDevice(ctx, configuredID)
 	}
 	state, err := s.vowifi.State(configuredID)
 	if err != nil {
@@ -590,6 +626,18 @@ func (s *Server) restoreProfileSwitchFailureState(ctx context.Context, configure
 	config, err := s.store.Device(ctx, configuredID)
 	if err != nil {
 		_, _ = s.devices.SetFlight(ctx, physicalID, true)
+		return
+	}
+	if config.Telephony != nil {
+		if _, refreshErr := s.devices.Refresh(ctx, physicalID); refreshErr != nil {
+			return
+		}
+		identity, identityErr := s.observedTelephonySubscription(ctx, config)
+		if identityErr == nil {
+			if restoreErr := s.reconcileTelephonySubscription(ctx, config, identity); restoreErr != nil && s.logger != nil {
+				s.logger.Warn("profile switch failed; subscription restoration deferred", "device_id", configuredID, "error", restoreErr)
+			}
+		}
 		return
 	}
 	if config.VoWiFiEnabled && s.vowifi != nil {

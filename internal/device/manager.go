@@ -11,10 +11,13 @@ import (
 	"time"
 
 	"vocat/internal/modem"
+	"vocat/internal/modemaudio"
+	"vocat/internal/modulecall"
 	"vocat/internal/pcsc"
 )
 
 type Options struct {
+	AudioInspector modemaudio.Inspector
 	Discoverer     modem.Discoverer
 	Opener         modem.Opener
 	CommandTimeout time.Duration
@@ -29,6 +32,7 @@ type Options struct {
 }
 
 type Manager struct {
+	audioInspector     modemaudio.Inspector
 	mu                 sync.RWMutex
 	uiccMu             sync.Mutex // serializes all multi-command UICC/APDU transactions
 	esimMu             sync.Mutex // serializes eSIM card access (list/switch/download)
@@ -53,6 +57,7 @@ type Manager struct {
 	smsArrivals             chan struct{}
 
 	qmiRadioOpener                qmiRadioSessionOpener
+	qmiSharedSIMOpener            qmiRadioSessionOpener
 	qmiDataOpener                 qmiDataSessionOpener
 	nativeQMIRegistrationMu       sync.Mutex
 	nativeQMIRegistrationInFlight map[string]struct{}
@@ -124,6 +129,7 @@ type ussdSession struct {
 }
 
 type managedDevice struct {
+	voiceLease         *moduleVoiceLease // manager.mu; opaque physical call owner
 	opMu               sync.Mutex
 	dataMu             sync.Mutex
 	dataSession        qmiDataSession
@@ -171,7 +177,11 @@ func NewManager(options Options) (*Manager, error) {
 	if options.CardReaders == nil {
 		options.CardReaders = pcsc.New()
 	}
+	if options.AudioInspector == nil {
+		options.AudioInspector = modemaudio.NewService(modemaudio.Resolver{})
+	}
 	return &Manager{
+		audioInspector:     options.AudioInspector,
 		discoverer:         options.Discoverer,
 		opener:             options.Opener,
 		commandTimeout:     options.CommandTimeout,
@@ -183,6 +193,7 @@ func NewManager(options Options) (*Manager, error) {
 		mbnProfileForICCID: options.MBNProfileForICCID,
 
 		qmiRadioOpener:                openQMIRadioSession,
+		qmiSharedSIMOpener:            openQMISharedSIMSession,
 		qmiDataOpener:                 openQMIDataSession,
 		nativeQMIRegistrationInFlight: make(map[string]struct{}),
 		networkEventSubscribers:       make(map[chan string]struct{}),
@@ -806,6 +817,12 @@ func (manager *Manager) ExecuteAT(
 	if err := manager.validateActive(id, state); err != nil {
 		return modem.Response{}, err
 	}
+	manager.mu.RLock()
+	voiceOwned := state.voiceLease != nil
+	manager.mu.RUnlock()
+	if voiceOwned && strings.ToUpper(strings.TrimSpace(command)) != "AT+CLCC" {
+		return modem.Response{}, modulecall.ErrBusy
+	}
 	client, err := manager.clientLocked(ctx, state, manager.candidateFor(state))
 	if err != nil {
 		manager.setResult(id, state, nil, err)
@@ -841,6 +858,9 @@ func (manager *Manager) ExecuteSensitiveAT(
 	if err := manager.validateActive(id, state); err != nil {
 		return modem.Response{}, err
 	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
+		return modem.Response{}, err
+	}
 	client, err := manager.clientLocked(ctx, state, manager.candidateFor(state))
 	if err != nil {
 		manager.setResult(
@@ -870,6 +890,9 @@ func (manager *Manager) Reboot(ctx context.Context, id string) error {
 	state.opMu.Lock()
 	defer state.opMu.Unlock()
 	if err := manager.validateActive(id, state); err != nil {
+		return err
+	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
 		return err
 	}
 	client, err := manager.clientLocked(ctx, state, manager.candidateFor(state))

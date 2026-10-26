@@ -37,20 +37,40 @@ type SMSMessageSaveResult struct {
 // concatenated-message rescans can legitimately retain equal timestamps.
 // Every new row also wakes SMSInserted consumers.
 func (s *Store) SaveSMSMessageWithResult(ctx context.Context, value SMSMessage) (SMSMessageSaveResult, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	return s.saveSMSMessageWithForwarding(ctx, value, false)
+}
+
+// SaveSMSMessageArchiveWithResult saves a historical/manual rescan without
+// creating a new forwarding plan. Its source still receives an empty receipt.
+func (s *Store) SaveSMSMessageArchiveWithResult(ctx context.Context, value SMSMessage) (SMSMessageSaveResult, error) {
+	return s.saveSMSMessageWithForwarding(ctx, value, true)
+}
+
+func (s *Store) saveSMSMessageWithForwarding(ctx context.Context, value SMSMessage, archive bool) (SMSMessageSaveResult, error) {
+	tx, err := s.beginSMSForwardWrite(ctx)
 	if err != nil {
 		return SMSMessageSaveResult{}, fmt.Errorf("begin SMS update: %w", err)
 	}
-	defer tx.Rollback()
+	defer tx.close()
 	var previousMaxID int64
-	if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(id), 0) FROM sms_messages`).Scan(&previousMaxID); err != nil {
+	if err := tx.connection.QueryRowContext(ctx, `SELECT COALESCE(MAX(id), 0) FROM sms_messages`).Scan(&previousMaxID); err != nil {
 		return SMSMessageSaveResult{}, fmt.Errorf("read SMS insertion cursor: %w", err)
 	}
-	saved, err := saveSMSMessage(ctx, tx, value)
+	origin, err := smsForwardOriginalSource(ctx, tx.connection, value, archive)
 	if err != nil {
 		return SMSMessageSaveResult{}, err
 	}
-	if err := tx.Commit(); err != nil {
+	saved, err := saveSMSMessage(ctx, tx.connection, value)
+	if err != nil {
+		return SMSMessageSaveResult{}, err
+	}
+	if err := persistSMSForwardOrigin(ctx, tx.connection, &saved, origin); err != nil {
+		return SMSMessageSaveResult{}, err
+	}
+	if err := s.captureSMSForwardPlan(ctx, tx.connection, saved, origin, archive); err != nil {
+		return SMSMessageSaveResult{}, err
+	}
+	if err := tx.commit(ctx); err != nil {
 		return SMSMessageSaveResult{}, fmt.Errorf("commit SMS update: %w", err)
 	}
 	inserted := saved.ID > previousMaxID
@@ -98,6 +118,16 @@ func saveSMSMessage(
 	value.LocalPhone = strings.TrimSpace(value.LocalPhone)
 	value.Peer = strings.TrimSpace(value.Peer)
 	value.Direction = strings.ToLower(strings.TrimSpace(value.Direction))
+	// IMS receive must enter its Inbox/plan writer transaction as its first
+	// database operation. Enrich this optional display field here, not by an
+	// awaited lookup in OnSMS before its original recipient plan is captured.
+	if value.Source == "ims" && smsForwardInbound(value) && value.LocalPhone == "" && value.ICCID != "" {
+		local, err := phoneNumberForICCID(ctx, executor, value.ICCID)
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return SMSMessage{}, fmt.Errorf("read received SMS local phone: %w", err)
+		}
+		value.LocalPhone = local
+	}
 	if value.DeviceID == "" {
 		return SMSMessage{}, errors.New("SMS device id is required")
 	}
@@ -351,17 +381,28 @@ func saveSMSMessage(
 }
 
 func (s *Store) SaveSMSMessages(ctx context.Context, values []SMSMessage) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	tx, err := s.beginSMSForwardWrite(ctx)
 	if err != nil {
 		return fmt.Errorf("begin SMS batch: %w", err)
 	}
-	defer tx.Rollback()
+	defer tx.close()
 	for index, value := range values {
-		if _, err := saveSMSMessage(ctx, tx, value); err != nil {
+		origin, err := smsForwardOriginalSource(ctx, tx.connection, value, true)
+		if err != nil {
+			return fmt.Errorf("read SMS batch origin %d: %w", index, err)
+		}
+		saved, err := saveSMSMessage(ctx, tx.connection, value)
+		if err != nil {
 			return fmt.Errorf("save SMS batch item %d: %w", index, err)
 		}
+		if err := persistSMSForwardOrigin(ctx, tx.connection, &saved, origin); err != nil {
+			return fmt.Errorf("archive SMS batch origin %d: %w", index, err)
+		}
+		if err := s.captureSMSForwardPlan(ctx, tx.connection, saved, origin, true); err != nil {
+			return fmt.Errorf("archive SMS batch item %d: %w", index, err)
+		}
 	}
-	if err := tx.Commit(); err != nil {
+	if err := tx.commit(ctx); err != nil {
 		return fmt.Errorf("commit SMS batch: %w", err)
 	}
 	return nil

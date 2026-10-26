@@ -101,6 +101,15 @@ func TestSessionCloseCleansIPSecAfterCallerDeadline(t *testing.T) {
 }
 
 func TestProviderNegotiatesIPSecAndRegistersOverProtectedTCP(t *testing.T) {
+	testProtectedBearerRegistration(t, false)
+}
+
+func TestProviderRegistersOwnedCellularWithoutSWu(t *testing.T) {
+	testProtectedBearerRegistration(t, true)
+}
+
+func testProtectedBearerRegistration(t *testing.T, cellular bool) {
+	t.Helper()
 	localIP := net.ParseIP("127.0.0.1")
 	remoteIP := net.ParseIP("127.0.0.2")
 	initial, err := net.ListenTCP("tcp", &net.TCPAddr{IP: remoteIP})
@@ -176,7 +185,7 @@ func TestProviderNegotiatesIPSecAndRegistersOverProtectedTCP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewProvider() error = %v", err)
 	}
-	session, err := provider.Start(context.Background(), vowifi.IMSRequest{
+	request := vowifi.IMSRequest{
 		DeviceID: "modem0",
 		Identity: vowifi.SIMIdentity{
 			ICCID:   "8901000000000000000",
@@ -189,7 +198,16 @@ func TestProviderNegotiatesIPSecAndRegistersOverProtectedTCP(t *testing.T) {
 			LocalIPv4:   localIP.String(),
 			PCSCF:       []string{initialAddress},
 		}},
-	})
+	}
+	if cellular {
+		request.Tunnel = nil
+		bearer := testCellularRequest().Cellular.(*fakeCellularBearer)
+		bearer.evidence.LocalIPv4, bearer.evidence.LocalIPv6 = localIP.String(), ""
+		bearer.evidence.PCSCF = []string{initialAddress}
+		bearer.installer = installer
+		request.Cellular = bearer
+	}
+	session, err := provider.Start(context.Background(), request)
 	if err != nil {
 		t.Fatalf("Provider.Start() error = %v", err)
 	}
@@ -237,6 +255,35 @@ func TestProviderNegotiatesIPSecAndRegistersOverProtectedTCP(t *testing.T) {
 		t.Fatalf("protected registrar error = %v", err)
 	}
 	registrar := <-serverEvidence
+	if cellular {
+		pani, _ := request.Cellular.Evidence().Cell.PAccessNetworkInfo()
+		bearer := request.Cellular.(*fakeCellularBearer)
+		bearer.mu.Lock()
+		bindings := append([]socketBinding(nil), bearer.bindings...)
+		bearer.mu.Unlock()
+		wantAddresses := []string{initialAddress, net.JoinHostPort(localIP.String(), strconv.Itoa(ueServerPort)),
+			net.JoinHostPort(localIP.String(), strconv.Itoa(ueServerPort)), protected.Addr().String()}
+		if len(bindings) != len(wantAddresses) {
+			t.Fatalf("initial/listener/protected socket hooks missing: %#v", bindings)
+		}
+		for index, binding := range bindings {
+			wantTransport := "tcp"
+			if index == 2 {
+				wantTransport = "udp"
+			}
+			if !strings.HasPrefix(binding.network, wantTransport) || binding.address != wantAddresses[index] {
+				t.Fatalf("socket %d bypassed its owned network: %#v", index, binding)
+			}
+		}
+		for _, got := range registrar.pani {
+			if got != pani {
+				t.Fatalf("cellular access claimed Wi-Fi/wrong location: %q", got)
+			}
+		}
+		if len(registrar.pani) != 3 {
+			t.Fatal("missing initial/authenticated/deregister PANI")
+		}
+	}
 	if registrar.securityClient == "" ||
 		registrar.securityVerify != registrar.securityServer {
 		t.Fatalf("security agreement evidence = %#v", registrar)
@@ -384,6 +431,7 @@ type protectedRegistrarEvidence struct {
 	securityClient string
 	securityServer string
 	securityVerify string
+	pani           []string
 }
 
 func serveProtectedRegistrar(
@@ -420,6 +468,7 @@ func serveProtectedRegistrar(
 		return result, fmt.Errorf("initial sec-agree headers = %#v", headers)
 	}
 	result.securityClient = headers["security-client"]
+	result.pani = append(result.pani, headers["p-access-network-info"])
 	offers := splitHeaderValues([]string{result.securityClient})
 	if len(offers) != 6 {
 		_ = initialConnection.Close()
@@ -510,6 +559,7 @@ func serveProtectedRegistrar(
 		)
 	}
 	result.securityVerify = headers["security-verify"]
+	result.pani = append(result.pani, headers["p-access-network-info"])
 	if result.securityVerify != result.securityServer {
 		return result, fmt.Errorf(
 			"Security-Verify = %q, want %q",
@@ -560,6 +610,7 @@ func serveProtectedRegistrar(
 	if !strings.HasPrefix(startLine, "REGISTER ") || headers["expires"] != "0" {
 		return result, fmt.Errorf("deregistration request = %q, headers %#v", startLine, headers)
 	}
+	result.pani = append(result.pani, headers["p-access-network-info"])
 	if headers["security-verify"] != result.securityServer {
 		return result, fmt.Errorf("deregistration Security-Verify = %q", headers["security-verify"])
 	}
@@ -628,10 +679,10 @@ func TestProtectedReregisterRetainsAuthorizationIdentity(t *testing.T) {
 
 func TestOptionalSecurityDeclineKeepsEmptyDigestForDeregister(t *testing.T) {
 	s := &Session{
-		provider:         &Provider{config: Config{SecurityMode: SecurityOptional, RegistrationExpiry: time.Hour}},
-		securityMode:     SecurityOptional,
-		conn:             &fakeConn{},
-		transport:        "tcp",
+		provider:     &Provider{config: Config{SecurityMode: SecurityOptional, RegistrationExpiry: time.Hour}},
+		securityMode: SecurityOptional,
+		conn:         &fakeConn{},
+		transport:    "tcp",
 		identity: identitySet{
 			user:    "001010123456789",
 			private: "001010123456789@ims.example.test",

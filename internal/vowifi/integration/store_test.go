@@ -359,6 +359,7 @@ func TestStateProjectorPreservesConcreteDataplaneMode(t *testing.T) {
 		DataplaneMode:      "userspace",
 		CarrierProfile:     "vodafone-uk",
 		CarrierProfileFrom: "hplmn",
+		RadioPolicy:        vowifi.RadioPolicyCoexist,
 		UpdatedAt:          time.Now().UTC(),
 	}); err != nil {
 		t.Fatal(err)
@@ -383,6 +384,9 @@ func TestStateProjectorPreservesConcreteDataplaneMode(t *testing.T) {
 	}
 	if extra["carrier_profile"] != "vodafone-uk" || extra["carrier_profile_from"] != "hplmn" {
 		t.Fatalf("carrier profile projection = %#v", extra)
+	}
+	if extra["radio_policy"] != string(vowifi.RadioPolicyCoexist) {
+		t.Fatalf("radio ownership policy was lost during persistence: %#v", extra)
 	}
 }
 

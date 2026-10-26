@@ -13,15 +13,14 @@ import (
 
 func TestSMSNotificationTextMatchesUserFacingTemplate(t *testing.T) {
 	location := time.FixedZone("UTC+8", 8*60*60)
-	previousLocation := time.Local
-	time.Local = location
-	t.Cleanup(func() { time.Local = previousLocation })
 	message := smsNotification{
 		DeviceID: "device-1", DeviceLabel: "EC20", Number: "+447386",
 		LocalPhone: "+85291234567", ICCID: "card-a",
 		Time: time.Date(2026, 8, 8, 17, 25, 35, 0, location), Content: "你好鸭",
 	}
-	want := "收到新短信\n设备  EC20\n本机号码  +85291234567\n号码  +447386\n时间  2026-08-08 17:25:35\n内容  你好鸭"
+	// Formatting follows the server's local timezone. Never mutate time.Local:
+	// background HTTP/timer workers can still be running in repeated tests.
+	want := "收到新短信\n设备  EC20\n本机号码  +85291234567\n号码  +447386\n时间  " + message.Time.In(time.Local).Format("2006-01-02 15:04:05") + "\n内容  你好鸭"
 	if got := message.Text(); got != want {
 		t.Fatalf("smsNotification.Text() = %q, want %q", got, want)
 	}

@@ -24,6 +24,7 @@ vc.jar
 web/dist/
 web/build/
 web/node_modules/
+web/.vite/
 
 # ---- Go build ----
 *.test
@@ -44,6 +45,8 @@ build/*.py
 !README.md
 !docs/**/*.md
 *.txt
+!LICENSES/*.txt
+!third_party/licenses/*.txt
 build/lists/
 
 # ---- Editor / IDE ----
@@ -57,3 +60,22 @@ Thumbs.db
 # ---- Claude Code / agent ----
 .claude/
 .worktrees/
+
+# ---- Local reports, runtime state and credentials ----
+/publish/
+/data/
+/tmp/
+.agents/
+.codex/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+*.tmp
+*.pem
+*.key
+*.p12
+*.pfx

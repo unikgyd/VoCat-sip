@@ -45,15 +45,16 @@ func (options SessionOptions) withDefaults() SessionOptions {
 // Session serializes all access to one physical AT port. A timed-out command
 // keeps ownership of its response until its final arrives or recovery expires.
 type Session struct {
-	gate      chan struct{}
-	transport Transport
-	options   SessionOptions
-	readBuf   []byte
-	readErr   error
-	skipSpace bool
-	urcs      []string
-	pending   *atTransaction
-	poisoned  atomic.Bool
+	gate            chan struct{}
+	transport       Transport
+	options         SessionOptions
+	readBuf         []byte
+	readErr         error
+	skipSpace       bool
+	urcs            []string
+	pending         *atTransaction
+	poisoned        atomic.Bool
+	callEndRevision atomic.Uint64
 
 	recoveryDeadline time.Time
 	ioDeadline       time.Time
@@ -140,6 +141,20 @@ func (session *Session) Execute(ctx context.Context, command string) (Response, 
 	return session.executeLocked(ctx, command, nil, false)
 }
 
+var ErrCallLifecycleChanged = errors.New("modem: call lifecycle changed before command submission")
+
+type callRevisionContextKey struct{}
+
+// CallEndRevision advances for terminal call indications, including those
+// consumed by another AT command. It does not consume the shared URC queue.
+func (session *Session) CallEndRevision() uint64 { return session.callEndRevision.Load() }
+func (session *Session) ExecuteForCall(ctx context.Context, revision uint64, command string) (Response, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return session.Execute(context.WithValue(ctx, callRevisionContextKey{}, revision), command)
+}
+
 func (session *Session) ExecutePrompt(ctx context.Context, command string, payload []byte) (Response, error) {
 	command, err := normalizeATCommand(command)
 	if err != nil {
@@ -214,6 +229,9 @@ func (session *Session) executeLocked(ctx context.Context, command string, paylo
 		return response, commandContextError(err)
 	}
 	started := time.Now()
+	if revision, guarded := ctx.Value(callRevisionContextKey{}).(uint64); guarded && session.CallEndRevision() != revision {
+		return response, ErrCallLifecycleChanged
+	}
 	defer func() { response.Duration = time.Since(started) }()
 	transaction := &atTransaction{
 		command: command, responsePrefix: expectedResponsePrefix(command), awaitPrompt: interactive,
@@ -461,6 +479,9 @@ func (session *Session) consumeLineLocked(line string, response *Response) {
 	if line == "" {
 		return
 	}
+	if isCallResult(line) || strings.EqualFold(line, "RDY") || strings.EqualFold(line, "CALL READY") {
+		session.callEndRevision.Add(1)
+	}
 	if pending == nil {
 		if !isFinalResult(line) {
 			session.enqueueURCLocked(line)
@@ -683,6 +704,7 @@ func writeAll(writer io.Writer, payload []byte) error {
 
 func (session *Session) Close() error {
 	session.closeOnce.Do(func() {
+		session.callEndRevision.Add(1)
 		session.cancel()
 		session.closeErr = session.transport.Close()
 	})

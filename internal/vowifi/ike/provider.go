@@ -21,19 +21,20 @@ import (
 )
 
 type Config struct {
-	Random               io.Reader
-	Resolver             *net.Resolver
-	Dialer               *net.Dialer
-	RootCAs              *x509.CertPool
-	ResponderPublicKey   crypto.PublicKey
-	ServerName           string
-	Timeout              time.Duration
-	KeepaliveInterval    time.Duration
-	Installer            ChildSAInstaller
-	IdentityType         uint8
-	APN                  string
-	AutoProposalFallback bool
-	Logger               *slog.Logger
+	Random                io.Reader
+	Resolver              *net.Resolver
+	Dialer                *net.Dialer
+	RootCAs               *x509.CertPool
+	ResponderPublicKey    crypto.PublicKey
+	ServerName            string
+	Timeout               time.Duration
+	KeepaliveInterval     time.Duration
+	Installer             ChildSAInstaller
+	IdentityType          uint8
+	APN                   string
+	AutoProposalFallback  bool
+	Logger                *slog.Logger
+	GeographicDNSFallback bool // explicit opt-in; normal resolution uses system DNS
 }
 
 type Provider struct {
@@ -86,56 +87,88 @@ func (provider *Provider) Start(ctx context.Context, request vowifi.TunnelReques
 	if provider == nil {
 		return nil, errors.New("ike: nil provider")
 	}
-	session, err := provider.start(ctx, request, false)
-	if err == nil || !provider.config.AutoProposalFallback {
-		return session, err
-	}
-	profile := vowifi.ResolveCarrierProfile(request.Identity)
-	if profile.ID != vowifi.CarrierProfileStandard || !retryableLegacyProposal(err) {
-		return nil, err
-	}
-	provider.config.Logger.Warn("IKE ePDG rejected modern proposal; trying bounded legacy fallback",
-		"carrier_profile", profile.ID, "from_proposal", vowifi.IKEProposalModern,
-		"to_proposal", vowifi.IKEProposalLegacy, "error", err)
-	session, fallbackErr := provider.start(ctx, request, true)
-	if fallbackErr != nil {
-		return nil, errors.Join(err, fmt.Errorf("ike: legacy proposal fallback failed: %w", fallbackErr))
-	}
-	provider.config.Logger.Info("IKE automatic legacy proposal fallback succeeded",
-		"carrier_profile", profile.ID, "proposal", vowifi.IKEProposalLegacy)
-	return session, nil
+	return provider.startInnerFamilies(ctx, request)
 }
 
-func (provider *Provider) start(ctx context.Context, request vowifi.TunnelRequest, forceLegacy bool) (vowifi.TunnelSession, error) {
+func (provider *Provider) TunnelAPN() string { return provider.config.APN }
+
+func (provider *Provider) startFamily(ctx context.Context, request vowifi.TunnelRequest, forceLegacy bool, family innerFamily, pinnedEndpoint string) (tunnelSession vowifi.TunnelSession, startErr error) {
 	if provider == nil {
 		return nil, errors.New("ike: nil provider")
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	authenticationStarted := false
+	familyRetry := false
+	preEAPFamilyRetry := false
+	preAKAIdentityRejected := false
+	selectedEndpoint := ""
+	var cleanupErr error
+	var networkRejection *vowifi.EPDGNetworkRejection
+	defer func() {
+		// Cleanup errors must not erase a restriction already authenticated by
+		// this SA. Nor may this wrapper grant any family/identity retry proof.
+		if startErr != nil && networkRejection != nil {
+			rejection := *networkRejection
+			rejection.Cause = startErr
+			if cleanupErr != nil {
+				rejection.Cause = errors.Join(startErr, fmt.Errorf("ike: setup cleanup incomplete: %w", cleanupErr))
+			}
+			startErr = &rejection
+			return
+		}
+		if startErr != nil && cleanupErr != nil {
+			startErr = errors.Join(startErr, fmt.Errorf("ike: setup cleanup incomplete: %w", cleanupErr))
+			return
+		}
+		if startErr != nil && preAKAIdentityRejected && ctx.Err() == nil {
+			startErr = &vowifi.EPDGPreAKAIdentityError{Cause: startErr}
+			return
+		}
+		if startErr != nil && familyRetry && ctx.Err() == nil {
+			startErr = &innerFamilyRetryError{cause: startErr, endpoint: selectedEndpoint, legacy: forceLegacy, preEAP: preEAPFamilyRetry}
+			return
+		}
+		if errors.Is(startErr, vowifi.ErrIKERetryBlocked) || errors.Is(startErr, vowifi.ErrIKERetryStore) || errors.Is(startErr, vowifi.ErrIKERetryBinding) {
+			return
+		}
+		if startErr != nil && !authenticationStarted && ctx.Err() == nil && (recoverableEPDGNetworkError(startErr) || retryableLegacyProposal(startErr)) {
+			startErr = &vowifi.EPDGAccessError{Cause: startErr}
+		}
+	}()
 	if request.AKA == nil {
 		return nil, errors.New("ike: AKA provider is required")
 	}
 	epdg := strings.TrimSpace(request.EPDG)
-	if epdg == "" || strings.ContainsAny(epdg, " \t\r\n/:") {
-		return nil, errors.New("ike: ePDG must be a hostname")
+	var hostErr error
+	epdg, hostErr = vowifi.NormalizeEPDGHost(epdg)
+	if hostErr != nil {
+		return nil, hostErr
 	}
 	aka, err := newAKAClient(request.Identity, request.AKA)
 	if err != nil {
 		return nil, err
 	}
+	dialHost := epdg
+	if pinnedEndpoint != "" {
+		dialHost = pinnedEndpoint
+	}
 	transport, err := provider.transportFactory(ctx, transportConfig{
-		Resolver: provider.config.Resolver,
-		Dialer:   provider.config.Dialer,
-		Timeout:  provider.config.Timeout,
-	}, request.Proxy, epdg)
+		ExcludedAddresses:     append([]string(nil), request.ExcludedEPDGAddresses...),
+		Resolver:              provider.config.Resolver,
+		Dialer:                provider.config.Dialer,
+		Timeout:               provider.config.Timeout,
+		GeographicDNSFallback: provider.config.GeographicDNSFallback || request.GeographicDNSFallback,
+		BeforeIKEEndpoint:     request.BeforeIKEEndpoint,
+	}, request.Proxy, dialHost)
 	if err != nil {
 		return nil, err
 	}
 	closeTransport := true
 	defer func() {
 		if closeTransport {
-			_ = transport.Close()
+			cleanupErr = errors.Join(cleanupErr, transport.Close())
 		}
 	}()
 
@@ -173,6 +206,10 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	if localAddress == nil || remoteAddress == nil {
 		return nil, errors.New("ike: transport did not expose UDP endpoints")
 	}
+	selectedEndpoint = remoteAddress.IP.String()
+	if pinnedEndpoint != "" && !remoteAddress.IP.Equal(net.ParseIP(pinnedEndpoint)) {
+		return nil, errors.New("ike: transport changed the pinned ePDG during inner-family retry")
+	}
 	sourceHash, err := natDetectionHash(initiatorSPI, [8]byte{}, localAddress.IP, uint16(localAddress.Port))
 	if err != nil {
 		return nil, err
@@ -188,6 +225,7 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 		makeNotify(notifyNATSource, sourceHash),
 		makeNotify(notifyNATDestination, destinationHash),
 		makeNotify(notifyFragmentationSupported, nil),
+		makeNotify(16431, []byte{0, 2, 0, 3, 0, 4}),
 	}
 	var (
 		initRequest          []byte
@@ -197,6 +235,16 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 		cookie               []byte
 	)
 	for attempt := 0; attempt < maxIKEInitCookieChallenges; attempt++ {
+		if attempt == 0 && request.BeforeIKEEndpoint != nil {
+			if err := request.BeforeIKEEndpoint(ctx, selectedEndpoint); err != nil {
+				return nil, err
+			}
+		}
+		if attempt == 0 && request.BeforeIKE != nil {
+			if err := request.BeforeIKE(ctx); err != nil {
+				return nil, err
+			}
+		}
 		requestPayloads := append([]payload(nil), initPayloads...)
 		if len(cookie) > 0 {
 			requestPayloads = append([]payload{makeNotify(notifyCookie, cookie)}, requestPayloads...)
@@ -216,6 +264,22 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 		if err != nil {
 			return nil, err
 		}
+		// The first exchange can try several resolved addresses internally.
+		// Bind later rejection/family evidence to the peer that actually replied,
+		// not the endpoint exposed before the INIT. A COOKIE pins that peer;
+		// never carry its challenge or the same SA onto a different destination.
+		actualRemote := transport.RemoteAddr()
+		if actualRemote == nil || actualRemote.IP.To16() == nil {
+			return nil, fmt.Errorf("%w: IKE transport lost its answering peer", vowifi.ErrIKERetryBinding)
+		}
+		if pinnedEndpoint != "" && !actualRemote.IP.Equal(net.ParseIP(pinnedEndpoint)) {
+			return nil, errors.New("ike: transport changed the pinned ePDG during inner-family retry")
+		}
+		if attempt > 0 && (!actualRemote.IP.Equal(remoteAddress.IP) || actualRemote.Port != remoteAddress.Port) {
+			return nil, errors.New("ike: transport changed the ePDG after a COOKIE challenge")
+		}
+		remoteAddress = actualRemote
+		selectedEndpoint = actualRemote.IP.String()
 		var responseBody []byte
 		responseHeader, responseBody, err = validateResponse(initResponse, initiatorSPI, [8]byte{}, exchangeIKEInit, 0)
 		if err != nil {
@@ -225,11 +289,14 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 		if err != nil {
 			return nil, err
 		}
-		if err := rejectFatalNotifications(initResponsePayloads); err != nil {
-			return nil, err
-		}
+		// A mixed COOKIE/error message is ambiguous, not evidence permitting
+		// a weaker proposal or another access identity. Check it before the
+		// ordinary fatal-Notify classifier can issue a retryable error.
 		challenge, hasCookie, err := ikeInitCookie(initResponsePayloads)
 		if err != nil {
+			return nil, err
+		}
+		if err := rejectFatalNotifications(initResponsePayloads); err != nil {
 			return nil, err
 		}
 		if hasCookie {
@@ -245,6 +312,10 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 		break
 	}
 	peerSupportsFragmentation := hasNotifyType(initResponsePayloads, notifyFragmentationSupported)
+	peerSignatureHashes, err := signatureHashSupport(initResponsePayloads)
+	if err != nil {
+		return nil, err
+	}
 	saPayload, err := onePayload(initResponsePayloads, payloadSA)
 	if err != nil {
 		return nil, err
@@ -314,7 +385,7 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 		if cleanupPendingIKE {
 			cleanupContext, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			_ = sendIKESADelete(
+			cleanupErr = errors.Join(cleanupErr, sendIKESADelete(
 				cleanupContext,
 				transport,
 				ikeSuite,
@@ -322,7 +393,7 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 				initiatorSPI,
 				responseHeader.ResponderSPI,
 				cleanupMessageID,
-			)
+			))
 		}
 	}()
 
@@ -337,9 +408,10 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	}
 	idi := payload{Type: payloadIDi, Body: append([]byte{provider.config.IdentityType, 0, 0, 0}, aka.identity...)}
 	requestedIDr := payload{Type: payloadIDr, Body: append([]byte{2, 0, 0, 0}, []byte(provider.config.APN)...)}
-	tsi := dualStackTrafficSelectors(payloadTSi)
-	tsr := dualStackTrafficSelectors(payloadTSr)
+	tsi := innerTrafficSelectors(payloadTSi, family)
+	tsr := innerTrafficSelectors(payloadTSr, family)
 	firstAuthPayloads := buildInitialEAPAuth(idi, requestedIDr, childOfferBody, tsi, tsr, advertiseEAPOnly)
+	firstAuthPayloads[len(firstAuthPayloads)-1] = configurationRequestForFamily(family)
 	authHeader := ikeHeader{
 		InitiatorSPI: initiatorSPI,
 		ResponderSPI: responseHeader.ResponderSPI,
@@ -347,6 +419,7 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 		Flags:        flagInitiator,
 		MessageID:    1,
 	}
+	authenticationStarted = true
 	_, authResponsePayloads, err := sendAndReceiveIKEPayloads(
 		ctx,
 		transport,
@@ -364,6 +437,11 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	if serverName == "" {
 		serverName = epdg
 	}
+	for _, auth := range payloadsOfType(authResponsePayloads, payloadAuth) {
+		if len(auth.Body) > 0 && auth.Body[0] == authMethodDigitalSignature && !peerSignatureHashes {
+			return nil, errors.New("ike: generic responder signature was not negotiated")
+		}
+	}
 	responderAUTH, responderID, err := validateInitialResponderAUTH(
 		authResponsePayloads,
 		initResponse,
@@ -379,6 +457,11 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	if err != nil {
 		return nil, err
 	}
+	if initialFamilyRejection(authResponsePayloads) {
+		familyRetry = true
+		preEAPFamilyRetry = true
+		return nil, errors.New("ike: ePDG rejected the requested inner family before EAP")
+	}
 	deviceIdentityPending, err := deviceIdentityRequested(authResponsePayloads)
 	if err != nil {
 		return nil, err
@@ -386,6 +469,20 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	messageID := uint32(1)
 	currentPayloads := authResponsePayloads
 	for round := 0; round < 10; round++ {
+		networkRejection = authenticatedNetworkRejection(currentPayloads, responderAUTH == vowifi.ResponderAUTHVerified)
+		if networkRejection != nil {
+			networkRejection.EPDG, networkRejection.Endpoint, networkRejection.APN = epdg, selectedEndpoint, provider.config.APN
+			if request.ObserveNetworkRejection != nil {
+				if observeErr := request.ObserveNetworkRejection(*networkRejection); observeErr != nil {
+					return nil, errors.Join(rejectFatalNotifications(currentPayloads), observeErr)
+				}
+			}
+		}
+		// A later EAP-Failure may omit an earlier BACKOFF_TIMER. Keep that
+		// restriction for the whole exchange, not only the terminal packet.
+		if hasNotifyType(currentPayloads, 41041) {
+			aka.identityRetryBlocked = true
+		}
 		// A responder may terminate EAP with an IKEv2 error Notify instead of
 		// another EAP payload. Preserve that protocol result rather than masking
 		// it as a missing payload type 48 parse error.
@@ -398,6 +495,9 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 		}
 		action, err := aka.handle(ctx, eapPayload.Body)
 		if err != nil {
+			if len(eapPayload.Body) == 4 && eapPayload.Body[0] == eapFailure && !aka.challengeStarted && !aka.identityRetryBlocked && errors.Is(err, vowifi.ErrEAPAuthenticationRejected) {
+				preAKAIdentityRejected = true
+			}
 			return nil, err
 		}
 		if action.Success {
@@ -480,34 +580,57 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	if err != nil {
 		return nil, err
 	}
+	verifyFinalAUTH := func() error {
+		finalAUTHs := payloadsOfType(finalPayloads, payloadAuth)
+		if len(finalAUTHs) != 1 {
+			return fmt.Errorf("%w: final EAP response must contain exactly one MSK AUTH payload", vowifi.ErrResponderAUTHRequired)
+		}
+		if len(responderID.Body) == 0 {
+			return errors.New("ike: EAP exchange has no responder IDr for the AUTH transcript")
+		}
+		finalIDs := payloadsOfType(finalPayloads, payloadIDr)
+		if len(finalIDs) > 1 {
+			return errors.New("ike: duplicate final responder IDr payload")
+		}
+		if len(finalIDs) == 1 {
+			if err := validateFQDNIDr(finalIDs[0], "", "final responder"); err != nil {
+				return fmt.Errorf("ike: final APN IDr: %w", err)
+			}
+		}
+		if err := verifyEAPResponderAUTH(
+			finalAUTHs[0],
+			aka.keys.MSK,
+			initResponse,
+			initiatorNonce,
+			ikeSuite,
+			keys.SKpr,
+			responderID,
+		); err != nil {
+			return err
+		}
+		return nil
+	}
+	// Parsing a coherent candidate is not authentication. In EAP-only mode
+	// require the current final MSK AUTH before recording its retry policy.
+	if responderAUTH != vowifi.ResponderAUTHVerified && authenticatedNetworkRejection(finalPayloads, true) != nil {
+		if err := verifyFinalAUTH(); err != nil {
+			return nil, err
+		}
+		responderAUTH = vowifi.ResponderAUTHVerified
+	}
+	networkRejection = authenticatedNetworkRejection(finalPayloads, responderAUTH == vowifi.ResponderAUTHVerified)
+	if networkRejection != nil {
+		networkRejection.EPDG, networkRejection.Endpoint, networkRejection.APN = epdg, selectedEndpoint, provider.config.APN
+		if request.ObserveNetworkRejection != nil {
+			if observeErr := request.ObserveNetworkRejection(*networkRejection); observeErr != nil {
+				return nil, errors.Join(rejectFatalNotifications(finalPayloads), observeErr)
+			}
+		}
+	}
 	if err := rejectFatalNotifications(finalPayloads); err != nil {
 		return nil, err
 	}
-	finalAUTHs := payloadsOfType(finalPayloads, payloadAuth)
-	if len(finalAUTHs) != 1 {
-		return nil, fmt.Errorf("%w: final EAP response must contain exactly one MSK AUTH payload", vowifi.ErrResponderAUTHRequired)
-	}
-	if len(responderID.Body) == 0 {
-		return nil, errors.New("ike: EAP exchange has no responder IDr for the AUTH transcript")
-	}
-	finalIDs := payloadsOfType(finalPayloads, payloadIDr)
-	if len(finalIDs) > 1 {
-		return nil, errors.New("ike: duplicate final responder IDr payload")
-	}
-	if len(finalIDs) == 1 {
-		if err := validateFQDNIDr(finalIDs[0], "", "final responder"); err != nil {
-			return nil, fmt.Errorf("ike: final APN IDr: %w", err)
-		}
-	}
-	if err := verifyEAPResponderAUTH(
-		finalAUTHs[0],
-		aka.keys.MSK,
-		initResponse,
-		initiatorNonce,
-		ikeSuite,
-		keys.SKpr,
-		responderID,
-	); err != nil {
+	if err := verifyFinalAUTH(); err != nil {
 		return nil, err
 	}
 	responderAUTH = vowifi.ResponderAUTHVerified
@@ -522,6 +645,9 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	}
 	childSuite, err := parseESPSuite(childProposals[0])
 	if err != nil {
+		return nil, err
+	}
+	if err := validateSelectedESP(childProposals[0], espOffer(childInboundSPIBytes[:], legacyFirst)); err != nil {
 		return nil, err
 	}
 	childOutboundSPI := binary.BigEndian.Uint32(childProposals[0].SPI)
@@ -541,6 +667,14 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	if err != nil {
 		return nil, err
 	}
+	offeredLocal, _ := parseTrafficSelectors(tsi)
+	offeredRemote, _ := parseTrafficSelectors(tsr)
+	if err := validateInnerSelectors(initiatorSelectors, offeredLocal); err != nil {
+		return nil, err
+	}
+	if err := validateInnerSelectors(responderSelectors, offeredRemote); err != nil {
+		return nil, err
+	}
 	cpPayload, err := onePayload(finalPayloads, payloadCP)
 	if err != nil {
 		return nil, err
@@ -549,16 +683,9 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	if err != nil {
 		return nil, err
 	}
-	if network.LocalIPv4 == nil && network.LocalIPv6 == nil {
-		return nil, errors.New("ike: responder did not assign an inner IP address")
-	}
-	network.PCSCF = pcscfForAssignedFamilies(
-		network.PCSCF,
-		network.LocalIPv4 != nil,
-		network.LocalIPv6 != nil,
-	)
-	if len(network.PCSCF) == 0 {
-		return nil, errors.New("ike: responder did not provide a P-CSCF matching an assigned address family")
+	network, familyRetry, err = validateInnerConfiguration(network, family, initiatorSelectors, responderSelectors)
+	if err != nil {
+		return nil, err
 	}
 	outboundEncryption, outboundIntegrity, inboundEncryption, inboundIntegrity, err := deriveChildSAKeys(
 		ikeSuite, childSuite, keys.SKd, initiatorNonce, responderNonce,
@@ -618,6 +745,7 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 		}
 	}
 	evidence := vowifi.TunnelEvidence{
+		EPDGAddress:   transport.RemoteAddr().IP.String(),
 		Established:   true,
 		Name:          name,
 		DataplaneMode: dataplaneMode,
@@ -662,13 +790,31 @@ func ikeInitCookie(payloads []payload) ([]byte, bool, error) {
 		if kind != notifyCookie {
 			continue
 		}
-		if len(data) == 0 {
-			return nil, false, errors.New("ike: ePDG returned an empty COOKIE")
+		// RFC 7296 2.6 and 3.10: 1..64 data bytes and no SPI. The
+		// Protocol ID is ignored on receipt when SPI is empty.
+		if len(data) < 1 || len(data) > 64 || item.Body[1] != 0 {
+			return nil, false, errors.New("ike: ePDG returned an invalid COOKIE length or SPI")
 		}
 		if cookie != nil {
 			return nil, false, errors.New("ike: ePDG returned multiple COOKIE notifications")
 		}
 		cookie = append([]byte(nil), data...)
+	}
+	if cookie != nil {
+		for _, item := range payloads {
+			switch item.Type {
+			case payloadSA, payloadKE, payloadNonce:
+				return nil, false, errors.New("ike: COOKIE challenge contains keying payloads")
+			case payloadNotify:
+				kind, _, err := parseNotify(item)
+				if err != nil {
+					return nil, false, err
+				}
+				if kind < 16384 {
+					return nil, false, errors.New("ike: COOKIE challenge contains an error notification")
+				}
+			}
+		}
 	}
 	return cookie, cookie != nil, nil
 }

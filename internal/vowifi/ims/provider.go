@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"vocat/internal/vowifi"
+	"vocat/internal/vowifi/imssec"
 )
 
 const (
@@ -56,11 +57,15 @@ type Config struct {
 	TransactionTimeout    time.Duration
 	PrivateIdentity       string
 	PublicIdentity        string
-	UserAgent             string
-	SecurityMode          SecurityMode
-	IPSecInstaller        IPSecSAInstaller
-	ProtectedClientPort   int
-	ProtectedServerPort   int
+	// HomeDomain is EF.DOMAIN from a verified card. It requires a complete
+	// private/public identity pair, and is independent of either identity's
+	// host part. Empty preserves the existing PLMN/carrier profile behavior.
+	HomeDomain          string
+	UserAgent           string
+	SecurityMode        SecurityMode
+	IPSecInstaller      IPSecSAInstaller
+	ProtectedClientPort int
+	ProtectedServerPort int
 	// SMSCenter is an operator-provided fallback when the SIM leaves EF_SMSP
 	// and AT+CSCA empty. It must be an international or national digit string.
 	SMSCenter string
@@ -91,6 +96,7 @@ type Config struct {
 
 // ReceivedCall is an incoming voice call event delivered over IMS.
 type ReceivedCall struct {
+	Access    string
 	DeviceID  string
 	IMSI      string
 	CallID    string
@@ -214,6 +220,12 @@ func normalizeConfig(config Config) (Config, error) {
 	config.LocalAddress = strings.TrimSpace(config.LocalAddress)
 	config.PrivateIdentity = strings.TrimSpace(config.PrivateIdentity)
 	config.PublicIdentity = strings.TrimSpace(config.PublicIdentity)
+	if config.HomeDomain != "" {
+		if !validProvisionedIdentities(config) {
+			return Config{}, errors.New("ims: complete card-provisioned identities are required")
+		}
+		config.HomeDomain = strings.ToLower(config.HomeDomain)
+	}
 	config.UserAgent = strings.TrimSpace(config.UserAgent)
 	config.SMSCenter = strings.TrimSpace(config.SMSCenter)
 	if config.SMSCenter != "" && !validSMSCenter(config.SMSCenter) {
@@ -231,12 +243,12 @@ func (provider *Provider) Start(ctx context.Context, request vowifi.IMSRequest) 
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if request.Tunnel == nil {
-		return nil, errors.New("ims: tunnel session is required")
+	if _, err := vowifi.AKAIdentity(request.Identity); err != nil {
+		return nil, err
 	}
-	tunnel := request.Tunnel.Evidence()
-	if !tunnel.Established {
-		return nil, vowifi.ErrTunnelNotEstablished
+	access, err := provider.accessEvidence(ctx, request)
+	if err != nil {
+		return nil, err
 	}
 	identities, err := deriveIdentities(request.Identity, provider.config)
 	if err != nil {
@@ -246,7 +258,7 @@ func (provider *Provider) Start(ctx context.Context, request vowifi.IMSRequest) 
 	if provider.config.PCSCF != "" {
 		pcscfCandidates = []string{provider.config.PCSCF}
 	} else {
-		for _, candidate := range tunnel.PCSCF {
+		for _, candidate := range access.PCSCF {
 			candidate = strings.TrimSpace(candidate)
 			if candidate != "" {
 				pcscfCandidates = append(pcscfCandidates, candidate)
@@ -254,21 +266,23 @@ func (provider *Provider) Start(ctx context.Context, request vowifi.IMSRequest) 
 		}
 	}
 	if len(pcscfCandidates) == 0 {
-		return nil, errors.New("ims: tunnel did not provide a P-CSCF")
+		return nil, errors.New("ims: access bearer did not provide a P-CSCF")
 	}
 
 	var lastErr error
+	retryableAccess := true
 	for pcscfIndex, pcscf := range pcscfCandidates {
 		endpoint, transportHint, err := parsePCSCF(pcscf, provider.config.Port)
 		if err != nil {
 			lastErr = err
+			retryableAccess = false
 			continue
 		}
-		if provider.config.PCSCF != "" && !pcscfProvenByTunnel(endpoint, tunnel.PCSCF, provider.config.Port) {
-			return nil, errors.New("ims: configured P-CSCF is not proven by the SWu tunnel")
+		if provider.config.PCSCF != "" && !pcscfProvenByTunnel(endpoint, access.PCSCF, provider.config.Port) {
+			return nil, errors.New("ims: configured P-CSCF is not proven by the access bearer")
 		}
 		transport, carrierSelected := carrierTransportForIdentity(provider.config, request.Identity)
-		if cached := provider.cachedTransport(request.Identity); cached != "" {
+		if cached := provider.cachedRequestTransport(request); cached != "" {
 			transport = cached
 			carrierSelected = true
 		}
@@ -284,20 +298,23 @@ func (provider *Provider) Start(ctx context.Context, request vowifi.IMSRequest) 
 		localAddress := provider.config.LocalAddress
 		if localAddress == "" {
 			if endpointIP := net.ParseIP(endpoint.host); endpointIP != nil && endpointIP.To4() == nil {
-				localAddress = tunnel.LocalIPv6
+				localAddress = access.LocalIPv6
 			} else {
-				localAddress = tunnel.LocalIPv4
+				localAddress = access.LocalIPv4
 				if strings.TrimSpace(localAddress) == "" {
-					localAddress = tunnel.LocalIPv6
+					localAddress = access.LocalIPv6
 				}
 			}
 		}
 		localAddress = strings.TrimSpace(strings.Split(localAddress, "/")[0])
 		if localAddress == "" {
-			return nil, errors.New("ims: tunnel did not provide a local address")
+			return nil, errors.New("ims: access bearer did not provide a local address")
 		}
-		if !localAddressProvenByTunnel(localAddress, tunnel) {
-			return nil, errors.New("ims: configured local address is not assigned by the SWu tunnel")
+		if !localAddressProven(localAddress, access.LocalIPv4, access.LocalIPv6) {
+			return nil, errors.New("ims: configured local address is not assigned by the access bearer")
+		}
+		if request.Cellular != nil && (net.ParseIP(localAddress).To4() != nil) != (net.ParseIP(endpoint.host).To4() != nil) {
+			return nil, ErrCellularAccess
 		}
 
 		transports := []string{transport}
@@ -309,24 +326,41 @@ func (provider *Provider) Start(ctx context.Context, request vowifi.IMSRequest) 
 			transports = append(transports, alternate)
 		}
 		for attempt, candidate := range transports {
-			connection, dialErr := dialSIP(ctx, candidate, localAddress, 0, endpoint.address(), false)
+			if request.Cellular != nil {
+				current, err := verifiedCellularEvidence(ctx, request)
+				if err != nil || !sameBearerAddress(current.LocalIPv4, access.LocalIPv4) ||
+					!sameBearerAddress(current.LocalIPv6, access.LocalIPv6) ||
+					!pcscfProvenByTunnel(endpoint, current.PCSCF, provider.config.Port) {
+					return nil, ErrCellularAccess
+				}
+			}
+			connection, dialErr := dialSIPOnAccess(ctx, candidate, localAddress, 0, endpoint.address(), false, request.Cellular)
 			if dialErr != nil {
 				lastErr = fmt.Errorf("ims: connect to P-CSCF over %s: %w", candidate, dialErr)
+				retryableAccess = retryableAccess && vowifi.IMSFallbackAllowed(&vowifi.IMSTransportError{Cause: lastErr})
+				if !retryableAccess {
+					return nil, lastErr
+				}
 				if attempt+1 < len(transports) && ctx.Err() == nil {
 					provider.logTransportFallback(request.Identity, candidate, transports[attempt+1], lastErr)
 					continue
 				}
 				break
 			}
-			session, sessionErr := newSession(provider, request, identities, endpoint, candidate, connection)
+			session, sessionErr := newSessionContext(ctx, provider, request, identities, endpoint, candidate, connection)
 			if sessionErr != nil {
 				_ = connection.Close()
 				lastErr = sessionErr
+				retryableAccess = false
 				break
+			}
+			session.access = access
+			if request.Cellular != nil {
+				session.setPANI(access.PANI)
 			}
 			establishErr := session.establish(ctx)
 			if establishErr == nil {
-				provider.rememberTransport(request.Identity, candidate)
+				provider.rememberRequestTransport(request, candidate)
 				if attempt > 0 || pcscfIndex > 0 {
 					provider.config.Logger.Info("IMS automatic transport fallback succeeded",
 						"carrier_profile", vowifi.ResolveCarrierProfile(request.Identity).ID,
@@ -335,9 +369,18 @@ func (provider *Provider) Start(ctx context.Context, request vowifi.IMSRequest) 
 				return session, nil
 			}
 			sipResponseObserved := session.evidence.LastSIPCode != 0
-			session.abort()
-			lastErr = establishErr
+			cleanupErr := session.abort()
+			lastErr = errors.Join(establishErr, cleanupErr)
+			retryableAccess = retryableAccess && vowifi.IMSFallbackAllowed(&vowifi.IMSTransportError{Cause: establishErr})
+			if cleanupErr != nil {
+				// No new endpoint/transport attempt while an earlier security
+				// installation is unresolved on this bearer.
+				return nil, lastErr
+			}
 			if sipResponseObserved {
+				return nil, establishErr
+			}
+			if !retryableAccess {
 				return nil, establishErr
 			}
 			if attempt+1 >= len(transports) || ctx.Err() != nil {
@@ -348,6 +391,9 @@ func (provider *Provider) Start(ctx context.Context, request vowifi.IMSRequest) 
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
+	}
+	if request.Tunnel != nil && ctx.Err() == nil && retryableAccess && vowifi.IMSFallbackAllowed(&vowifi.IMSTransportError{Cause: lastErr}) {
+		return nil, &vowifi.IMSTransportError{Cause: lastErr}
 	}
 	return nil, lastErr
 }
@@ -414,6 +460,15 @@ func deriveIdentities(identity vowifi.SIMIdentity, config Config) (identitySet, 
 	if !digitsBetween(imsi, 5, 16) {
 		return identitySet{}, errors.New("ims: SIM IMSI is unavailable or invalid")
 	}
+	if config.HomeDomain != "" {
+		if !validProvisionedIdentities(config) {
+			return identitySet{}, errors.New("ims: complete card-provisioned identities are required")
+		}
+		public := config.PublicIdentity
+		_, rest, _ := strings.Cut(public, ":")
+		user, _, _ := strings.Cut(rest, "@")
+		return identitySet{domain: strings.ToLower(config.HomeDomain), private: config.PrivateIdentity, public: public, user: user}, nil
+	}
 	mcc := strings.TrimSpace(profile.RouteMCC)
 	mnc := strings.TrimSpace(profile.RouteMNC)
 	if mcc == "" || mnc == "" {
@@ -458,6 +513,46 @@ func deriveIdentities(identity vowifi.SIMIdentity, config Config) (identitySet, 
 		return identitySet{}, errors.New("ims: public identity user is invalid")
 	}
 	return identitySet{domain: domain, private: privateIdentity, public: publicIdentity, user: user, temporaryPublic: config.PublicIdentity == ""}, nil
+}
+
+func validProvisionedIdentities(config Config) bool {
+	if !validIMSHomeDomain(config.HomeDomain) || !validIMSPrivateIdentity(config.PrivateIdentity) {
+		return false
+	}
+	scheme, rest, ok := strings.Cut(config.PublicIdentity, ":")
+	if !ok || scheme != "sip" && scheme != "sips" {
+		return false
+	}
+	rest = strings.TrimSuffix(rest, ";user=phone")
+	return validIMSPrivateIdentity(rest)
+}
+func validIMSPrivateIdentity(value string) bool {
+	user, domain, ok := strings.Cut(value, "@")
+	if !ok || len(user) < 1 || len(user) > 128 || !validIMSHomeDomain(domain) {
+		return false
+	}
+	for _, c := range user {
+		if !strings.ContainsRune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+.-_%~", c) {
+			return false
+		}
+	}
+	return true
+}
+func validIMSHomeDomain(value string) bool {
+	if len(value) > 253 || !strings.Contains(value, ".") || net.ParseIP(value) != nil {
+		return false
+	}
+	for _, label := range strings.Split(value, ".") {
+		if len(label) < 1 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, c := range label {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 type pcscfEndpoint struct {
@@ -553,11 +648,15 @@ func equalHost(left string, right string) bool {
 }
 
 func localAddressProvenByTunnel(localAddress string, tunnel vowifi.TunnelEvidence) bool {
+	return localAddressProven(localAddress, tunnel.LocalIPv4, tunnel.LocalIPv6)
+}
+
+func localAddressProven(localAddress string, candidates ...string) bool {
 	localIP := net.ParseIP(strings.Trim(localAddress, "[]"))
 	if localIP == nil {
 		return false
 	}
-	for _, candidate := range []string{tunnel.LocalIPv4, tunnel.LocalIPv6} {
+	for _, candidate := range candidates {
 		candidate = strings.TrimSpace(strings.Split(candidate, "/")[0])
 		candidateIP := net.ParseIP(strings.Trim(candidate, "[]"))
 		if candidateIP != nil && localIP.Equal(candidateIP) {
@@ -575,6 +674,16 @@ func dialSIP(
 	remoteAddress string,
 	mtuCompatibility bool,
 ) (net.Conn, error) {
+	return dialSIPOnAccess(ctx, transport, localAddress, localPort, remoteAddress, mtuCompatibility, nil)
+}
+
+func dialSIPOnAccess(ctx context.Context, transport, localAddress string, localPort int, remoteAddress string,
+	mtuCompatibility bool, network vowifi.CellularIMSNetwork) (net.Conn, error) {
+	return dialProtectedSIPOnAccess(ctx, transport, localAddress, localPort, remoteAddress, mtuCompatibility, network, nil)
+}
+
+func dialProtectedSIPOnAccess(ctx context.Context, transport, localAddress string, localPort int, remoteAddress string,
+	mtuCompatibility bool, network vowifi.CellularIMSNetwork, protection *imssec.SocketBinding) (net.Conn, error) {
 	var local net.Addr
 	var err error
 	switch transport {
@@ -592,6 +701,7 @@ func dialSIP(
 	if mtuCompatibility && transport == "tcp" {
 		configureProtectedTCPDialer(&dialer)
 	}
+	bindProtectedCellularDialer(&dialer, network, protection)
 	return dialer.DialContext(ctx, transport, remoteAddress)
 }
 
@@ -604,8 +714,11 @@ type authenticationState struct {
 }
 
 type Session struct {
+	closeGateMu      sync.Mutex
+	closeGate        chan struct{}
 	provider         *Provider
 	request          vowifi.IMSRequest
+	access           imsAccessEvidence
 	identity         identitySet
 	endpoint         pcscfEndpoint
 	transport        string
@@ -620,6 +733,7 @@ type Session struct {
 	instanceID         string
 	pani               string
 	paniResolved       bool
+	paniMu             sync.RWMutex
 	cseq               uint32
 	auth               *authenticationState
 	securityProposal   securityProposal
@@ -631,12 +745,14 @@ type Session struct {
 	failures           chan error
 	failureOnce        sync.Once
 	writeMu            sync.Mutex
+	protectedWriteMu   sync.Mutex
 	transactionsMu     sync.Mutex
 	transactions       map[sipTransactionKey]chan *sipResponse
 	runtimeStarted     bool
 	receiveDone        sync.WaitGroup
 	inboundMu          sync.Mutex
 	inboundConnections map[net.Conn]struct{}
+	inboundStopping    bool // protected by inboundMu; no registration after Close snapshot
 	smsMu              sync.Mutex
 	nextRPReference    byte
 	callMu             sync.Mutex
@@ -676,6 +792,11 @@ func newSession(
 	transport string,
 	connection net.Conn,
 ) (*Session, error) {
+	return newSessionContext(context.Background(), provider, request, identity, endpoint, transport, connection)
+}
+
+func newSessionContext(ctx context.Context, provider *Provider, request vowifi.IMSRequest, identity identitySet,
+	endpoint pcscfEndpoint, transport string, connection net.Conn) (*Session, error) {
 	callToken, err := randomHex(18)
 	if err != nil {
 		return nil, err
@@ -694,6 +815,10 @@ func newSession(
 	if profile.IMSIPSecMode != "" {
 		securityMode = SecurityMode(profile.IMSIPSecMode)
 	}
+	if request.Cellular != nil {
+		// VoWiFi optional-security profiles must not downgrade cellular IMS.
+		securityMode = SecurityRequired
+	}
 	if profile.IMSRegisterOptions.ContactFormat == vowifi.IMSContactFormatGSMA {
 		instanceURI = sipInstanceID(request.Identity, instanceID)
 	}
@@ -711,7 +836,7 @@ func newSession(
 		fromTag:            fromTag,
 		instanceID:         instanceURI,
 		instanceUUID:       instanceID,
-		pani:               resolveSessionPAccessNetworkInfo(request.Identity, provider.config.Logger),
+		pani:               sessionPANI(request, provider.config.Logger),
 		paniResolved:       true,
 		cseq:               1,
 		refreshContext:     refreshContext,
@@ -756,10 +881,12 @@ func newSession(
 				protectedServerPort = 5063
 			}
 		}
-		proposal, err := newSecurityProposal(
+		proposal, err := newSecurityProposalOnAccess(
+			ctx,
 			localIP,
 			protectedClientPort,
 			protectedServerPort,
+			request.Cellular,
 		)
 		if err != nil {
 			refreshCancel()
@@ -771,18 +898,21 @@ func newSession(
 			proposal.encryptionAlgorithmsList = []string{"aes-cbc"}
 		}
 		session.securityProposal = proposal
-		protectedTCP, err := net.ListenTCP(
-			"tcp",
-			&net.TCPAddr{IP: append(net.IP(nil), localIP...), Port: proposal.portServer},
-		)
+		var protection *imssec.SocketBinding
+		if request.Cellular != nil {
+			binding, err := cellularSocketBinding(localIP, addressIP(connection.RemoteAddr()), proposal.portServer, imssec.ServerSocket)
+			if err != nil {
+				refreshCancel()
+				return nil, err
+			}
+			protection = &binding
+		}
+		protectedTCP, err := listenProtectedAccessTCP(ctx, localIP, proposal.portServer, request.Cellular, protection)
 		if err != nil {
 			refreshCancel()
 			return nil, fmt.Errorf("ims: reserve protected TCP server port: %w", err)
 		}
-		protectedUDP, err := net.ListenUDP(
-			"udp",
-			&net.UDPAddr{IP: append(net.IP(nil), localIP...), Port: proposal.portServer},
-		)
+		protectedUDP, err := listenProtectedAccessUDP(ctx, localIP, proposal.portServer, request.Cellular, protection)
 		if err != nil {
 			_ = protectedTCP.Close()
 			refreshCancel()
@@ -798,7 +928,7 @@ func securityEncryptionForIdentity(identity vowifi.SIMIdentity) string {
 	return vowifi.ResolveCarrierProfile(identity).IMSIPSecEncryption
 }
 
-func (session *Session) abort() {
+func (session *Session) abort() error {
 	session.refreshCancel()
 	_ = session.conn.Close()
 	if session.protectedTCP != nil {
@@ -807,10 +937,16 @@ func (session *Session) abort() {
 	if session.protectedUDP != nil {
 		_ = session.protectedUDP.Close()
 	}
-	if session.ipsecHandle != nil {
-		_ = session.ipsecHandle.Close(context.Background())
+	cleanupErr := session.closeAccessIPSec()
+	if cleanupErr != nil && session.request.Cellular != nil && session.ipsecHandle != nil {
+		// Start will return no session. Transfer, rather than strand, failed
+		// cleanup in the bearer owner that outlives this abandoned session.
+		security := session.request.Cellular.(vowifi.CellularIMSSecurity)
+		security.RetainIPSec(session.ipsecHandle)
+		session.ipsecHandle = nil
 	}
 	session.clearAuthentication()
+	return cleanupErr
 }
 
 func (session *Session) establish(ctx context.Context) error {
@@ -898,6 +1034,14 @@ func (session *Session) register(ctx context.Context, expires int) (*sipResponse
 	}
 	intervalRetries := 0
 	for challenges := 0; challenges <= maxAuthenticationChallenges; challenges++ {
+		if session.request.Cellular != nil {
+			current, err := session.checkedCellularEvidence(ctx)
+			if err != nil {
+				return nil, err
+			}
+			// register is serialized by session.mu, including refresh/deregister.
+			session.setPANI(current.PANI)
+		}
 		cseq := session.cseq
 		session.cseq++
 		authorization := ""
@@ -966,8 +1110,15 @@ func (session *Session) register(ctx context.Context, expires int) (*sipResponse
 		if vowifi.IsATT310280(session.request.Identity) {
 			preference = "isim_strict"
 		}
+		if err := session.verifyCellularAccess(ctx); err != nil {
+			return nil, err
+		}
 		material, err := authenticateAKA(ctx, session.provider.aka, session.request.Identity, challenge, preference)
 		if err != nil {
+			return nil, err
+		}
+		if err := session.verifyCellularAccess(ctx); err != nil {
+			clearAKAMaterial(&material)
 			return nil, err
 		}
 		if len(material.auts) == 0 && useSecurity {
@@ -1098,14 +1249,19 @@ func (session *Session) buildRegister(
 	if value := strings.TrimSpace(registerOptions.PVisitedNetworkID); value != "" {
 		lines = append(lines, `P-Visited-Network-ID: "`+value+`"`)
 	}
-	// PANI describes this UE's access and is stable for the complete IMS
-	// session. The same UE-provided value is used by REGISTER, MESSAGE,
-	// RP-ACK and dialog requests; it never claims to be network-provided.
+	// PANI describes this UE's latest verified access (cellular samples may
+	// change within a registered session). It is shared with MESSAGE/RP-ACK
+	// and dialog requests, and never claims to be network-provided.
 	if pani := session.pAccessNetworkInfo(); pani != "" {
 		lines = append(lines, "P-Access-Network-Info: "+pani)
 	}
 	cellularInfo := strings.TrimSpace(registerOptions.CellularNetworkInfo)
-	if cellularInfo == "" && vowifi.IsATT310280(session.request.Identity) {
+	if session.request.Cellular != nil {
+		// A static Wi-Fi profile must not invent this cellular UE's location.
+		// The observed LTE cell is supplied by P-Access-Network-Info instead.
+		cellularInfo = ""
+	}
+	if cellularInfo == "" && session.request.Cellular == nil && vowifi.IsATT310280(session.request.Identity) {
 		mcc := strings.TrimSpace(session.request.Identity.HomeMCC)
 		mnc := strings.TrimSpace(session.request.Identity.HomeMNC)
 		if len(mnc) == 2 {
@@ -1451,6 +1607,9 @@ func (session *Session) exchange(ctx context.Context, request []byte, cseq uint3
 		if err != nil || responseCSeq != cseq || method != "REGISTER" {
 			continue
 		}
+		// A correlated provisional response is not transport silence. Do not
+		// retry another transport/gateway if a registrar already owns the request.
+		session.evidence.LastSIPCode = response.StatusCode
 		if response.StatusCode >= 100 && response.StatusCode < 200 {
 			retransmitInterval = 0
 			if err := setReadDeadline(transactionDeadline); err != nil {
@@ -1707,6 +1866,25 @@ func (session *Session) Close(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// A second closer must not see closed=true and report success while the
+	// first closer is still stopping sockets or acquiring late media results.
+	session.closeGateMu.Lock()
+	if session.closeGate == nil {
+		session.closeGate = make(chan struct{}, 1)
+		session.closeGate <- struct{}{}
+	}
+	gate := session.closeGate
+	session.closeGateMu.Unlock()
+	select {
+	case <-gate:
+	default:
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	defer func() { gate <- struct{}{} }()
 	session.refreshCancel()
 	select {
 	case <-session.refreshDone:
@@ -1718,7 +1896,7 @@ func (session *Session) Close(ctx context.Context) error {
 	session.mu.Lock()
 	if session.closed {
 		session.mu.Unlock()
-		return nil
+		return errors.Join(session.drainCellularMediaOnClose(), session.closeAccessIPSec())
 	}
 	var unregisterErr error
 	if session.evidence.Registered && ctx.Err() == nil {
@@ -1736,12 +1914,26 @@ func (session *Session) Close(ctx context.Context) error {
 	session.clearAuthentication()
 	session.mu.Unlock()
 	session.callMu.Lock()
+	var mediaToClose []*rtpMedia
+	closedAt := time.Now().UTC()
 	for _, call := range session.calls {
+		call.terminated = true
+		call.public.MediaReady = false
+		if call.public.EndedAt == nil {
+			call.public.State = "ended"
+			call.public.EndedAt = &closedAt
+		}
+		if call.mediaCancel != nil {
+			call.mediaCancel()
+		}
 		if call.media != nil {
-			_ = call.media.Close()
+			mediaToClose = append(mediaToClose, call.media)
 		}
 	}
 	session.callMu.Unlock()
+	for _, media := range mediaToClose {
+		_ = media.Close()
+	}
 	session.ussiMu.Lock()
 	for id := range session.ussiDialogs {
 		delete(session.ussiDialogs, id)
@@ -1769,17 +1961,11 @@ func (session *Session) Close(ctx context.Context) error {
 	}
 	session.closeInboundConnections()
 	session.receiveDone.Wait()
-	if session.ipsecHandle != nil {
-		// XFRM teardown is local and must still run when SIP deregistration has
-		// consumed the caller's deadline. Use a fresh bounded context so a
-		// service restart or Profile switch cannot strand the previous SIM's
-		// transport-mode policies in the kernel.
-		cleanupContext, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		err := session.ipsecHandle.Close(cleanupContext)
-		cleanupCancel()
-		if err != nil {
-			cleanupErrors = append(cleanupErrors, err)
-		}
+	if err := session.drainCellularMediaOnClose(); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
+	}
+	if err := session.closeAccessIPSec(); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
 	}
 	return errors.Join(cleanupErrors...)
 }

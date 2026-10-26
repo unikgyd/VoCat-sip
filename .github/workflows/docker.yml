@@ -62,9 +62,12 @@ jobs:
         run: |
           docker run --rm --platform '${{ matrix.platform }}' \
             vocat-smoke:${{ matrix.arch }} version
+          docker run --rm --read-only --network none --cap-drop ALL \
+            --platform '${{ matrix.platform }}' \
+            vocat-smoke:${{ matrix.arch }} media-check --require-amr --json
           docker run --rm --platform '${{ matrix.platform }}' \
             --entrypoint /bin/sh vocat-smoke:${{ matrix.arch }} -c \
-            'command -v qmicli && command -v qmi-network && command -v pcscd && test -d /usr/lib/pcsc/drivers'
+            'command -v qmicli && command -v qmi-network && command -v pcscd && find /usr/lib -name libccid.so | grep -q .'
 
   build-and-push:
     needs: smoke

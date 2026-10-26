@@ -599,10 +599,7 @@ func (session *Session) sendUSSIACK(dialog *ussiDialog) error {
 		"User-Agent: "+session.imsUserAgent(),
 		"Content-Length: 0", "", "",
 	)
-	session.writeMu.Lock()
-	_, err := session.conn.Write([]byte(strings.Join(lines, "\r\n")))
-	session.writeMu.Unlock()
-	return err
+	return session.writeRuntimePacket(session.callContext(), []byte(strings.Join(lines, "\r\n")))
 }
 
 func (session *Session) sendRejectedUSSIInviteACK(dialog *ussiDialog, response *sipResponse) error {
@@ -640,10 +637,7 @@ func (session *Session) sendRejectedUSSIInviteACK(dialog *ussiDialog, response *
 		"User-Agent: "+session.imsUserAgent(),
 		"Content-Length: 0", "", "",
 	)
-	session.writeMu.Lock()
-	_, err := session.conn.Write([]byte(strings.Join(lines, "\r\n")))
-	session.writeMu.Unlock()
-	return err
+	return session.writeRuntimePacket(session.callContext(), []byte(strings.Join(lines, "\r\n")))
 }
 
 func (session *Session) sendUSSIInfo(ctx context.Context, dialog *ussiDialog, input string) error {

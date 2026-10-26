@@ -417,6 +417,9 @@ func (manager *Manager) openEuiccOnceAID(ctx context.Context, id, aidHex string)
 	if lookupErr != nil {
 		return nil, lookupErr
 	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
+		return nil, err
+	}
 	candidate := manager.candidateFor(state)
 	if candidate.HardwareKind == pcsc.HardwareKind {
 		return manager.openPCSCEuiccOnceAID(ctx, id, candidate, aidHex)

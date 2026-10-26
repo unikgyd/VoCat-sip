@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"vocat/internal/device"
+	"vocat/internal/store"
 	"vocat/internal/vowifi"
 	"vocat/internal/vowifi/integration"
 )
@@ -13,6 +14,17 @@ import (
 type nativeQMIControllerMapper struct {
 	Mapper  integration.ATMapper
 	Devices *device.Manager
+}
+
+func (mapper nativeQMIControllerMapper) coexist(ctx context.Context, id string) (bool, error) {
+	if mapper.Mapper.Store == nil {
+		return false, nil
+	}
+	config, err := mapper.Mapper.Store.Device(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return config.Telephony != nil && !store.WiFiExclusive(config), nil
 }
 
 func (mapper nativeQMIControllerMapper) physical(configuredID string) (string, error) {
@@ -27,6 +39,13 @@ func (mapper nativeQMIControllerMapper) ReadNativeQMIIdentity(ctx context.Contex
 	physical, err := mapper.physical(id)
 	if err != nil {
 		return "", "", "", "", "", err
+	}
+	shared, err := mapper.coexist(ctx, id)
+	if err != nil {
+		return "", "", "", "", "", err
+	}
+	if shared {
+		return mapper.Devices.ReadNativeQMIIdentityCoexist(ctx, physical)
 	}
 	return mapper.Devices.ReadNativeQMIIdentity(ctx, physical)
 }
@@ -44,6 +63,13 @@ func (mapper nativeQMIControllerMapper) ProbeNativeQMIApplication(ctx context.Co
 	if err != nil {
 		return nil, "", err
 	}
+	shared, err := mapper.coexist(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+	if shared {
+		return mapper.Devices.ProbeNativeQMIApplicationCoexist(ctx, physical, preference)
+	}
 	return mapper.Devices.ProbeNativeQMIApplication(ctx, physical, preference)
 }
 
@@ -51,6 +77,13 @@ func (mapper nativeQMIControllerMapper) AuthenticateNativeQMI(ctx context.Contex
 	physical, err := mapper.physical(id)
 	if err != nil {
 		return nil, err
+	}
+	shared, err := mapper.coexist(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if shared {
+		return mapper.Devices.AuthenticateNativeQMICoexist(ctx, physical, aid, apdu)
 	}
 	return mapper.Devices.AuthenticateNativeQMI(ctx, physical, aid, apdu)
 }

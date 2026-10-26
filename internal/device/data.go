@@ -398,6 +398,9 @@ func (manager *Manager) PrepareRegistration(
 	if err := manager.validateActive(id, state); err != nil {
 		return err
 	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
+		return err
+	}
 	client, err := manager.clientLocked(ctx, state, manager.candidateFor(state))
 	if err != nil {
 		manager.setResult(id, state, nil, err)
@@ -459,11 +462,13 @@ func (manager *Manager) SetUSBNetModeByPort(
 	}
 	manager.mu.RLock()
 	var candidate modem.Candidate
+	var selected *managedDevice
 	found := false
 	for _, state := range manager.devices {
 		if state.discovered &&
 			(state.candidate.ATPort.OpenPath() == atPortPath || state.candidate.ATPort.Path == atPortPath) {
 			candidate = copyCandidate(state.candidate)
+			selected = state
 			found = true
 			break
 		}
@@ -471,6 +476,11 @@ func (manager *Manager) SetUSBNetModeByPort(
 	manager.mu.RUnlock()
 	if !found {
 		return USBNetMode{}, fmt.Errorf("no discovered device owns AT port %q", atPortPath)
+	}
+	selected.opMu.Lock()
+	defer selected.opMu.Unlock()
+	if err := manager.requireNoModuleVoice(selected); err != nil {
+		return USBNetMode{}, err
 	}
 	client, err := manager.opener.Open(ctx, candidate.ATPort)
 	if err != nil {
@@ -579,6 +589,9 @@ func (manager *Manager) SetOperatorSelection(
 	state.opMu.Lock()
 	defer state.opMu.Unlock()
 	if err := manager.validateActive(id, state); err != nil {
+		return OperatorSelection{}, err
+	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
 		return OperatorSelection{}, err
 	}
 	candidate := manager.candidateFor(state)
@@ -691,6 +704,9 @@ func (manager *Manager) ReRegisterOperator(ctx context.Context, id string) (Oper
 	state.opMu.Lock()
 	defer state.opMu.Unlock()
 	if err := manager.validateActive(id, state); err != nil {
+		return OperatorSelection{}, err
+	}
+	if err := manager.requireNoModuleVoice(state); err != nil {
 		return OperatorSelection{}, err
 	}
 	candidate := manager.candidateFor(state)

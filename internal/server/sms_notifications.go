@@ -113,6 +113,7 @@ func (s *Server) StartSMSNotificationDispatchers(ctx context.Context) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	go s.runSIPSMSSync(ctx)
 	for _, channel := range smsOnlyNotificationChannels {
 		channel := channel
 		go s.runSMSNotificationChannel(ctx, channel)

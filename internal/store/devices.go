@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -19,7 +20,35 @@ const (
 	DeviceTypeML307        = "ml307"
 	DeviceTypePCIeEC20EC25 = "pcie_ec20_ec25"
 	DeviceTypeUSBSIMReader = "usb_sim_reader"
+	IMSModeModule          = "module"
+	IMSModeVoWiFi          = "vowifi"
+	IMSModeHost            = "host_ims"
 )
+
+// EffectiveIMSMode preserves legacy VoWiFi preferences, but an explicitly
+// selected mode is independent of per-card policies and other modems.
+func EffectiveIMSMode(value Device) string {
+	if value.Telephony != nil {
+		return value.Telephony.DefaultRoute
+	}
+	if value.IMSMode != "" {
+		return value.IMSMode
+	}
+	if value.VoWiFiEnabled {
+		return IMSModeVoWiFi
+	}
+	return IMSModeModule
+}
+
+func EffectiveIMSEnabled(value Device) bool {
+	if value.Telephony != nil {
+		return AccessEnabled(value, value.Telephony.DefaultRoute) && value.Telephony.DefaultRoute != IMSModeModule
+	}
+	if value.IMSMode == "" {
+		return value.VoWiFiEnabled
+	}
+	return value.IMSMode != IMSModeModule && value.IMSEnabled
+}
 
 // NormalizeDeviceType returns a stable persisted device type identifier.
 // Empty values use the legacy EC20/EC25 type for backwards compatibility.
@@ -161,6 +190,40 @@ func upsertDevice(ctx context.Context, executor contextExecer, value Device) err
 		value.SMSEnabled = true
 		value.VoWiFiEnabled = true
 	}
+	// Explicit mode has one enable flag. Keep the old VoWiFi flag synchronized
+	// for older consumers; it must never start an RF-off path for Host IMS.
+	if value.Telephony != nil {
+		if err := value.Telephony.Validate(); err != nil {
+			return err
+		}
+		value.IMSMode = value.Telephony.DefaultRoute
+		value.IMSEnabled = EffectiveIMSEnabled(value)
+		value.VoWiFiEnabled = value.Telephony.AutoConnectWiFi
+	} else {
+		switch value.IMSMode {
+		case "":
+			value.IMSEnabled = false
+		case IMSModeModule:
+			value.IMSEnabled, value.VoWiFiEnabled = false, false
+		case IMSModeVoWiFi:
+			value.VoWiFiEnabled = value.IMSEnabled
+		case IMSModeHost:
+			if value.DeviceType == DeviceTypeUSBSIMReader {
+				return errors.New("Host IMS requires a cellular modem")
+			}
+			value.VoWiFiEnabled = false
+		default:
+			return errors.New("unsupported IMS mode")
+		}
+	}
+	telephony := ""
+	if value.Telephony != nil {
+		raw, err := json.Marshal(value.Telephony)
+		if err != nil {
+			return err
+		}
+		telephony = string(raw)
+	}
 	extra, err := normalizeJSONObject(value.Extra)
 	if err != nil {
 		return fmt.Errorf("normalize device extra data: %w", err)
@@ -181,9 +244,9 @@ func upsertDevice(ctx context.Context, executor contextExecer, value Device) err
 			audio_device, modem_imei, sim_pin, apn, proxy_port, baud_rate,
 			data_bits, stop_bits, parity, device_backend, esim_transport,
 			qmi_use_proxy, qmi_proxy_path, qmi_proxy_executable,
-			network_enabled, sms_enabled, vowifi_enabled, extra_json,
-			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			network_enabled, sms_enabled, vowifi_enabled, ims_mode, ims_enabled, extra_json,
+			created_at, updated_at, telephony_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			name = excluded.name,
 			device_type = excluded.device_type,
@@ -208,6 +271,9 @@ func upsertDevice(ctx context.Context, executor contextExecer, value Device) err
 			network_enabled = excluded.network_enabled,
 			sms_enabled = excluded.sms_enabled,
 			vowifi_enabled = excluded.vowifi_enabled,
+			ims_mode = excluded.ims_mode,
+			ims_enabled = excluded.ims_enabled,
+			telephony_json = excluded.telephony_json,
 			extra_json = excluded.extra_json,
 			updated_at = excluded.updated_at
 	`,
@@ -217,8 +283,8 @@ func upsertDevice(ctx context.Context, executor contextExecer, value Device) err
 		value.Parity, value.DeviceBackend, value.ESIMTransport,
 		boolInt(value.QMIUseProxy), value.QMIProxyPath, value.QMIProxyExecutable,
 		boolInt(value.NetworkEnabled), boolInt(value.SMSEnabled),
-		boolInt(value.VoWiFiEnabled), string(extra), createdAt.Unix(),
-		updatedAt.Unix(),
+		boolInt(value.VoWiFiEnabled), value.IMSMode, boolInt(value.IMSEnabled), string(extra), createdAt.Unix(),
+		updatedAt.Unix(), telephony,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert device %q: %w", value.ID, err)
@@ -305,13 +371,14 @@ const deviceSelect = `
 		audio_device, modem_imei, sim_pin, apn, proxy_port, baud_rate, data_bits,
 		stop_bits, parity, device_backend, esim_transport, qmi_use_proxy,
 		qmi_proxy_path, qmi_proxy_executable, network_enabled, sms_enabled,
-		vowifi_enabled, extra_json, created_at, updated_at
+		vowifi_enabled, ims_mode, ims_enabled, extra_json, created_at, updated_at, telephony_json
 	FROM devices`
 
 func scanDevice(row rowScanner) (Device, error) {
 	var value Device
-	var qmiUseProxy, networkEnabled, smsEnabled, vowifiEnabled int
+	var qmiUseProxy, networkEnabled, smsEnabled, vowifiEnabled, imsEnabled int
 	var extra string
+	var telephony string
 	var createdAt, updatedAt int64
 	err := row.Scan(
 		&value.ID, &value.Name, &value.DeviceType, &value.Interface, &value.ControlDevice,
@@ -320,7 +387,7 @@ func scanDevice(row rowScanner) (Device, error) {
 		&value.StopBits, &value.Parity, &value.DeviceBackend,
 		&value.ESIMTransport, &qmiUseProxy, &value.QMIProxyPath,
 		&value.QMIProxyExecutable, &networkEnabled, &smsEnabled,
-		&vowifiEnabled, &extra, &createdAt, &updatedAt,
+		&vowifiEnabled, &value.IMSMode, &imsEnabled, &extra, &createdAt, &updatedAt, &telephony,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Device{}, ErrNotFound
@@ -332,6 +399,16 @@ func scanDevice(row rowScanner) (Device, error) {
 	value.NetworkEnabled = networkEnabled != 0
 	value.SMSEnabled = smsEnabled != 0
 	value.VoWiFiEnabled = vowifiEnabled != 0
+	value.IMSEnabled = imsEnabled != 0
+	if telephony != "" {
+		value.Telephony = &TelephonyPolicy{}
+		if err := json.Unmarshal([]byte(telephony), value.Telephony); err != nil {
+			return Device{}, err
+		}
+		if err := value.Telephony.Validate(); err != nil {
+			return Device{}, err
+		}
+	}
 	value.DeviceType = NormalizeDeviceType(value.DeviceType)
 	value.Extra = []byte(extra)
 	value.CreatedAt = time.Unix(createdAt, 0).UTC()

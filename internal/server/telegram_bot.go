@@ -19,6 +19,7 @@ import (
 
 	"vocat/internal/device"
 	"vocat/internal/modem"
+	"vocat/internal/modulecall"
 	"vocat/internal/store"
 	"vocat/internal/vowifi"
 	vowifiruntime "vocat/internal/vowifi/runtime"
@@ -714,11 +715,11 @@ func (bot *telegramBot) sendVoWiFiMenu(ctx context.Context, config telegramRunti
 		bot.sendText(ctx, config, chatID, "VoWiFi 不可用："+err.Error(), bot.homeKeyboard())
 		return
 	}
-	if bot.server.vowifi == nil {
+	if bot.server.wifiController() == nil {
 		bot.sendText(ctx, config, chatID, "VoWiFi runtime 不可用。", bot.homeKeyboard())
 		return
 	}
-	state, stateErr := bot.server.vowifi.State(deviceID)
+	state, stateErr := bot.server.wifiController().State(deviceID)
 	if stateErr != nil {
 		bot.sendText(ctx, config, chatID, "读取 VoWiFi 状态失败："+stateErr.Error(), bot.homeKeyboard())
 		return
@@ -1406,46 +1407,32 @@ func (bot *telegramBot) executeSMS(ctx context.Context, action telegramPendingAc
 }
 
 func (bot *telegramBot) executeESIMSwitch(ctx context.Context, action telegramPendingAction) (string, error) {
-	stored, _, physicalID, err := bot.device(action.DeviceID)
+	_, _, physicalID, err := bot.device(action.DeviceID)
 	if err != nil {
 		return "", err
 	}
-	operationContext, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-	desiredData := stored.NetworkEnabled && !stored.VoWiFiEnabled
-	dataRuntime := bot.server.cellularDataRuntime()
-	bot.server.clearPublicIP(stored.ID)
-	dataRuntime.invalidateWithMaintenancePhase(stored.ID, desiredData, "recovering", "", "profile_switching")
-	switchCompleted := false
-	defer func() {
-		if !switchCompleted {
-			dataRuntime.invalidate(stored.ID, desiredData, "failed", "Telegram eSIM profile switch did not complete")
-		}
-	}()
-	if err := bot.server.devices.ESIMSwitchProfile(operationContext, physicalID, action.TargetICCID, action.TargetAID); err != nil {
+	body, err := json.Marshal(map[string]string{"iccid": action.TargetICCID, "aid_hex": action.TargetAID})
+	if err != nil {
 		return "", err
 	}
-	if desiredData {
-		snapshot, refreshErr := bot.server.devices.Refresh(operationContext, physicalID)
-		if refreshErr != nil {
-			return "", fmt.Errorf("refresh modem after profile switch: %w", refreshErr)
-		}
-		request := bot.server.cellularNetworkRequest(operationContext, stored, &snapshot)
-		request.Enabled = true
-		dataRuntime.requestWithIdentity(stored.ID, physicalID, request, strings.TrimSpace(snapshot.ICCID))
-	} else {
-		dataRuntime.invalidate(stored.ID, false, "disabled", "")
+	request := httptest.NewRequest(http.MethodPost, "/api/devices/"+action.DeviceID+"/esim/actions/switch", bytes.NewReader(body)).WithContext(ctx)
+	recorder := httptest.NewRecorder()
+	bot.server.handleESIM(recorder, request, []string{"actions", "switch"}, physicalID, true, action.DeviceID)
+	if recorder.Code >= 400 {
+		return "", errors.New(compactAutomaticResponse(recorder.Body.Bytes()))
 	}
-	switchCompleted = true
 	return "Profile 切换成功，模块恢复后已校验当前 ICCID：" + action.TargetICCID, nil
 }
 
 func (bot *telegramBot) executeTimedCall(ctx context.Context, config telegramRuntimeConfig, action telegramPendingAction) (string, error) {
+	lock := bot.server.imsModeLock(action.DeviceID)
+	lock.RLock()
+	defer lock.RUnlock()
 	stored, entry, physicalID, err := bot.device(action.DeviceID)
 	if err != nil {
 		return "", err
 	}
-	transport, controller, err := bot.telegramCallTransport(stored, entry)
+	_, controller, err := bot.telegramCallTransport(stored, entry)
 	if err != nil {
 		return "", err
 	}
@@ -1454,13 +1441,16 @@ func (bot *telegramBot) executeTimedCall(ctx context.Context, config telegramRun
 	}
 	defer bot.endTelegramDial(action.DeviceID)
 
-	if transport == "vowifi" {
+	if controller != nil {
 		return bot.executeTimedVoWiFiCall(ctx, config, action, controller)
 	}
 	return bot.executeTimedCellularCall(ctx, config, action, physicalID)
 }
 
 func (bot *telegramBot) executeSimpleCallAction(ctx context.Context, config telegramRuntimeConfig, chatID, adminID int64, deviceID, action string) {
+	lock := bot.server.imsModeLock(deviceID)
+	lock.RLock()
+	defer lock.RUnlock()
 	if deviceID == "" {
 		bot.sendText(ctx, config, chatID, fmt.Sprintf("用法：/%s <设备ID>", map[string]string{"status": "calls", "answer": "answer", "hangup": "hangup"}[action]), nil)
 		return
@@ -1473,9 +1463,10 @@ func (bot *telegramBot) executeSimpleCallAction(ctx context.Context, config tele
 	transport, controller, err := bot.telegramCallTransport(stored, entry)
 	result := ""
 	if err == nil {
-		if transport == "vowifi" {
+		if controller != nil {
 			result, err = bot.executeSimpleVoWiFiCallAction(ctx, deviceID, action, controller)
 		} else {
+			bot.server.moduleCallScopes.Delete(deviceID)
 			result, err = bot.executeSimpleCellularCallAction(ctx, physicalID, action)
 		}
 	}
@@ -1490,7 +1481,15 @@ func (bot *telegramBot) executeSimpleCallAction(ctx context.Context, config tele
 }
 
 func (bot *telegramBot) telegramCallTransport(stored store.Device, entry device.Device) (string, VoWiFiCallController, error) {
-	if stored.VoWiFiEnabled {
+	if stored.Telephony != nil {
+		return bot.server.callTransportForConfig(stored), telephonyCallController{bot.server}, nil
+	}
+	if controller := bot.server.moduleCalls; controller != nil && (controller.Busy(stored.ID) || stored.IMSMode == store.IMSModeModule && controller.Available(context.Background(), stored.ID) == nil) {
+		// Status and cleanup keep the original owner even while its device is
+		// unavailable. A new dial performs audio and source admission itself.
+		return "module_usb", controller, nil
+	}
+	if stored.VoWiFiEnabled || stored.IMSMode != "" && store.EffectiveIMSMode(stored) != store.IMSModeModule {
 		if bot.server.vowifi == nil {
 			return "", nil, errors.New("设备卡片处于 VoWiFi 模式，但 VoWiFi 运行时不可用")
 		}
@@ -1506,6 +1505,9 @@ func (bot *telegramBot) telegramCallTransport(stored store.Device, entry device.
 		if !ok {
 			return "", nil, errors.New("当前 VoWiFi 运行时不支持 IMS 通话信令")
 		}
+		if store.HostIMSConfigured(stored) {
+			return store.IMSModeHost, controller, nil
+		}
 		return "vowifi", controller, nil
 	}
 	if entry.Snapshot != nil && entry.Snapshot.FlightMode {
@@ -1515,6 +1517,12 @@ func (bot *telegramBot) telegramCallTransport(stored store.Device, entry device.
 }
 
 func telegramCallTransportLabel(transport string) string {
+	if transport == "module_usb" {
+		return "模组 USB 语音"
+	}
+	if transport == "host_ims" {
+		return "Host IMS"
+	}
 	if transport == "vowifi" {
 		return "VoWiFi IMS"
 	}
@@ -1546,16 +1554,17 @@ func (bot *telegramBot) executeTimedVoWiFiCall(
 	action telegramPendingAction,
 	controller VoWiFiCallController,
 ) (string, error) {
+	label := telegramControllerLabel(controller)
 	dialContext, cancelDial := context.WithTimeout(ctx, 20*time.Second)
 	call, err := controller.DialCall(dialContext, action.DeviceID, action.Argument)
 	cancelDial()
 	if err != nil {
-		return "", fmt.Errorf("VoWiFi IMS 拨号失败: %w", err)
+		return "", fmt.Errorf("%s 拨号失败: %w", label, err)
 	}
 	hangupAt := time.Now().Add(action.Duration)
 	_ = bot.sendText(ctx, config, action.ChatID, fmt.Sprintf(
-		"📞 已通过 VoWiFi IMS 提交 %s，Call-ID：%s\n将在 %d 秒后自动挂断，并持续检查 SIP 结果。",
-		action.Argument, call.ID, int(action.Duration/time.Second),
+		"📞 已通过 %s 提交 %s，Call-ID：%s\n将在 %d 秒后自动挂断，并持续检查原通话状态。",
+		label, action.Argument, call.ID, int(action.Duration/time.Second),
 	), nil)
 
 	timer := time.NewTimer(time.Until(hangupAt))
@@ -1573,10 +1582,10 @@ func (bot *telegramBot) executeTimedVoWiFiCall(
 			current, found, listErr := telegramFindVoWiFiCall(controller, action.DeviceID, call.ID)
 			if listErr != nil {
 				bot.bestEffortVoWiFiHangup(controller, action.DeviceID, call.ID)
-				return "", fmt.Errorf("读取 IMS 通话状态失败: %w", listErr)
+				return "", fmt.Errorf("读取通话状态失败: %w", listErr)
 			}
 			if found && current.State == "failed" {
-				return telegramVoWiFiCallOutcome(action.Argument, current)
+				return telegramControlledCallOutcome(controller, action.Argument, current)
 			}
 			if found {
 				lastState = current.State
@@ -1589,37 +1598,51 @@ func (bot *telegramBot) executeTimedVoWiFiCall(
 				err = controller.HangupCall(hangContext, action.DeviceID, call.ID)
 				cancel()
 				if err != nil {
-					return "", fmt.Errorf("VoWiFi 拨号已执行，但自动挂断失败: %w", err)
+					return "", fmt.Errorf("%s 拨号已执行，但自动挂断失败: %w", label, err)
 				}
 			}
 			if seenNetwork {
-				return fmt.Sprintf("VoWiFi 拨号完成：%s；已确认 %s，%d 秒后自动挂断。", action.Argument, telegramIMSStateLabel(lastState), int(action.Duration/time.Second)), nil
+				return fmt.Sprintf("%s 拨号完成：%s；已确认 %s，%d 秒后自动挂断。", label, action.Argument, telegramIMSStateLabel(lastState), int(action.Duration/time.Second)), nil
 			}
-			return fmt.Sprintf("VoWiFi INVITE 已发送并在 %d 秒后取消；运营商未返回振铃或接通确认。", int(action.Duration/time.Second)), nil
+			return fmt.Sprintf("%s 呼叫已提交并在 %d 秒后取消；未收到振铃或接通确认。", label, int(action.Duration/time.Second)), nil
 		case <-ticker.C:
 			current, found, listErr := telegramFindVoWiFiCall(controller, action.DeviceID, call.ID)
 			if listErr != nil {
 				bot.bestEffortVoWiFiHangup(controller, action.DeviceID, call.ID)
-				return "", fmt.Errorf("读取 IMS 通话状态失败: %w", listErr)
+				return "", fmt.Errorf("读取通话状态失败: %w", listErr)
 			}
 			if !found {
 				bot.bestEffortVoWiFiHangup(controller, action.DeviceID, call.ID)
-				return "", errors.New("IMS 通话记录在拨号过程中消失")
+				return "", errors.New("原通话记录在拨号过程中消失")
 			}
 			lastState = current.State
 			switch current.State {
 			case "ringing", "active":
 				seenNetwork = true
 			case "failed":
-				return telegramVoWiFiCallOutcome(action.Argument, current)
+				return telegramControlledCallOutcome(controller, action.Argument, current)
 			case "ended":
 				if seenNetwork {
-					return fmt.Sprintf("VoWiFi 通话 %s 已由网络或对端提前结束（最后状态：%s）。", action.Argument, telegramIMSStateLabel(lastState)), nil
+					return fmt.Sprintf("%s 通话 %s 已由网络或对端提前结束（最后状态：%s）。", label, action.Argument, telegramIMSStateLabel(lastState)), nil
 				}
-				return fmt.Sprintf("📴 VoWiFi 呼叫 %s 在振铃前结束%s。", action.Argument, telegramSIPDiagnostic(current)), nil
+				return fmt.Sprintf("📴 %s 呼叫 %s 在振铃前结束%s。", label, action.Argument, telegramSIPDiagnostic(current)), nil
 			}
 		}
 	}
+}
+
+func telegramControllerLabel(controller VoWiFiCallController) string {
+	if _, ok := controller.(*modulecall.Manager); ok {
+		return "模组 USB 语音"
+	}
+	return "VoWiFi IMS"
+}
+
+func telegramControlledCallOutcome(controller VoWiFiCallController, number string, call vowifi.Call) (string, error) {
+	if _, ok := controller.(*modulecall.Manager); ok {
+		return "", fmt.Errorf("模组呼叫 %s 失败%s", number, telegramSIPDiagnostic(call))
+	}
+	return telegramVoWiFiCallOutcome(number, call)
 }
 
 func telegramFindVoWiFiCall(controller VoWiFiCallController, deviceID, callID string) (vowifi.Call, bool, error) {
@@ -1869,6 +1892,7 @@ func (bot *telegramBot) bestEffortCellularHangup(physicalID string) {
 }
 
 func (bot *telegramBot) executeSimpleVoWiFiCallAction(ctx context.Context, deviceID, action string, controller VoWiFiCallController) (string, error) {
+	label := telegramControllerLabel(controller)
 	calls, err := controller.Calls(deviceID)
 	if err != nil {
 		return "", err
@@ -1877,17 +1901,20 @@ func (bot *telegramBot) executeSimpleVoWiFiCallAction(ctx context.Context, devic
 	defer cancel()
 	switch action {
 	case "status":
-		return formatTelegramIMSCalls(calls), nil
+		return strings.ReplaceAll(formatTelegramIMSCalls(calls), "VoWiFi IMS", label), nil
 	case "answer":
 		callID, err := resolveVoWiFiCallID(controller, deviceID, "", "ringing")
 		if err != nil {
+			return "", err
+		}
+		if err := bot.server.claimLocalSIPAnswer(deviceID, callID); err != nil {
 			return "", err
 		}
 		call, err := controller.AnswerCall(operationContext, deviceID, callID)
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("📞 已通过 VoWiFi IMS 接听 %s（%s）。", firstNonEmpty(call.Number, "未知号码"), call.ID), nil
+		return fmt.Sprintf("📞 已通过 %s 提交接听 %s（%s），接通状态以原通话记录为准。", label, firstNonEmpty(call.Number, "未知号码"), call.ID), nil
 	case "hangup":
 		count := 0
 		var failures []string
@@ -1905,9 +1932,9 @@ func (bot *telegramBot) executeSimpleVoWiFiCallAction(ctx context.Context, devic
 			return "", errors.New(strings.Join(failures, "; "))
 		}
 		if count == 0 {
-			return "", errors.New("当前没有可挂断的 VoWiFi 通话")
+			return "", errors.New("当前没有可挂断的通话")
 		}
-		return fmt.Sprintf("已通过 VoWiFi IMS 挂断 %d 路通话。", count), nil
+		return fmt.Sprintf("已通过 %s 挂断 %d 路通话。", label, count), nil
 	default:
 		return "", errors.New("未知通话操作")
 	}
@@ -2017,13 +2044,19 @@ func (bot *telegramBot) handleATCommand(ctx context.Context, config telegramRunt
 }
 
 func (bot *telegramBot) executeATCommand(ctx context.Context, deviceID, command string) (string, error) {
+	lock := bot.server.imsModeLock(deviceID)
+	lock.RLock()
+	defer lock.RUnlock()
 	command = strings.TrimSpace(command)
 	if err := validateATCommand(command, false); err != nil {
 		return "", err
 	}
-	_, _, physicalID, err := bot.device(deviceID)
+	stored, _, physicalID, err := bot.device(deviceID)
 	if err != nil {
 		return "", err
+	}
+	if store.HostIMSConfigured(stored) {
+		return "", errors.New("请先切换为模块模式并确认 Host IMS 清理完成，再执行 AT 指令")
 	}
 	operationContext, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
@@ -2159,6 +2192,14 @@ func formatTelegramUSSD(deviceID string, result device.USSDResult) string {
 }
 
 func (bot *telegramBot) handleVoWiFi(ctx context.Context, config telegramRuntimeConfig, chatID, adminID int64, deviceID, operation string) {
+	lock := bot.server.imsModeLock(deviceID)
+	lock.RLock()
+	locked := true
+	defer func() {
+		if locked {
+			lock.RUnlock()
+		}
+	}()
 	stored, entry, physicalID, err := bot.device(deviceID)
 	if err != nil {
 		bot.sendText(ctx, config, chatID, "VoWiFi 操作失败："+err.Error(), bot.homeKeyboard())
@@ -2169,6 +2210,16 @@ func (bot *telegramBot) handleVoWiFi(ctx context.Context, config telegramRuntime
 		return
 	}
 	operation = strings.ToLower(strings.TrimSpace(operation))
+	if stored.Telephony != nil {
+		lock.RUnlock()
+		locked = false
+		bot.handleIndependentVoWiFi(ctx, config, chatID, adminID, stored, operation)
+		return
+	}
+	if stored.IMSMode != "" && store.EffectiveIMSMode(stored) != store.IMSModeVoWiFi && operation != "status" {
+		bot.sendText(ctx, config, chatID, "该设备不使用 VoWiFi；请在 IMS 线路设置中切换模式。", bot.homeKeyboard())
+		return
+	}
 	if operation == "status" {
 		bot.sendVoWiFiMenu(ctx, config, chatID, adminID, deviceID)
 		return
@@ -2188,6 +2239,7 @@ func (bot *telegramBot) handleVoWiFi(ctx context.Context, config telegramRuntime
 			}
 		}
 		previous := stored.VoWiFiEnabled
+		previousIMSEnabled := stored.IMSEnabled
 		dataRuntime := bot.server.cellularDataRuntime()
 		desiredData := stored.NetworkEnabled && !stored.VoWiFiEnabled
 		maintenancePhase := "disabled"
@@ -2227,6 +2279,9 @@ func (bot *telegramBot) handleVoWiFi(ctx context.Context, config telegramRuntime
 			}
 		}
 		stored.VoWiFiEnabled = enabled
+		if stored.IMSMode != "" {
+			stored.IMSEnabled = enabled
+		}
 		stored.NetworkEnabled = false
 		if err = bot.server.store.UpsertDevice(ctx, stored); err == nil {
 			dataRuntime.invalidate(stored.ID, false, "disabled", "")
@@ -2234,6 +2289,7 @@ func (bot *telegramBot) handleVoWiFi(ctx context.Context, config telegramRuntime
 		}
 		if err != nil {
 			stored.VoWiFiEnabled = previous
+			stored.IMSEnabled = previousIMSEnabled
 			_ = bot.server.store.UpsertDevice(ctx, stored)
 			if iccid != "" {
 				if policy, policyErr := bot.server.store.CardPolicy(ctx, iccid); policyErr == nil {
@@ -2644,4 +2700,38 @@ func waitSMSInserted(ctx context.Context, duration time.Duration, inserted <-cha
 
 func waitTelegram(ctx context.Context, duration time.Duration) bool {
 	return waitSMSInserted(ctx, duration, nil)
+}
+
+func (bot *telegramBot) handleIndependentVoWiFi(ctx context.Context, config telegramRuntimeConfig, chatID, adminID int64, stored store.Device, operation string) {
+	if operation == "status" {
+		bot.sendVoWiFiMenu(ctx, config, chatID, adminID, stored.ID)
+		return
+	}
+	recorder := httptest.NewRecorder()
+	switch operation {
+	case "on", "off":
+		policy := *stored.Telephony
+		policy.AutoConnectWiFi = operation == "on"
+		body, err := json.Marshal(policy)
+		if err != nil {
+			bot.sendText(ctx, config, chatID, "线路设置编码失败", bot.homeKeyboard())
+			return
+		}
+		request := httptest.NewRequest(http.MethodPatch, "/api/devices/"+stored.ID+"/telephony", bytes.NewReader(body)).WithContext(ctx)
+		bot.server.handleTelephonyPolicy(recorder, request, stored)
+	case "reconnect":
+		request := httptest.NewRequest(http.MethodPost, "/api/devices/"+stored.ID+"/telephony/actions/reconnect", nil).WithContext(ctx)
+		bot.server.handleTelephonyReconnect(recorder, request, stored, store.IMSModeVoWiFi)
+	default:
+		bot.sendText(ctx, config, chatID, "操作必须是 status、on、off 或 reconnect。", nil)
+		return
+	}
+	outcome := "success"
+	if recorder.Code >= 400 {
+		outcome = "failure"
+		bot.sendText(ctx, config, chatID, "VoWiFi 操作失败："+compactAutomaticResponse(recorder.Body.Bytes()), bot.homeKeyboard())
+	} else {
+		bot.sendText(ctx, config, chatID, "VoWiFi 操作已受理。蜂窝连接和默认线路保持原设置。", bot.homeKeyboard())
+	}
+	bot.server.recordAudit(ctx, fmt.Sprintf("telegram:%d", adminID), "telegram.vowifi."+operation, "device", stored.ID, outcome, "telegram")
 }

@@ -30,8 +30,10 @@ func TestMigration25PreservesTasksAndRuns(t *testing.T) {
 	if _, err := raw.ExecContext(ctx, "PRAGMA user_version = 24"); err != nil {
 		t.Fatal(err)
 	}
-	legacy := &Store{db: raw}
-	mustSaveDevice(t, legacy, "modem", "Modem")
+	// Seed the historical schema without invoking the current-schema writer.
+	if _, err := raw.ExecContext(ctx, `INSERT INTO devices(id,name,created_at,updated_at) VALUES ('modem','Modem',100,100)`); err != nil {
+		t.Fatal(err)
+	}
 	taskNextRun := time.Now().Add(time.Hour).Unix()
 	nowUnix := time.Now().Unix()
 	res, err := raw.ExecContext(ctx, `INSERT INTO automatic_tasks (

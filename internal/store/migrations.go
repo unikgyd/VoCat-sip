@@ -528,6 +528,43 @@ func migrationStatements(version int) []string {
 			)`,
 			`CREATE INDEX IF NOT EXISTS sms_raw_records_device_idx ON sms_raw_records(device_id, id DESC)`,
 		}
+	case 28:
+		return []string{
+			// An empty mode retains legacy per-card VoWiFi policy until a user
+			// explicitly chooses a line mode. Never auto-enable cellular Host IMS.
+			`ALTER TABLE devices ADD COLUMN ims_mode TEXT NOT NULL DEFAULT ''
+				CHECK (ims_mode IN ('', 'module', 'vowifi', 'host_ims'))`,
+			`ALTER TABLE devices ADD COLUMN ims_enabled INTEGER NOT NULL DEFAULT 0
+				CHECK (ims_enabled IN (0, 1))`,
+		}
+	case 29:
+		return []string{
+			// Receipts deliberately have no Inbox foreign key: deleting the local
+			// message must not make an old delivery eligible for a new account.
+			`CREATE TABLE IF NOT EXISTS sms_forward_receipts (
+				source_key TEXT PRIMARY KEY NOT NULL,
+				fingerprint TEXT NOT NULL,
+				expires_at INTEGER NOT NULL
+			)`,
+			`CREATE INDEX IF NOT EXISTS sms_forward_receipts_expiry_idx ON sms_forward_receipts(expires_at)`,
+			`CREATE TABLE IF NOT EXISTS sms_forward_receipt_state (
+				id INTEGER PRIMARY KEY CHECK (id = 1),
+				initialized INTEGER NOT NULL,
+				guard_until INTEGER NOT NULL
+			)`,
+			`INSERT OR IGNORE INTO sms_forward_receipt_state(id,initialized,guard_until) VALUES(1,0,0)`,
+		}
+	case 30:
+		return []string{
+			// Identity cannot be inferred during a database upgrade. Bind legacy
+			// preferences only after the application has observed the live SIM.
+			`ALTER TABLE devices ADD COLUMN telephony_json TEXT NOT NULL DEFAULT ''`,
+			`CREATE TABLE sim_telephony_policies (
+				iccid TEXT PRIMARY KEY NOT NULL,
+				policy_json TEXT NOT NULL,
+				updated_at INTEGER NOT NULL
+			)`,
+		}
 	default:
 		return nil
 	}

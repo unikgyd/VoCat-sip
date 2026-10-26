@@ -182,11 +182,50 @@ func newCellularDataRuntime(setter cellularNetworkSetter, logger *slog.Logger, c
 
 func (s *Server) cellularDataRuntime() *cellularDataRuntime {
 	s.cellularDataOnce.Do(func() {
-		s.cellularData = newCellularDataRuntime(s.devices, s.logger, func(configID, physicalID string, revision uint64) {
+		s.cellularData = newCellularDataRuntime(imsAwareNetworkSetter{s}, s.logger, func(configID, physicalID string, revision uint64) {
 			s.schedulePublicIPDetection(configID, physicalID, revision)
 		})
 	})
 	return s.cellularData
+}
+
+type imsAwareNetworkSetter struct{ server *Server }
+
+func (setter imsAwareNetworkSetter) SetNetwork(ctx context.Context, physicalID string, request device.NetworkRequest) (device.NetworkResult, error) {
+	s := setter.server
+	if s.store == nil || s.devices == nil {
+		return device.NetworkResult{}, device.ErrDataBackendUnavailable
+	}
+	configs, err := s.store.ListDevices(ctx)
+	if err != nil {
+		return device.NetworkResult{}, err
+	}
+	for _, candidate := range configs {
+		_, resolved, present := s.physicalForConfig(candidate)
+		if !present || resolved != physicalID {
+			continue
+		}
+		lock := s.imsModeLock(candidate.ID)
+		lock.RLock()
+		defer lock.RUnlock()
+		current, err := s.store.Device(ctx, candidate.ID)
+		if err != nil {
+			return device.NetworkResult{}, err
+		}
+		_, resolved, present = s.physicalForConfig(current)
+		if !present || resolved != physicalID || store.HostIMSConfigured(current) {
+			return device.NetworkResult{}, device.ErrDataBackendUnavailable
+		}
+		return s.devices.SetNetwork(ctx, physicalID, request)
+	}
+	return device.NetworkResult{}, device.ErrNotFound
+}
+func (s *Server) legacyDataOwnerBusy(id string) bool {
+	runtime := s.cellularDataRuntime()
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	entry := runtime.entries[id]
+	return entry != nil && (entry.running || entry.status.Connected || entry.status.Phase == "failed" || entry.session != nil && entry.session.phase != cellularDataSessionClosed)
 }
 
 func (runtime *cellularDataRuntime) start(ctx context.Context) {
@@ -243,16 +282,7 @@ func (s *Server) StartCellularDataReconciler(ctx context.Context) {
 			return
 		}
 		for _, config := range configs {
-			if config.VoWiFiEnabled {
-				continue
-			}
-			entry, physicalID, present := s.physicalForConfig(config)
-			if !present || entry.Snapshot == nil {
-				continue
-			}
-			request := s.cellularNetworkRequest(ctx, config, entry.Snapshot)
-			request.Enabled = config.NetworkEnabled
-			runtime.requestWithIdentity(config.ID, physicalID, request, strings.TrimSpace(entry.Snapshot.ICCID))
+			s.restoreLegacyCellularDataForDevice(ctx, config.ID, "", false)
 		}
 	}()
 }
@@ -294,19 +324,26 @@ func (s *Server) reconcileCellularDataForPhysical(ctx context.Context, physicalI
 	if err != nil {
 		return
 	}
-	runtime := s.cellularDataRuntime()
 	for _, config := range configs {
-		if !config.NetworkEnabled || config.VoWiFiEnabled {
-			continue
-		}
-		entry, resolvedPhysicalID, present := s.physicalForConfig(config)
-		if !present || resolvedPhysicalID != physicalID || entry.Snapshot == nil {
-			continue
-		}
-		request := s.cellularNetworkRequest(ctx, config, entry.Snapshot)
-		request.Enabled = true
-		runtime.requestWithIdentity(config.ID, physicalID, request, strings.TrimSpace(entry.Snapshot.ICCID))
+		s.restoreLegacyCellularDataForDevice(ctx, config.ID, physicalID, true)
 	}
+}
+
+func (s *Server) restoreLegacyCellularDataForDevice(ctx context.Context, id, physicalFilter string, onlyEnabled bool) {
+	lock := s.imsModeLock(id)
+	lock.RLock()
+	defer lock.RUnlock()
+	config, err := s.store.Device(ctx, id)
+	if err != nil || (config.VoWiFiEnabled && store.WiFiExclusive(config)) || store.HostIMSConfigured(config) || onlyEnabled && !config.NetworkEnabled {
+		return
+	}
+	entry, physicalID, present := s.physicalForConfig(config)
+	if !present || entry.Snapshot == nil || physicalFilter != "" && physicalID != physicalFilter {
+		return
+	}
+	request := s.cellularNetworkRequest(ctx, config, entry.Snapshot)
+	request.Enabled = config.NetworkEnabled
+	s.cellularDataRuntime().requestWithIdentity(id, physicalID, request, strings.TrimSpace(entry.Snapshot.ICCID))
 }
 
 // runCellularDataMonitor periodically reconciles desired cellular data
@@ -381,88 +418,98 @@ func (s *Server) monitorCellularData(ctx context.Context, physicalID string, imm
 		}
 		return
 	}
-	runtime := s.cellularDataRuntime()
 	for _, config := range configs {
 		if ctx.Err() != nil {
 			return
 		}
-		if !config.NetworkEnabled || config.VoWiFiEnabled {
-			continue
-		}
-		status, _, present := runtime.monitorCandidate(config.ID)
-		if !present || !status.DesiredEnabled || status.Revision == 0 || status.ModemPhase == "rebooting" || status.MaintenancePhase != "" {
-			continue
-		}
-		if status.Phase != "connected" && status.Phase != "failed" {
-			continue
-		}
-
-		entry, resolvedPhysicalID, physicalPresent := s.physicalForConfig(config)
-		if !physicalPresent || entry.Snapshot == nil {
-			// A USB disappearance is handled by the normal device lifecycle. Do
-			// not count it as a data failure or reset a modem that is not present.
-			runtime.closeIfPhysicalAbsent(config.ID)
-			continue
-		}
-		if physicalID != "" && resolvedPhysicalID != physicalID {
-			continue
-		}
-		request := s.cellularNetworkRequest(ctx, config, entry.Snapshot)
-		request.Enabled = true
-		identity := strings.TrimSpace(entry.Snapshot.ICCID)
-		if runtime.sessionIdentityChanged(config.ID, status.Revision, identity) {
-			runtime.invalidateWithMaintenancePhase(config.ID, true, "recovering", "active ICCID/Profile changed", "profile_changed")
-			runtime.requestWithIdentity(config.ID, resolvedPhysicalID, request, identity)
-			continue
-		}
-		backend := strings.ToLower(strings.TrimSpace(request.Backend))
-		if backend != "" && backend != "qmi" {
-			// NetworkStatus observes the process-owned QMI session. AT-backed
-			// sessions have no equivalent live observer yet.
-			continue
-		}
-		releaseWatchdog, admitted := runtime.acquireWatchdog(config.ID, status.Revision)
-		if !admitted {
-			continue
-		}
-
-		probeContext, cancel := context.WithTimeout(ctx, cellularDataMonitorProbeTimeout)
-		observed, probeErr := observer.NetworkStatus(probeContext, resolvedPhysicalID)
-		cancel()
-		if ctx.Err() != nil {
-			releaseWatchdog()
-			return
-		}
-		if errors.Is(probeErr, device.ErrDataOperationInProgress) ||
-			errors.Is(probeErr, device.ErrDataBackendUnavailable) {
-			releaseWatchdog()
-			continue
-		}
-		if probeErr == nil && observed.Connected {
-			runtime.recordProbeSuccess(config.ID, status.Revision)
-			releaseWatchdog()
-			continue
-		}
-
-		detail := strings.TrimSpace(observed.Detail)
-		if detail == "" && probeErr != nil {
-			detail = probeErr.Error()
-		}
-		if detail == "" {
-			detail = "cellular data session is disconnected"
-		}
-		candidate, reconnect := runtime.recordProbeFailure(config.ID, status.Revision, detail, immediateFailure)
-		if !reconnect {
-			releaseWatchdog()
-			continue
-		}
-		if _, accepted := runtime.requestIfCurrent(config.ID, candidate.Revision, "recovering", resolvedPhysicalID, request); accepted {
-			if s.logger != nil {
-				s.logger.Warn("cellular data monitor is reconnecting", "device_id", config.ID, "interface", config.Interface, "reason", detail)
-			}
-		}
-		releaseWatchdog()
+		s.monitorCellularDataForDevice(ctx, observer, config.ID, physicalID, immediateFailure)
 	}
+}
+func (s *Server) monitorCellularDataForDevice(ctx context.Context, observer cellularNetworkStatusController, id, physicalID string, immediateFailure bool) {
+	runtime := s.cellularDataRuntime()
+	lock := s.imsModeLock(id)
+	lock.RLock()
+	defer lock.RUnlock()
+	config, err := s.store.Device(ctx, id)
+	if err != nil {
+		return
+	}
+	if !config.NetworkEnabled || (config.VoWiFiEnabled && store.WiFiExclusive(config)) || store.HostIMSConfigured(config) {
+		return
+	}
+	status, _, present := runtime.monitorCandidate(config.ID)
+	if !present || !status.DesiredEnabled || status.Revision == 0 || status.ModemPhase == "rebooting" || status.MaintenancePhase != "" {
+		return
+	}
+	if status.Phase != "connected" && status.Phase != "failed" {
+		return
+	}
+
+	entry, resolvedPhysicalID, physicalPresent := s.physicalForConfig(config)
+	if !physicalPresent || entry.Snapshot == nil {
+		// A USB disappearance is handled by the normal device lifecycle. Do
+		// not count it as a data failure or reset a modem that is not present.
+		runtime.closeIfPhysicalAbsent(config.ID)
+		return
+	}
+	if physicalID != "" && resolvedPhysicalID != physicalID {
+		return
+	}
+	request := s.cellularNetworkRequest(ctx, config, entry.Snapshot)
+	request.Enabled = true
+	identity := strings.TrimSpace(entry.Snapshot.ICCID)
+	if runtime.sessionIdentityChanged(config.ID, status.Revision, identity) {
+		runtime.invalidateWithMaintenancePhase(config.ID, true, "recovering", "active ICCID/Profile changed", "profile_changed")
+		runtime.requestWithIdentity(config.ID, resolvedPhysicalID, request, identity)
+		return
+	}
+	backend := strings.ToLower(strings.TrimSpace(request.Backend))
+	if backend != "" && backend != "qmi" {
+		// NetworkStatus observes the process-owned QMI session. AT-backed
+		// sessions have no equivalent live observer yet.
+		return
+	}
+	releaseWatchdog, admitted := runtime.acquireWatchdog(config.ID, status.Revision)
+	if !admitted {
+		return
+	}
+
+	probeContext, cancel := context.WithTimeout(ctx, cellularDataMonitorProbeTimeout)
+	observed, probeErr := observer.NetworkStatus(probeContext, resolvedPhysicalID)
+	cancel()
+	if ctx.Err() != nil {
+		releaseWatchdog()
+		return
+	}
+	if errors.Is(probeErr, device.ErrDataOperationInProgress) ||
+		errors.Is(probeErr, device.ErrDataBackendUnavailable) {
+		releaseWatchdog()
+		return
+	}
+	if probeErr == nil && observed.Connected {
+		runtime.recordProbeSuccess(config.ID, status.Revision)
+		releaseWatchdog()
+		return
+	}
+
+	detail := strings.TrimSpace(observed.Detail)
+	if detail == "" && probeErr != nil {
+		detail = probeErr.Error()
+	}
+	if detail == "" {
+		detail = "cellular data session is disconnected"
+	}
+	candidate, reconnect := runtime.recordProbeFailure(config.ID, status.Revision, detail, immediateFailure)
+	if !reconnect {
+		releaseWatchdog()
+		return
+	}
+	if _, accepted := runtime.requestIfCurrent(config.ID, candidate.Revision, "recovering", resolvedPhysicalID, request); accepted {
+		if s.logger != nil {
+			s.logger.Warn("cellular data monitor is reconnecting", "device_id", config.ID, "interface", config.Interface, "reason", detail)
+		}
+	}
+	releaseWatchdog()
 }
 
 func (runtime *cellularDataRuntime) signalLocked(entry *cellularDataRuntimeEntry) {

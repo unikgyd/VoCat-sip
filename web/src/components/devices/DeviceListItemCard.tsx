@@ -3,6 +3,8 @@ import { cx } from "../../lib/utils";
 import { Tag, StatusDot } from "../ui";
 import { deviceStatusMeta } from "./shared";
 import { deviceTypeImage } from "../../lib/deviceTypes";
+import { hostIMSStatus } from "./imsLineModel";
+import { useI18n } from "../../lib/i18n";
 
 export interface DeviceListItemCardProps {
   device: DeviceListItem;
@@ -12,7 +14,9 @@ export interface DeviceListItemCardProps {
 }
 
 export function DeviceListItemCard({ device, selected, statusText, onSelect }: DeviceListItemCardProps) {
-  const meta = deviceStatusMeta(device);
+  const { t } = useI18n();
+  const host = device.imsMode === "host_ims" ? hostIMSStatus(device) : null;
+  const meta = host ? { ...host, label: t(host.label), tag: host.tone === "neutral" ? "info" as const : host.tone } : deviceStatusMeta(device);
   return (
     <div className="device-list-item">
       <button

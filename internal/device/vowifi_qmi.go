@@ -8,9 +8,28 @@ import (
 	"time"
 
 	"github.com/iniwex5/quectel-qmi-go/pkg/qmi"
+	"vocat/internal/modem"
 )
 
 func (manager *Manager) withNativeQMIVoWiFiSession(ctx context.Context, id string, fn func(nativeQMIVoWiFiSession) error) error {
+	return manager.withNativeQMISIMSession(ctx, id, false, fn)
+}
+
+func (manager *Manager) withNativeQMISIMSession(ctx context.Context, id string, shared bool, fn func(nativeQMIVoWiFiSession) error) (result error) {
+	if shared {
+		state, err := manager.lookup(id)
+		if err != nil {
+			return err
+		}
+		state.opMu.Lock()
+		defer state.opMu.Unlock()
+		if err := manager.validateActive(id, state); err != nil {
+			return err
+		}
+		if err := manager.requireNoModuleVoice(state); err != nil {
+			return err
+		}
+	}
 	control, native, err := manager.nativeQMIControl(id)
 	if err != nil {
 		return err
@@ -18,11 +37,23 @@ func (manager *Manager) withNativeQMIVoWiFiSession(ctx context.Context, id strin
 	if !native {
 		return errors.New("native QMI control is unavailable")
 	}
-	session, err := manager.qmiRadioOpener(ctx, control)
+	opener := manager.qmiRadioOpener
+	if shared {
+		opener = manager.qmiSharedSIMOpener
+	}
+	if opener == nil {
+		return errors.New("shared QMI SIM transport is unavailable")
+	}
+	session, err := opener(ctx, control)
 	if err != nil {
 		return fmt.Errorf("open native QMI control: %w", err)
 	}
-	defer session.Close()
+	defer func() {
+		closeErr := session.Close()
+		if shared {
+			result = errors.Join(result, closeErr)
+		}
+	}()
 	qmiSession, ok := session.(nativeQMIVoWiFiSession)
 	if !ok {
 		return errors.New("native QMI session lacks UIM/NAS support")
@@ -34,26 +65,46 @@ func (manager *Manager) withNativeQMIVoWiFiSession(ctx context.Context, id strin
 // port exists, first wake the SIM interface in RF-off mode before taking the
 // QMI lease. Primitive return values keep device independent from VoWiFi.
 func (manager *Manager) ReadNativeQMIIdentity(ctx context.Context, id string) (iccid, imsi, imei, mcc, mnc string, err error) {
+	return manager.readNativeQMIIdentity(ctx, id, false)
+}
+
+// ReadNativeQMIIdentityCoexist reads without RF changes, UIM reset, SIM power
+// cycling or CTL Sync. A card that needs recovery stays unavailable until its
+// cellular owner performs that recovery.
+func (manager *Manager) ReadNativeQMIIdentityCoexist(ctx context.Context, id string) (iccid, imsi, imei, mcc, mnc string, err error) {
+	return manager.readNativeQMIIdentity(ctx, id, true)
+}
+
+func (manager *Manager) readNativeQMIIdentity(ctx context.Context, id string, shared bool) (iccid, imsi, imei, mcc, mnc string, err error) {
 	// A missing/unpowered card may never answer READ TRANSPARENT. Do not hold
 	// the shared QMI lease for the lifecycle's two-minute SIM-ready timeout.
 	ctx, cancelIdentity := context.WithTimeout(ctx, 25*time.Second)
 	defer cancelIdentity()
-	if prepareErr := manager.prepareNativeQMISIMIdentity(ctx, id); prepareErr != nil && manager.logger != nil {
-		manager.logger.Debug("native QMI SIM AT preparation unavailable", "category", "hardware", "device_id", id, "error", prepareErr)
+	if !shared {
+		if prepareErr := manager.prepareNativeQMISIMIdentity(ctx, id); prepareErr != nil && manager.logger != nil {
+			manager.logger.Debug("native QMI SIM AT preparation unavailable", "category", "hardware", "device_id", id, "error", prepareErr)
+		}
 	}
-	err = manager.withNativeQMIVoWiFiSession(ctx, id, func(session nativeQMIVoWiFiSession) error {
+	err = manager.withNativeQMISIMSession(ctx, id, shared, func(session nativeQMIVoWiFiSession) error {
 		var recovered bool
-		if iccid, recovered, err = readVoWiFiNativeQMIICCID(ctx, session); err != nil {
-			control, _, _ := manager.nativeQMIControl(id)
-			hotSwapRecovered, recoveryErr := manager.recoverNativeQMIHotSwapSession(ctx, control, session)
-			if !hotSwapRecovered {
-				return fmt.Errorf("read QMI ICCID: %w", errors.Join(err, recoveryErr))
-			}
-			readContext, cancelRead := context.WithTimeout(ctx, 3*time.Second)
-			iccid, err = session.GetICCID(readContext)
-			cancelRead()
+		if shared {
+			iccid, err = session.GetICCID(ctx)
 			if err != nil {
-				return fmt.Errorf("read QMI ICCID after hot-swap recovery: %w", err)
+				return err
+			}
+		} else {
+			if iccid, recovered, err = readVoWiFiNativeQMIICCID(ctx, session); err != nil {
+				control, _, _ := manager.nativeQMIControl(id)
+				hotSwapRecovered, recoveryErr := manager.recoverNativeQMIHotSwapSession(ctx, control, session)
+				if !hotSwapRecovered {
+					return fmt.Errorf("read QMI ICCID: %w", errors.Join(err, recoveryErr))
+				}
+				readContext, cancelRead := context.WithTimeout(ctx, 3*time.Second)
+				iccid, err = session.GetICCID(readContext)
+				cancelRead()
+				if err != nil {
+					return fmt.Errorf("read QMI ICCID after hot-swap recovery: %w", err)
+				}
 			}
 		}
 		if recovered && manager.logger != nil {
@@ -65,11 +116,38 @@ func (manager *Manager) ReadNativeQMIIdentity(ctx context.Context, id string) (i
 		if imei, err = session.GetIMEI(ctx); err != nil {
 			return fmt.Errorf("read QMI IMEI: %w", err)
 		}
-		if mcc, mnc, err = session.GetNativeMCCMNC(ctx); err != nil {
-			return fmt.Errorf("read QMI home PLMN: %w", err)
+		var homeErr error
+		mcc, mnc, homeErr = session.GetNativeMCCMNC(ctx)
+		if homeErr != nil && !modem.OnlyHomeMNCLengthUnavailable(homeErr) {
+			return fmt.Errorf("read QMI home PLMN: %w", homeErr)
+		}
+		if homeErr == nil && (!homeSubscriberDigits(imsi) || len(mcc) != 3 || (len(mnc) != 2 && len(mnc) != 3) || !strings.HasPrefix(imsi, mcc+mnc)) {
+			return errors.New("QMI home PLMN does not match the live IMSI")
+		}
+		verifiedICCID, verifyErr := session.GetICCID(ctx)
+		if verifyErr != nil {
+			return verifyErr
+		}
+		verifiedIMSI, verifyErr := session.GetIMSI(ctx)
+		if verifyErr != nil {
+			return verifyErr
+		}
+		if iccid != verifiedICCID || imsi != verifiedIMSI {
+			return errors.New("QMI SIM identity changed during home-file read")
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if homeErr != nil {
+			return fmt.Errorf("read QMI home PLMN: %w", homeErr)
 		}
 		return nil
 	})
+	// Partial fields are usable only for the explicitly classified, fenced
+	// unknown-length case. Never expose stale identities after a fatal error.
+	if err != nil && !modem.OnlyHomeMNCLengthUnavailable(err) {
+		iccid, imsi, imei, mcc, mnc = "", "", "", "", ""
+	}
 	return
 }
 
@@ -140,7 +218,15 @@ func readVoWiFiNativeQMIICCID(ctx context.Context, session nativeQMISIMStartupSe
 }
 
 func (manager *Manager) ProbeNativeQMIApplication(ctx context.Context, id, preference string) (aid []byte, application string, err error) {
-	err = manager.withNativeQMIVoWiFiSession(ctx, id, func(session nativeQMIVoWiFiSession) error {
+	return manager.probeNativeQMIApplication(ctx, id, preference, false)
+}
+
+func (manager *Manager) ProbeNativeQMIApplicationCoexist(ctx context.Context, id, preference string) (aid []byte, application string, err error) {
+	return manager.probeNativeQMIApplication(ctx, id, preference, true)
+}
+
+func (manager *Manager) probeNativeQMIApplication(ctx context.Context, id, preference string, shared bool) (aid []byte, application string, err error) {
+	err = manager.withNativeQMISIMSession(ctx, id, shared, func(session nativeQMIVoWiFiSession) error {
 		if strings.EqualFold(strings.TrimSpace(preference), "isim_strict") {
 			aid, err = session.GetISIMAID(ctx)
 			application = "ISIM"
@@ -158,8 +244,22 @@ func (manager *Manager) ProbeNativeQMIApplication(ctx context.Context, id, prefe
 }
 
 func (manager *Manager) AuthenticateNativeQMI(ctx context.Context, id string, aid, apdu []byte) (response []byte, err error) {
-	err = manager.withNativeQMIVoWiFiSession(ctx, id, func(session nativeQMIVoWiFiSession) error {
-		channel, openErr := openNativeQMIChannelWithRecovery(ctx, session, 1, aid)
+	return manager.authenticateNativeQMI(ctx, id, aid, apdu, false)
+}
+
+func (manager *Manager) AuthenticateNativeQMICoexist(ctx context.Context, id string, aid, apdu []byte) (response []byte, err error) {
+	return manager.authenticateNativeQMI(ctx, id, aid, apdu, true)
+}
+
+func (manager *Manager) authenticateNativeQMI(ctx context.Context, id string, aid, apdu []byte, shared bool) (response []byte, err error) {
+	err = manager.withNativeQMISIMSession(ctx, id, shared, func(session nativeQMIVoWiFiSession) error {
+		var channel byte
+		var openErr error
+		if shared {
+			channel, openErr = session.OpenLogicalChannel(ctx, 1, aid)
+		} else {
+			channel, openErr = openNativeQMIChannelWithRecovery(ctx, session, 1, aid)
+		}
 		if openErr != nil {
 			return fmt.Errorf("open QMI UIM logical channel: %w", openErr)
 		}

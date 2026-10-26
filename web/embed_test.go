@@ -14,3 +14,10 @@ func TestEmbeddedDistributionContainsIndex(t *testing.T) {
 		t.Fatal("embedded index.html is empty")
 	}
 }
+
+func TestEmbeddedDistributionContainsPhoneWorklet(t *testing.T) {
+	processor, err := fs.ReadFile(Dist, "phone-pcm.js")
+	if err != nil || len(processor) == 0 {
+		t.Fatalf("phone AudioWorklet missing from release: %v", err)
+	}
+}

@@ -31,7 +31,8 @@ const (
 	isimAIDPrefix         = "A0000000871004"
 	efDIRFileID           = 0x2f00
 	efADDecimal           = 28589 // 0x6FAD
-	efEHPLMNDecimal       = 28441 // 0x6F19 (3GPP TS 31.102 EF_EHPLMN)
+	efEHPLMNDecimal       = 28633 // 0x6FD9 (3GPP TS 31.102 EF_EHPLMN)
+	maxSIMDiscoveryPLMNs  = 16
 	channelCleanupTimeout = 3 * time.Second
 )
 
@@ -55,6 +56,12 @@ type EC20UICCLocker interface {
 }
 
 type EC20AdapterOptions struct {
+	// Enabled by the profile-aware application; legacy direct readers keep
+	// their exact AT transaction until they opt into the extra source fences.
+	ReadProfileIdentities bool
+	// The application enables this only with the realm-aware orchestrator.
+	// Legacy callers remain fail-closed instead of treating a guess as EF_AD.
+	AllowUnresolvedMNCLength bool
 	// PureAirplanePolicy reports the independent user policy. The adapter only
 	// changes the transactional CFUN projection used by VoWiFi and never
 	// changes this policy.
@@ -89,6 +96,7 @@ type ec20SIMBinding struct {
 	deviceID     string
 	iccid        string
 	imsi         string
+	fileIMSI     string
 	aid          string
 	application  string
 	basicChannel bool
@@ -128,6 +136,15 @@ func (adapter *EC20Adapter) ReadIdentity(
 	if deviceID == "" {
 		return SIMIdentity{}, errors.New("vocat: EC20 device ID is required")
 	}
+	if adapter.options.ReadProfileIdentities {
+		adapter.mu.Lock()
+		for key, binding := range adapter.bindings {
+			if binding.deviceID == deviceID {
+				delete(adapter.bindings, key)
+			}
+		}
+		adapter.mu.Unlock()
+	}
 
 	pin, err := adapter.execute(ctx, deviceID, "AT+CPIN?")
 	if err != nil {
@@ -166,21 +183,53 @@ func (adapter *EC20Adapter) ReadIdentity(
 		return SIMIdentity{}, errors.New("vocat: EC20 returned no valid IMEI")
 	}
 
-	homeMCC, homeMNC, err := adapter.readHomePLMN(
+	fileIMSI := ""
+	if adapter.options.ReadProfileIdentities {
+		fileIMSI, err = adapter.readProfileIMSI(ctx, deviceID)
+		if err != nil {
+			return SIMIdentity{}, err
+		}
+	}
+	homeBasis := imsi
+	if fileIMSI != "" {
+		homeBasis = fileIMSI
+	}
+	homeMCC, homeMNC, discoveryPLMNs, err := adapter.readHomePLMN(
 		ctx,
 		deviceID,
 		iccid,
-		imsi,
+		homeBasis,
 	)
-	if err != nil {
+	uncertainMNC := errors.Is(err, ErrEC20MNCUnavailable) && adapter.options.AllowUnresolvedMNCLength
+	if uncertainMNC {
+		homeMCC, homeMNC = homeBasis[:3], homeBasis[3:5]
+	} else if err != nil {
 		return SIMIdentity{}, err
 	}
 	identity := SIMIdentity{
-		ICCID:   iccid,
-		IMSI:    imsi,
-		IMEI:    imei,
-		HomeMCC: homeMCC,
-		HomeMNC: homeMNC,
+		ICCID:            iccid,
+		IMSI:             imsi,
+		IMEI:             imei,
+		HomeMCC:          homeMCC,
+		HomeMNC:          homeMNC,
+		HomeMNCUncertain: uncertainMNC,
+		DiscoveryPLMNs:   discoveryPLMNs,
+	}
+	if homeBasis != imsi {
+		identity.HomeMCC, identity.HomeMNC, identity.HomeMNCUncertain = imsi[:3], imsi[3:5], true
+		if adapter.options.HomePLMN != nil {
+			if mcc, mnc, ok := adapter.options.HomePLMN(deviceID, iccid, imsi); ok && validConfiguredHomePLMN(imsi, mcc, mnc) {
+				identity.HomeMCC, identity.HomeMNC, identity.HomeMNCUncertain = mcc, mnc, false
+			}
+		}
+		if identity.HomeMNCUncertain {
+			if mcc, mnc, ok := assignedHomePLMN(imsi); ok {
+				identity.HomeMCC, identity.HomeMNC, identity.HomeMNCUncertain = mcc, mnc, false
+			}
+		}
+		if identity.HomeMNCUncertain && !adapter.options.AllowUnresolvedMNCLength {
+			return SIMIdentity{}, ErrEC20MNCUnavailable
+		}
 	}
 	if reader, ok := adapter.executor.(SIMMetadataReader); ok {
 		if metadata, metadataErr := reader.ReadSIMMetadata(ctx, deviceID); metadataErr == nil {
@@ -189,12 +238,56 @@ func (adapter *EC20Adapter) ReadIdentity(
 			identity.GID2 = strings.TrimSpace(metadata.GID2)
 		}
 	}
+	readerHomeMCC, readerHomeMNC := identity.HomeMCC, identity.HomeMNC
 	identity = applyAssignedCarrierRoute(identity)
+	profile := ResolveCarrierProfile(identity)
+	if identity.HomeMCC != readerHomeMCC || identity.HomeMNC != readerHomeMNC || profile.RouteMCC != "" {
+		// An existing explicit subscriber/carrier rule remains authoritative.
+		identity.HomeMNCUncertain = false
+	}
+	// Optional EF/metadata reads may overlap a SIM/profile change. Never attach
+	// those discovery hints (or an AKA binding) to a different live subscriber.
+	verifiedIMSI, err := adapter.execute(ctx, deviceID, "AT+CIMI")
+	if err != nil {
+		return SIMIdentity{}, fmt.Errorf("verify EC20 IMSI: %w", err)
+	}
+	verifiedICCID, err := adapter.readICCID(ctx, deviceID)
+	if err != nil {
+		return SIMIdentity{}, err
+	}
+	if digitIdentifier(verifiedIMSI, []string{"+CIMI:"}, 10, 18) != imsi || verifiedICCID != iccid {
+		return SIMIdentity{}, ErrEC20IdentityChanged
+	}
+	if adapter.options.ReadProfileIdentities {
+		verifiedFile, readErr := adapter.readProfileIMSI(ctx, deviceID)
+		if readErr != nil {
+			return SIMIdentity{}, readErr
+		}
+		if verifiedFile != fileIMSI {
+			return SIMIdentity{}, ErrEC20IdentityChanged
+		}
+		if fileIMSI != "" && fileIMSI != imsi {
+			alternate := cloneProfileIdentity(identity)
+			alternate.IMSI = fileIMSI
+			alternate.HomeMCC, alternate.HomeMNC = homeMCC, homeMNC
+			alternate.HomeMNCUncertain = uncertainMNC
+			alternate.HomeCountryCode = ""
+			alternate = applyAssignedCarrierRoute(alternate)
+			if ResolveCarrierProfile(alternate).RouteMCC != "" {
+				alternate.HomeMNCUncertain = false
+			}
+			identity.profileIdentities = []SIMIdentity{alternate}
+		}
+	}
+	if err := identity.validate(); err != nil {
+		return SIMIdentity{}, err
+	}
 	adapter.mu.Lock()
 	adapter.bindings[iccid] = ec20SIMBinding{
 		deviceID: deviceID,
 		iccid:    iccid,
 		imsi:     imsi,
+		fileIMSI: fileIMSI,
 	}
 	adapter.mu.Unlock()
 	return identity, nil
@@ -225,41 +318,65 @@ func (adapter *EC20Adapter) readHomePLMN(
 	deviceID string,
 	iccid string,
 	imsi string,
-) (string, string, error) {
+) (string, string, []string, error) {
+	var homeMCC, homeMNC string
+	var efErr error
 	// AT&T 310/280 is a three-digit MNC. Prefer the assigned subscription
 	// prefix when EF_AD is stale or ambiguous after a profile switch.
 	if strings.HasPrefix(strings.TrimSpace(imsi), "310280") {
-		return "310", "280", nil
-	}
-	mncLength, efErr := adapter.readExplicitMNCLength(ctx, deviceID)
-	if efErr == nil {
-		if len(imsi) < 3+mncLength {
-			return "", "", errors.New(
-				"vocat: IMSI is shorter than the EF_AD home PLMN",
-			)
+		homeMCC, homeMNC = "310", "280"
+	} else {
+		var mncLength int
+		mncLength, efErr = adapter.readExplicitMNCLength(ctx, deviceID)
+		if efErr == nil {
+			if len(imsi) < 3+mncLength {
+				return "", "", nil, errors.New("vocat: IMSI is shorter than the EF_AD home PLMN")
+			}
+			homeMCC, homeMNC = imsi[:3], imsi[3:3+mncLength]
 		}
-		return imsi[:3], imsi[3 : 3+mncLength], nil
 	}
-	if adapter.options.HomePLMN != nil {
+	if homeMCC == "" && adapter.options.HomePLMN != nil {
 		mcc, mnc, ok := adapter.options.HomePLMN(deviceID, iccid, imsi)
 		mcc = strings.TrimSpace(mcc)
 		mnc = strings.TrimSpace(mnc)
 		if ok && validConfiguredHomePLMN(imsi, mcc, mnc) {
-			return mcc, mnc, nil
+			homeMCC, homeMNC = mcc, mnc
 		}
 	}
 	// Exact assigned HPLMN prefixes are data, not an MNC-length heuristic.
-	if mcc, mnc, ok := assignedHomePLMN(imsi); ok {
-		return mcc, mnc, nil
-	}
-	// 3GPP TS 31.102 Section 4.2.84: Query EF_EHPLMN (Equivalent Home PLMN).
-	if ehplmns, err := adapter.readEHPLMN(ctx, deviceID); err == nil && len(ehplmns) > 0 {
-		first := ehplmns[0]
-		if len(first) >= 5 {
-			return first[:3], first[3:], nil
+	if homeMCC == "" {
+		if mcc, mnc, ok := assignedHomePLMN(imsi); ok {
+			homeMCC, homeMNC = mcc, mnc
 		}
 	}
-	return "", "", efErr
+	if err := ctx.Err(); err != nil {
+		return "", "", nil, err
+	}
+	// Read equivalents even when EF_AD is present: they are ePDG discovery
+	// candidates, not permission to replace the IMSI-derived AKA/SIP home realm.
+	ehplmns, _ := adapter.readEHPLMN(ctx, deviceID)
+	discovery := ehplmns[:min(len(ehplmns), maxSIMDiscoveryPLMNs)]
+	if err := ctx.Err(); err != nil {
+		return "", "", nil, err
+	}
+	if homeMCC != "" {
+		return homeMCC, homeMNC, discovery, nil
+	}
+	var matched string
+	for _, plmn := range ehplmns {
+		if validConfiguredHomePLMN(imsi, plmn[:3], plmn[3:]) {
+			if matched != "" && matched != plmn {
+				// Both legal MNC lengths match: fail closed rather than select the
+				// first listed realm. An explicit home configuration can resolve it.
+				return "", "", discovery, ErrEC20MNCUnavailable
+			}
+			matched = plmn
+		}
+	}
+	if matched != "" {
+		return matched[:3], matched[3:], discovery, nil
+	}
+	return "", "", discovery, efErr
 }
 
 func (adapter *EC20Adapter) readEHPLMN(
@@ -272,6 +389,9 @@ func (adapter *EC20Adapter) readEHPLMN(
 	}
 	var lastErr error
 	for _, command := range commands {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		response, err := adapter.execute(ctx, deviceID, command)
 		if err != nil {
 			lastErr = err
@@ -282,10 +402,9 @@ func (adapter *EC20Adapter) readEHPLMN(
 			lastErr = err
 			continue
 		}
-		plmns := parsePLMNListFromBytes(data)
-		if len(plmns) > 0 {
-			return plmns, nil
-		}
+		// A completed empty/FF list is not a read failure. Do not repeat an
+		// identical optional read or turn a missing list into a startup delay.
+		return parsePLMNListFromBytes(data), nil
 	}
 	if lastErr == nil {
 		lastErr = errors.New("vocat: EF_EHPLMN is empty or unavailable")
@@ -295,6 +414,7 @@ func (adapter *EC20Adapter) readEHPLMN(
 
 func parsePLMNListFromBytes(data []byte) []string {
 	var plmns []string
+	seen := make(map[string]bool)
 	for i := 0; i+3 <= len(data); i += 3 {
 		b1, b2, b3 := data[i], data[i+1], data[i+2]
 		mcc1 := b1 & 0x0f
@@ -304,7 +424,7 @@ func parsePLMNListFromBytes(data []byte) []string {
 		mnc1 := b3 & 0x0f
 		mnc2 := (b3 >> 4) & 0x0f
 
-		if mcc1 > 9 || mcc2 > 9 || mcc3 > 9 || mnc1 > 9 || mnc2 > 9 {
+		if mcc1 > 9 || mcc2 > 9 || mcc3 > 9 || mnc1 > 9 || mnc2 > 9 || mnc3 > 9 && mnc3 != 0x0f {
 			continue
 		}
 		mcc := fmt.Sprintf("%d%d%d", mcc1, mcc2, mcc3)
@@ -315,7 +435,10 @@ func parsePLMNListFromBytes(data []byte) []string {
 			mnc = fmt.Sprintf("%d%d", mnc1, mnc2)
 		}
 		if len(mcc) == 3 && (len(mnc) == 2 || len(mnc) == 3) {
-			plmns = append(plmns, mcc+mnc)
+			if !seen[mcc+mnc] {
+				seen[mcc+mnc] = true
+				plmns = append(plmns, mcc+mnc)
+			}
 		}
 	}
 	return plmns
@@ -601,6 +724,15 @@ func (adapter *EC20Adapter) authenticateWithApplication(
 	result, err := parseUSIMAuthenticateResponse(raw)
 	if err != nil {
 		return AKAResult{}, err
+	}
+	if adapter.options.ReadProfileIdentities {
+		if err := adapter.verifyLiveICCID(ctx, binding); err != nil {
+			clear(result.RES)
+			clear(result.CK)
+			clear(result.IK)
+			clear(result.AUTS)
+			return AKAResult{}, err
+		}
 	}
 	adapter.mu.Lock()
 	adapter.bindings[binding.iccid] = binding
@@ -1024,6 +1156,29 @@ func (adapter *EC20Adapter) verifyLiveICCID(
 	if iccid != binding.iccid {
 		return ErrEC20IdentityChanged
 	}
+	if adapter.options.ReadProfileIdentities {
+		response, err := adapter.execute(ctx, binding.deviceID, "AT+CIMI")
+		if err != nil {
+			return err
+		}
+		if digitIdentifier(response, []string{"+CIMI:"}, 10, 18) != binding.imsi {
+			return ErrEC20IdentityChanged
+		}
+		file, err := adapter.readProfileIMSI(ctx, binding.deviceID)
+		if err != nil {
+			return err
+		}
+		if file != binding.fileIMSI {
+			return ErrEC20IdentityChanged
+		}
+		last, err := adapter.readICCID(ctx, binding.deviceID)
+		if err != nil {
+			return err
+		}
+		if last != binding.iccid {
+			return ErrEC20IdentityChanged
+		}
+	}
 	return nil
 }
 
@@ -1391,10 +1546,13 @@ func parseCRSMData(response modem.Response) ([]byte, error) {
 	}
 	sw1, err1 := strconv.Atoi(fields[0])
 	sw2, err2 := strconv.Atoi(fields[1])
-	if err1 != nil || err2 != nil {
+	if err1 != nil || err2 != nil || sw1 < 0 || sw1 > 255 || sw2 < 0 || sw2 > 255 {
 		return nil, errors.New("invalid CRSM status")
 	}
-	if sw1 != 0x90 && sw1 != 0x91 && sw1 != 0x9f {
+	// 9000 is complete; 91xx also completes the read while indicating a
+	// proactive UICC command. Retain legacy 9F00-with-data compatibility, but
+	// never parse 9Fxx pending GET RESPONSE bytes as a finished file read.
+	if !((sw1 == 0x90 || sw1 == 0x9f) && sw2 == 0 || sw1 == 0x91) {
 		return nil, fmt.Errorf("CRSM status %02X%02X", sw1, sw2)
 	}
 	if len(fields) < 3 {

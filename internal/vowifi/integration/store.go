@@ -202,13 +202,17 @@ func (projector StateProjector) Save(
 
 	var err error
 	runtime.Tunnel, err = marshalObject(map[string]any{
-		"established":    state.TunnelReady,
-		"name":           state.TunnelName,
-		"dataplane_mode": state.DataplaneMode,
-		"epdg":           state.EPDG,
-		"proxy_mode":     state.ProxyMode,
-		"proxy_id":       state.ProxyID,
-		"security_audit": state.Security,
+		"established":     state.TunnelReady,
+		"name":            state.TunnelName,
+		"dataplane_mode":  state.DataplaneMode,
+		"epdg":            state.EPDG,
+		"epdg_address":    state.EPDGAddress,
+		"epdg_source":     state.EPDGSource,
+		"epdg_attempt":    state.EPDGAttempt,
+		"epdg_candidates": state.EPDGCandidates,
+		"proxy_mode":      state.ProxyMode,
+		"proxy_id":        state.ProxyID,
+		"security_audit":  state.Security,
 	})
 	if err != nil {
 		return err
@@ -232,12 +236,14 @@ func (projector StateProjector) Save(
 		"enabled":              state.Enabled,
 		"active":               state.Active,
 		"pure_airplane_policy": state.PureAirplanePolicy,
+		"radio_policy":         state.RadioPolicy,
 		"home_mcc":             state.HomeMCC,
 		"home_mnc":             state.HomeMNC,
 		"carrier_profile":      state.CarrierProfile,
 		"carrier_profile_from": state.CarrierProfileFrom,
 		"warnings":             state.Warnings,
 		"cleanup_errors":       state.CleanupErrors,
+		"ike_retry":            state.IKERetry,
 		"attempt":              state.Attempt,
 		"sequence":             state.Sequence,
 		"started_at":           state.StartedAt,

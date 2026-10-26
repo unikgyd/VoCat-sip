@@ -36,6 +36,8 @@ var (
 	oidECDSAWithSHA256 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 2}
 	oidECDSAWithSHA384 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 3}
 	oidECDSAWithSHA512 = asn1.ObjectIdentifier{1, 2, 840, 10045, 4, 3, 4}
+	oidRSAPSS          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 10}
+	oidIPsecIKE        = asn1.ObjectIdentifier{1, 3, 6, 1, 5, 5, 7, 3, 17}
 )
 
 func responderSignedOctets(
@@ -191,6 +193,24 @@ func validateInitialResponderAUTH(
 	return vowifi.ResponderAUTHVerified, idr, nil
 }
 
+func signatureHashSupport(items []payload) (bool, error) {
+	found := false
+	for _, item := range payloadsOfType(items, payloadNotify) {
+		kind, data, err := parseNotify(item)
+		if err != nil {
+			return false, err
+		}
+		if kind != 16431 {
+			continue
+		}
+		if found || item.Body[1] != 0 || len(data) == 0 || len(data)%2 != 0 {
+			return false, errors.New("ike: invalid SIGNATURE_HASH_ALGORITHMS")
+		}
+		found = true
+	}
+	return found, nil
+}
+
 func validateFQDNIDr(idr payload, expectedIDr string, label string) error {
 	if len(idr.Body) < 4 {
 		return errors.New("ike: responder identity is truncated")
@@ -211,12 +231,15 @@ func validateFQDNIDr(idr payload, expectedIDr string, label string) error {
 
 func parseResponderCertificates(payloads []payload) ([]*x509.Certificate, error) {
 	var certificates []*x509.Certificate
-	for _, item := range payloadsOfType(payloads, payloadCert) {
-		if len(item.Body) < 2 {
+	for index, item := range payloadsOfType(payloads, payloadCert) {
+		if len(item.Body) < 1 {
 			return nil, errors.New("ike: responder certificate payload is truncated")
 		}
 		if item.Body[0] != 4 {
-			return nil, fmt.Errorf("ike: unsupported responder certificate encoding %d", item.Body[0])
+			if index == 0 {
+				return nil, fmt.Errorf("ike: unsupported signing certificate encoding %d", item.Body[0])
+			}
+			continue // Irrelevant later encodings are neither trust anchors nor URLs to fetch.
 		}
 		certificate, err := x509.ParseCertificate(item.Body[1:])
 		if err != nil {
@@ -230,6 +253,14 @@ func parseResponderCertificates(payloads []payload) ([]*x509.Certificate, error)
 func verifyResponderCertificate(certificates []*x509.Certificate, roots *x509.CertPool, serverName string) error {
 	if len(certificates) == 0 {
 		return errors.New("ike: no responder certificate")
+	}
+	if certificates[0].IsCA {
+		return errors.New("ike: responder signing certificate is a CA")
+	}
+	for _, extension := range certificates[0].Extensions {
+		if extension.Id.Equal(asn1.ObjectIdentifier{2, 5, 29, 15}) && certificates[0].KeyUsage&x509.KeyUsageDigitalSignature == 0 {
+			return errors.New("ike: responder certificate does not permit digital signatures")
+		}
 	}
 	if roots == nil {
 		var err error
@@ -245,13 +276,30 @@ func verifyResponderCertificate(certificates []*x509.Certificate, roots *x509.Ce
 	options := x509.VerifyOptions{
 		Roots:         roots,
 		Intermediates: intermediates,
-		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny}, // IKE's OID is checked on every certificate below.
 		DNSName:       strings.TrimSuffix(serverName, "."),
 	}
-	if _, err := certificates[0].Verify(options); err != nil {
+	chains, err := certificates[0].Verify(options)
+	if err != nil {
 		return fmt.Errorf("ike: verify responder certificate: %w", err)
 	}
-	return nil
+	for _, chain := range chains {
+		allowed := true
+		for _, certificate := range chain {
+			purpose := len(certificate.ExtKeyUsage) == 0 && len(certificate.UnknownExtKeyUsage) == 0
+			for _, usage := range certificate.ExtKeyUsage {
+				purpose = purpose || usage == x509.ExtKeyUsageAny
+			}
+			for _, usage := range certificate.UnknownExtKeyUsage {
+				purpose = purpose || usage.Equal(oidIPsecIKE)
+			}
+			allowed = allowed && purpose
+		}
+		if allowed {
+			return nil
+		}
+	}
+	return errors.New("ike: certificate path does not permit IPsec IKE authentication")
 }
 
 func verifyDigitalAUTH(publicKey crypto.PublicKey, method uint8, signature, signed []byte) error {
@@ -282,6 +330,10 @@ func verifyRawECDSA(publicKey crypto.PublicKey, algorithm crypto.Hash, signature
 		return errors.New("ECDSA AUTH used with a non-ECDSA public key")
 	}
 	size := (key.Curve.Params().BitSize + 7) / 8
+	expected := map[crypto.Hash]int{crypto.SHA256: 256, crypto.SHA384: 384, crypto.SHA512: 521}[algorithm]
+	if key.Curve.Params().BitSize != expected {
+		return errors.New("ECDSA AUTH method does not match its mandated curve")
+	}
 	if len(signature) != size*2 {
 		return fmt.Errorf("ECDSA signature length %d does not match curve size %d", len(signature), size)
 	}
@@ -298,10 +350,21 @@ func verifyRawECDSA(publicKey crypto.PublicKey, algorithm crypto.Hash, signature
 }
 
 func verifyGenericSignature(publicKey crypto.PublicKey, encoded, signed []byte) error {
+	if len(encoded) < 3 || encoded[0] == 0 || int(encoded[0])+1 >= len(encoded) {
+		return errors.New("invalid generic signature AlgorithmIdentifier length")
+	}
+	length := int(encoded[0])
 	var algorithm pkix.AlgorithmIdentifier
-	rest, err := asn1.Unmarshal(encoded, &algorithm)
-	if err != nil || len(rest) == 0 {
+	rest, err := asn1.Unmarshal(encoded[1:1+length], &algorithm)
+	if err != nil || len(rest) != 0 {
 		return errors.New("generic digital signature has an invalid AlgorithmIdentifier")
+	}
+	signature := encoded[1+length:]
+	if algorithm.Algorithm.Equal(oidRSAPSS) {
+		return verifyPSSSignature(publicKey, algorithm.Parameters.FullBytes, signature, signed)
+	}
+	if len(algorithm.Parameters.FullBytes) != 0 && !bytes.Equal(algorithm.Parameters.FullBytes, []byte{5, 0}) {
+		return errors.New("unexpected generic signature parameters")
 	}
 	var hashAlgorithm crypto.Hash
 	var isRSA bool
@@ -330,16 +393,59 @@ func verifyGenericSignature(publicKey crypto.PublicKey, encoded, signed []byte) 
 		if !ok {
 			return errors.New("RSA signature used with a non-RSA public key")
 		}
-		return rsa.VerifyPKCS1v15(key, hashAlgorithm, digest, rest)
+		return rsa.VerifyPKCS1v15(key, hashAlgorithm, digest, signature)
 	}
 	key, ok := publicKey.(*ecdsa.PublicKey)
 	if !ok {
 		return errors.New("ECDSA signature used with a non-ECDSA public key")
 	}
-	if !ecdsa.VerifyASN1(key, digest, rest) {
+	if !ecdsa.VerifyASN1(key, digest, signature) {
 		return errors.New("ECDSA generic signature verification failed")
 	}
 	return nil
+}
+
+func verifyPSSSignature(publicKey crypto.PublicKey, encoded, signature, signed []byte) error {
+	var parameters struct {
+		Hash    pkix.AlgorithmIdentifier `asn1:"explicit,optional,tag:0"`
+		Mask    pkix.AlgorithmIdentifier `asn1:"explicit,optional,tag:1"`
+		Salt    int                      `asn1:"explicit,optional,tag:2,default:20"`
+		Trailer int                      `asn1:"explicit,optional,tag:3,default:1"`
+	}
+	rest, err := asn1.Unmarshal(encoded, &parameters)
+	if err != nil || len(rest) != 0 {
+		return errors.New("invalid RSA-PSS parameters")
+	}
+	hash := func(id pkix.AlgorithmIdentifier) crypto.Hash {
+		if len(id.Parameters.FullBytes) != 0 && !bytes.Equal(id.Parameters.FullBytes, []byte{5, 0}) {
+			return 0
+		}
+		switch id.Algorithm.String() {
+		case "2.16.840.1.101.3.4.2.1":
+			return crypto.SHA256
+		case "2.16.840.1.101.3.4.2.2":
+			return crypto.SHA384
+		case "2.16.840.1.101.3.4.2.3":
+			return crypto.SHA512
+		default:
+			return 0
+		}
+	}
+	algorithm := hash(parameters.Hash)
+	var maskHash pkix.AlgorithmIdentifier
+	rest, err = asn1.Unmarshal(parameters.Mask.Parameters.FullBytes, &maskHash)
+	if algorithm == 0 || !parameters.Mask.Algorithm.Equal(asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 1, 8}) || err != nil || len(rest) != 0 || hash(maskHash) != algorithm || parameters.Salt != algorithm.Size() || parameters.Trailer != 1 {
+		return errors.New("unsupported RSA-PSS hash, mask, salt or trailer")
+	}
+	key, ok := publicKey.(*rsa.PublicKey)
+	if !ok {
+		return errors.New("RSA-PSS used with non-RSA key")
+	}
+	digest, err := hashSignedOctets(algorithm, signed)
+	if err != nil {
+		return err
+	}
+	return rsa.VerifyPSS(key, algorithm, digest, signature, &rsa.PSSOptions{SaltLength: algorithm.Size(), Hash: algorithm})
 }
 
 func hashSignedOctets(algorithm crypto.Hash, signed []byte) ([]byte, error) {

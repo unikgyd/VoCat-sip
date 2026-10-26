@@ -34,3 +34,21 @@ build/lists/
 *.cookies
 *.session
 vc.jar
+
+# Development reports, browser scratch and local runtime secrets.
+publish/
+web/.vite/
+.agents/
+.codex/
+.worktrees/
+.env
+.env.*
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.log
+*.pem
+*.key
+*.p12
+*.pfx

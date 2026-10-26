@@ -254,8 +254,8 @@ func (s *Server) handleE911(w http.ResponseWriter, r *http.Request, config store
 		}
 	}
 	result := session.view()
-	if status.Confirmed && (tail[1] == "submit" || !wasConfirmed) && config.VoWiFiEnabled && s.vowifi != nil {
-		_, reconnectErr := s.vowifi.RequestReconnect(config.ID)
+	if status.Confirmed && (tail[1] == "submit" || !wasConfirmed) && store.AccessEnabled(config, store.IMSModeVoWiFi) && s.wifiController() != nil {
+		_, reconnectErr := s.wifiController().RequestReconnect(config.ID)
 		result["reconnect_scheduled"] = reconnectErr == nil
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": result})

@@ -22,10 +22,11 @@ const (
 	cellularCallMonitorInterval = 3 * time.Second
 )
 
-var (
-	callDeduplicationMu  sync.Mutex
-	callDeduplicationMap = make(map[string]time.Time)
-)
+type callNotificationKey struct{ device, transport, dialog, caller string }
+type callNotificationHistory struct {
+	mu   sync.Mutex
+	seen map[callNotificationKey]time.Time
+}
 
 type IncomingCallNotification struct {
 	DeviceID    string
@@ -35,6 +36,7 @@ type IncomingCallNotification struct {
 	Called      string
 	Time        time.Time
 	Environment string
+	CallID      string // Exact IMS dialog; never inferred from a telephone number.
 }
 
 func (value IncomingCallNotification) Title() string {
@@ -43,8 +45,10 @@ func (value IncomingCallNotification) Title() string {
 
 func (value IncomingCallNotification) Text() string {
 	envText := "VoWiFi"
-	if value.Environment == "cellular" {
+	if value.Environment == "cellular" || value.Environment == "module" {
 		envText = "基站直连"
+	} else if value.Environment == "host_ims" {
+		envText = "蜂窝 Host IMS"
 	}
 	return strings.Join([]string{
 		"📞 收到来电",
@@ -61,25 +65,42 @@ func (value IncomingCallNotification) DetailText() string {
 	return strings.Join(lines[1:], "\n")
 }
 
-func shouldSuppressDuplicateCall(key string, now time.Time, window time.Duration) bool {
-	callDeduplicationMu.Lock()
-	defer callDeduplicationMu.Unlock()
-	for k, t := range callDeduplicationMap {
+func (history *callNotificationHistory) shouldSuppressDuplicateCall(key callNotificationKey, now time.Time, window time.Duration) bool {
+	history.mu.Lock()
+	defer history.mu.Unlock()
+	if history.seen == nil {
+		history.seen = make(map[callNotificationKey]time.Time)
+	}
+	for k, t := range history.seen {
 		if now.Sub(t) > window*2 {
-			delete(callDeduplicationMap, k)
+			delete(history.seen, k)
 		}
 	}
-	if lastTime, exists := callDeduplicationMap[key]; exists {
+	if lastTime, exists := history.seen[key]; exists {
 		if now.Sub(lastTime) < window {
 			return true
 		}
 	}
-	callDeduplicationMap[key] = now
+	if len(history.seen) >= 4096 {
+		var oldestKey callNotificationKey
+		var oldest time.Time
+		for k, at := range history.seen {
+			if oldest.IsZero() || at.Before(oldest) {
+				oldestKey, oldest = k, at
+			}
+		}
+		delete(history.seen, oldestKey)
+	}
+	history.seen[key] = now
 	return false
 }
 
 // NotifyIncomingCall delivers an incoming call alert to all configured notification channels.
 func (s *Server) NotifyIncomingCall(ctx context.Context, notification IncomingCallNotification) {
+	s.notifyIncomingCall(ctx, notification, sendCallNotification)
+}
+
+func (s *Server) notifyIncomingCall(ctx context.Context, notification IncomingCallNotification, send func(context.Context, string, map[string]any, IncomingCallNotification) error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -109,8 +130,11 @@ func (s *Server) NotifyIncomingCall(ctx context.Context, notification IncomingCa
 		)
 	}
 
-	dedupKey := fmt.Sprintf("%s:%s", notification.DeviceID, notification.Caller)
-	if shouldSuppressDuplicateCall(dedupKey, notification.Time, callDeduplicationWindow) {
+	dedupKey := callNotificationKey{device: notification.DeviceID, transport: notification.Environment, dialog: notification.CallID}
+	if dedupKey.dialog == "" {
+		dedupKey.caller = notification.Caller
+	}
+	if s.callNotifications.shouldSuppressDuplicateCall(dedupKey, time.Now(), callDeduplicationWindow) {
 		if s.logger != nil {
 			s.logger.Debug("suppressed duplicate incoming call notification", "category", "call", "device_id", notification.DeviceID, "caller", notification.Caller)
 		}
@@ -127,6 +151,7 @@ func (s *Server) NotifyIncomingCall(ctx context.Context, notification IncomingCa
 	}
 
 	destCtx := s.notificationDestinationContext(ctx)
+	var deliveries sync.WaitGroup
 	for _, channel := range notificationChannels {
 		setting, err := s.store.NotificationSetting(destCtx, channel)
 		if errors.Is(err, store.ErrNotFound) || (err == nil && !setting.Enabled) {
@@ -145,12 +170,17 @@ func (s *Server) NotifyIncomingCall(ctx context.Context, notification IncomingCa
 			}
 			continue
 		}
-		if err := sendCallNotification(destCtx, channel, config, notification); err != nil {
-			if s.logger != nil {
-				s.logger.Warn("send incoming call notification", "category", "call", "channel", channel, "device_id", notification.DeviceID, "caller", notification.Caller, "raw_error", err)
+		deliveries.Add(1)
+		go func() {
+			defer deliveries.Done()
+			channelCtx, cancel := context.WithTimeout(destCtx, 10*time.Second)
+			defer cancel()
+			if err := send(channelCtx, channel, config, notification); err != nil && s.logger != nil {
+				s.logger.Warn("send incoming call notification", "category", "call", "channel", channel, "device_id", notification.DeviceID, "raw_error", err)
 			}
-		}
+		}()
 	}
+	deliveries.Wait()
 }
 
 // sendCallNotification 按渠道发送来电信息，MeoW 与其他独立标题渠道复用 DetailText。
@@ -312,50 +342,118 @@ func (s *Server) pollCellularCalls(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	for _, config := range devices {
-		// Native 410 firmware has no supported cellular call interface. Its
-		// VoWiFi calls arrive through SIP; polling CLCC while SIM/IMS is starting
-		// only produces ERROR and incorrectly poisons the modem health state.
-		if store.NormalizeDeviceType(config.DeviceType) == store.DeviceTypeWiFi410 {
-			continue
-		}
-		// If VoWiFi is active, incoming calls are handled directly by SIP INVITE in real time.
-		if s.callTransport(config.ID) == "vowifi" {
-			continue
-		}
-		entry, physicalID, present := s.physicalForConfig(config)
-		if !present {
-			continue
-		}
-		pollCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-		response, err := s.devices.ExecuteAT(pollCtx, physicalID, "AT+CLCC")
-		cancel()
-		if err != nil || !response.OK() {
-			continue
-		}
-		calls := parseCLCC(response)
-		for _, call := range calls {
-			if isIncomingVoiceCLCC(call) {
-				caller, _ := call["number"].(string)
-				if caller == "" {
-					caller = "未知号码"
-				}
-				called := ""
-				if entry.Snapshot != nil {
-					called = entry.Snapshot.Phone.Number
-				}
-				s.NotifyIncomingCall(ctx, IncomingCallNotification{
-					DeviceID:    config.ID,
-					DeviceName:  strings.TrimSpace(config.Name),
-					DeviceLabel: firstNonEmpty(config.Name, config.ID, "--"),
-					Caller:      caller,
-					Called:      firstNonEmpty(called, "--"),
-					Time:        time.Now().UTC(),
-					Environment: "cellular",
-				})
+	// A timeout on one physical module must not postpone every other module's
+	// call observation. Keep concurrency bounded even for a large device list.
+	jobs := make(chan string)
+	var workers sync.WaitGroup
+	for i := 0; i < min(4, len(devices)); i++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for id := range jobs {
+				s.pollCellularCallsForDevice(ctx, id)
 			}
+		}()
+	}
+	for _, config := range devices {
+		select {
+		case jobs <- config.ID:
+		case <-ctx.Done():
+			close(jobs)
+			workers.Wait()
+			return
 		}
 	}
+	close(jobs)
+	workers.Wait()
+}
+func (s *Server) pollCellularCallsForDevice(ctx context.Context, id string) {
+	for _, notification := range s.collectCellularCalls(ctx, id) {
+		s.NotifyIncomingCall(ctx, notification)
+	}
+}
+func (s *Server) collectCellularCalls(ctx context.Context, id string) (notifications []IncomingCallNotification) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	lock := s.imsModeLock(id)
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		if lock.TryRLock() {
+			break
+		}
+		timer := time.NewTimer(10 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+	}
+	defer lock.RUnlock()
+	config, err := s.store.Device(ctx, id)
+	if err != nil {
+		return
+	}
+	// Native 410 firmware has no supported cellular call interface. Its
+	// VoWiFi calls arrive through SIP; polling CLCC while SIM/IMS is starting
+	// only produces ERROR and incorrectly poisons the modem health state.
+	if store.NormalizeDeviceType(config.DeviceType) == store.DeviceTypeWiFi410 {
+		return
+	}
+	// If VoWiFi is active, incoming calls are handled directly by SIP INVITE in real time.
+	if config.Telephony != nil && !store.AccessEnabled(config, store.IMSModeModule) || config.Telephony == nil && s.callTransportForConfig(config) != "cellular" {
+		return
+	}
+	entry, physicalID, present := s.physicalForConfig(config)
+	if !present {
+		return
+	}
+	if s.moduleCalls != nil && s.moduleVoiceEnabled(config) && s.moduleCalls.Available(ctx, id) == nil {
+		calls, err := s.moduleCalls.Poll(ctx, id)
+		if err != nil {
+			return
+		}
+		for _, call := range calls {
+			if call.Direction != "incoming" || call.State != "ringing" || call.EndedAt != nil {
+				continue
+			}
+			s.ForwardIMSIncomingCall(id, call.ID)
+			notifications = append(notifications, IncomingCallNotification{DeviceID: id, DeviceName: config.Name, DeviceLabel: firstNonEmpty(config.Name, id), Caller: call.Number, CallID: call.ID, Time: call.StartedAt, Environment: "module"})
+		}
+		return
+	}
+	response, err := s.devices.ExecuteAT(ctx, physicalID, "AT+CLCC")
+	if err != nil || !response.OK() {
+		return
+	}
+	calls := parseCLCC(response)
+	if len(calls) == 0 {
+		s.moduleCallScopes.Delete(id)
+	}
+	for _, call := range calls {
+		if isIncomingVoiceCLCC(call) {
+			caller, _ := call["number"].(string)
+			if caller == "" {
+				caller = "未知号码"
+			}
+			called := ""
+			if entry.Snapshot != nil {
+				called = entry.Snapshot.Phone.Number
+			}
+			notifications = append(notifications, IncomingCallNotification{
+				DeviceID:    config.ID,
+				DeviceName:  strings.TrimSpace(config.Name),
+				DeviceLabel: firstNonEmpty(config.Name, config.ID, "--"),
+				Caller:      caller,
+				Called:      firstNonEmpty(called, "--"),
+				Time:        time.Now().UTC(),
+				Environment: "cellular",
+			})
+		}
+	}
+	return
 }
 
 func isIncomingVoiceCLCC(call map[string]any) bool {

@@ -13,6 +13,16 @@ import (
 // readiness fields before claiming that a carrier service is available.
 type Phase string
 
+// RadioPolicy defines whether this Wi-Fi access transaction owns the modem's
+// radio. Coexist leaves RF and cellular data entirely with the cellular owner.
+// The zero-value policy retains the legacy airplane-first behavior.
+type RadioPolicy string
+
+const (
+	RadioPolicyExclusive RadioPolicy = "exclusive"
+	RadioPolicyCoexist   RadioPolicy = "coexist"
+)
+
 const (
 	PhaseIdle        Phase = "idle"
 	PhaseSIMReady    Phase = "sim_ready"
@@ -57,10 +67,11 @@ var (
 	ErrUSSISessionNotFound       = errors.New("vowifi: USSI session not found or already closed")
 	ErrEAPAuthenticationRejected = errors.New("vowifi: EAP-AKA authentication rejected")
 	ErrResponderAUTHRequired     = errors.New("vowifi: verified IKE responder AUTH is required")
-	// ErrCleanupIncomplete marks a teardown that released its local IMS, tunnel,
-	// and radio resources but hit a non-fatal network-side error (for example a
-	// rejected SIP deregistration). Reconnect treats it as best-effort and
-	// still rebuilds the runtime instead of wedging in the failed state.
+	ErrRadioPolicyTransition     = errors.New("vowifi: disable and confirm radio cleanup before changing radio policy")
+	// ErrCleanupIncomplete marks unacknowledged teardown. A rejected SIP
+	// deregistration can be a warning after local release; a failed radio
+	// restore retains its checkpoint and must be retried before a new access
+	// policy can take ownership. State exposes which cleanup remains pending.
 	ErrCleanupIncomplete = errors.New("vowifi: cleanup incomplete")
 )
 
@@ -84,43 +95,58 @@ type SecurityAudit struct {
 // subscription. Enabled means desired policy; Active means a tunnel session
 // exists. Neither is proof of IMS registration.
 type State struct {
-	DeviceID           string        `json:"device_id"`
-	ICCID              string        `json:"iccid,omitempty"`
-	IMSI               string        `json:"imsi,omitempty"`
-	Phase              Phase         `json:"phase"`
-	Enabled            bool          `json:"enabled"`
-	Active             bool          `json:"active"`
-	SIMReady           bool          `json:"sim_ready"`
-	AccessReady        bool          `json:"access_ready"`
-	TunnelReady        bool          `json:"tunnel_ready"`
-	IMSReady           bool          `json:"ims_ready"`
-	SMSReady           bool          `json:"sms_ready"`
-	PureAirplanePolicy bool          `json:"pure_airplane_policy"`
-	HomeMCC            string        `json:"home_mcc,omitempty"`
-	HomeMNC            string        `json:"home_mnc,omitempty"`
-	CarrierProfile     string        `json:"carrier_profile,omitempty"`
-	CarrierProfileFrom string        `json:"carrier_profile_from,omitempty"`
-	EPDG               string        `json:"epdg,omitempty"`
-	ProxyMode          ProxyMode     `json:"proxy_mode,omitempty"`
-	ProxyID            string        `json:"proxy_id,omitempty"`
-	TunnelName         string        `json:"tunnel_name,omitempty"`
-	DataplaneMode      string        `json:"dataplane_mode,omitempty"`
-	IMSRegistration    string        `json:"ims_registration,omitempty"`
-	PhoneNumber        string        `json:"phone_number,omitempty"`
-	PhoneNumberSource  string        `json:"phone_number_source,omitempty"`
-	LastErrorClass     string        `json:"last_error_class,omitempty"`
-	LastError          string        `json:"last_error,omitempty"`
-	LastReason         string        `json:"last_reason,omitempty"`
-	Warnings           []string      `json:"warnings,omitempty"`
-	CleanupErrors      []string      `json:"cleanup_errors,omitempty"`
-	Security           SecurityAudit `json:"security"`
-	Attempt            uint64        `json:"attempt"`
-	Sequence           uint64        `json:"sequence"`
-	StartedAt          *time.Time    `json:"started_at,omitempty"`
-	UpdatedAt          time.Time     `json:"updated_at"`
+	DeviceID           string          `json:"device_id"`
+	ICCID              string          `json:"iccid,omitempty"`
+	IMSI               string          `json:"imsi,omitempty"`
+	Phase              Phase           `json:"phase"`
+	Enabled            bool            `json:"enabled"`
+	Active             bool            `json:"active"`
+	SIMReady           bool            `json:"sim_ready"`
+	AccessReady        bool            `json:"access_ready"`
+	TunnelReady        bool            `json:"tunnel_ready"`
+	IMSReady           bool            `json:"ims_ready"`
+	SMSReady           bool            `json:"sms_ready"`
+	PureAirplanePolicy bool            `json:"pure_airplane_policy"`
+	RadioPolicy        RadioPolicy     `json:"radio_policy,omitempty"`
+	HomeMCC            string          `json:"home_mcc,omitempty"`
+	HomeMNC            string          `json:"home_mnc,omitempty"`
+	HomeMNCUncertain   bool            `json:"home_mnc_uncertain,omitempty"`
+	CarrierProfile     string          `json:"carrier_profile,omitempty"`
+	CarrierProfileFrom string          `json:"carrier_profile_from,omitempty"`
+	EPDG               string          `json:"epdg,omitempty"`
+	EPDGAddress        string          `json:"epdg_address,omitempty"`
+	EPDGSource         string          `json:"epdg_source,omitempty"`
+	EPDGAttempt        int             `json:"epdg_attempt,omitempty"`
+	EPDGCandidates     int             `json:"epdg_candidates,omitempty"`
+	ProxyMode          ProxyMode       `json:"proxy_mode,omitempty"`
+	ProxyID            string          `json:"proxy_id,omitempty"`
+	TunnelName         string          `json:"tunnel_name,omitempty"`
+	DataplaneMode      string          `json:"dataplane_mode,omitempty"`
+	IMSRegistration    string          `json:"ims_registration,omitempty"`
+	PhoneNumber        string          `json:"phone_number,omitempty"`
+	PhoneNumberSource  string          `json:"phone_number_source,omitempty"`
+	LastErrorClass     string          `json:"last_error_class,omitempty"`
+	LastError          string          `json:"last_error,omitempty"`
+	LastReason         string          `json:"last_reason,omitempty"`
+	Warnings           []string        `json:"warnings,omitempty"`
+	CleanupErrors      []string        `json:"cleanup_errors,omitempty"`
+	Security           SecurityAudit   `json:"security"`
+	IKERetry           *IKERetryStatus `json:"ike_retry,omitempty"`
+	Attempt            uint64          `json:"attempt"`
+	Sequence           uint64          `json:"sequence"`
+	StartedAt          *time.Time      `json:"started_at,omitempty"`
+	UpdatedAt          time.Time       `json:"updated_at"`
 }
 
 func (state State) clone() State {
+	if state.IKERetry != nil {
+		status := *state.IKERetry
+		if status.NotBefore != nil {
+			at := *status.NotBefore
+			status.NotBefore = &at
+		}
+		state.IKERetry = &status
+	}
 	state.Warnings = append([]string(nil), state.Warnings...)
 	state.CleanupErrors = append([]string(nil), state.CleanupErrors...)
 	if state.StartedAt != nil {
@@ -135,16 +161,23 @@ func (state State) clone() State {
 // HomeMCC and HomeMNC must be supplied by the SIM reader; the orchestrator does
 // not guess MNC length or a phone number from IMSI.
 type SIMIdentity struct {
-	ICCID           string
-	IMSI            string
-	IMEI            string
-	HomeMCC         string
-	HomeMNC         string
-	HomeCountryCode string
-	SPN             string
-	GID1            string
-	GID2            string
-	EPDG            string
+	profileIdentities []SIMIdentity          // same-read observations; never JSON input
+	profileSource     *profileIdentitySource // attempt-local physical AKA/source binding
+	ICCID             string
+	IMSI              string
+	IMEI              string
+	HomeMCC           string
+	HomeMNC           string
+	// Set only by a reader that could not establish MNC length. HomeMNC is
+	// then an initial candidate, not EF_AD evidence. Only the live IMSI's
+	// legal two/three-digit prefixes may be used by the attempt planner.
+	HomeMNCUncertain bool
+	HomeCountryCode  string
+	SPN              string
+	GID1             string
+	GID2             string
+	EPDG             string
+	DiscoveryPLMNs   []string // discovery hints only, never authentication identities
 	// SMSC is the TS-Service-Centre address used to build SMS-over-IMS
 	// RP-DATA. It is optional during identity discovery, but IMS submission
 	// requires it.
@@ -160,6 +193,10 @@ func (identity SIMIdentity) validate() error {
 	}
 	if !isNDigits(identity.HomeMNC, 2, 3) {
 		return fmt.Errorf("%w: home MNC must contain two or three digits", ErrInvalidIdentity)
+	}
+	if identity.HomeMNCUncertain && (!isNDigits(identity.IMSI, 6, 16) ||
+		!strings.HasPrefix(identity.IMSI, identity.HomeMCC+identity.HomeMNC)) {
+		return fmt.Errorf("%w: unresolved MNC must prefix the live IMSI", ErrInvalidIdentity)
 	}
 	return nil
 }
@@ -221,15 +258,26 @@ type TunnelSecurityPolicy struct {
 }
 
 type TunnelRequest struct {
-	DeviceID string
-	Identity SIMIdentity
-	EPDG     string
-	Proxy    ProxyRoute
-	AKA      AKAProvider
-	Security TunnelSecurityPolicy
+	// Synchronous callbacks are valid only during this Start invocation.
+	// Admission runs immediately before INIT; authenticated rejection must be
+	// durably observed before cleanup/cancellation can discard the outcome.
+	BeforeIKE               func(context.Context) error         `json:"-"`
+	BeforeIKEEndpoint       func(context.Context, string) error `json:"-"`
+	ObserveNetworkRejection func(EPDGNetworkRejection) error    `json:"-"`
+	// ExcludedEPDGAddresses applies only to this host/authentication home in
+	// one Enable transaction. It never changes DNS, proxy or success history.
+	ExcludedEPDGAddresses []string
+	GeographicDNSFallback bool
+	DeviceID              string
+	Identity              SIMIdentity
+	EPDG                  string
+	Proxy                 ProxyRoute
+	AKA                   AKAProvider
+	Security              TunnelSecurityPolicy
 }
 
 type TunnelEvidence struct {
+	EPDGAddress   string
 	Established   bool
 	Name          string
 	DataplaneMode string
@@ -248,6 +296,9 @@ type IMSRequest struct {
 	DeviceID string
 	Identity SIMIdentity
 	Tunnel   TunnelSession
+	// Cellular is mutually exclusive with Tunnel. Merely having a modem IMS
+	// switch enabled or a generic internet connection is not a Host IMS bearer.
+	Cellular CellularIMSBearer
 }
 
 type IMSEvidence struct {
@@ -437,17 +488,19 @@ type USSICanceler interface {
 // Call describes one IMS call and reports whether an RTP media stream is
 // available to an authenticated extension.
 type Call struct {
-	ID         string     `json:"id"`
-	Number     string     `json:"number"`
-	Direction  string     `json:"direction"`
-	State      string     `json:"state"`
-	StartedAt  time.Time  `json:"started_at"`
-	AnsweredAt *time.Time `json:"answered_at,omitempty"`
-	SIPCode    int        `json:"sip_code,omitempty"`
-	Reason     string     `json:"reason,omitempty"`
-	MediaReady bool       `json:"media_ready,omitempty"`
-	Codec      string     `json:"codec,omitempty"`
-	EndedAt    *time.Time `json:"ended_at,omitempty"`
+	ID               string     `json:"id"`
+	Number           string     `json:"number"`
+	Direction        string     `json:"direction"`
+	State            string     `json:"state"`
+	StartedAt        time.Time  `json:"started_at"`
+	AnsweredAt       *time.Time `json:"answered_at,omitempty"`
+	SIPCode          int        `json:"sip_code,omitempty"`
+	Reason           string     `json:"reason,omitempty"`
+	MediaReady       bool       `json:"media_ready,omitempty"`
+	SignalingPending bool       `json:"signaling_pending,omitempty"`
+	Codec            string     `json:"codec,omitempty"`
+	DTMFDigits       string     `json:"dtmf_digits,omitempty"`
+	EndedAt          *time.Time `json:"ended_at,omitempty"`
 }
 
 // CallController is an optional capability of an IMS session. Media remains a
@@ -473,23 +526,36 @@ type CallMediaController interface {
 	CallMedia(context.Context, string) (CallMedia, error)
 }
 
+// Optional call capability; implementations without negotiated telephone
+// events remain usable for voice. One action names one exact live dialog.
+type CallDTMFController interface {
+	SendDTMF(context.Context, string, byte) error
+}
+
 // PhoneStore persists a number only after it was explicitly associated by IMS.
 type PhoneStore interface {
 	SaveAssociatedNumber(context.Context, PhoneRecord) error
 }
 
 type Dependencies struct {
-	SIM    SIMIdentityReader
-	AKA    AKAProvider
-	Radio  RadioController
-	Proxy  ProxyResolver
-	Tunnel TunnelProvider
-	IMS    IMSProvider
-	Phones PhoneStore
+	IKERetry  IKERetryStore
+	Discovery EPDGDiscoveryStore
+	SIM       SIMIdentityReader
+	AKA       AKAProvider
+	Radio     RadioController
+	Proxy     ProxyResolver
+	Tunnel    TunnelProvider
+	IMS       IMSProvider
+	Phones    PhoneStore
 }
 
 type Options struct {
-	DeviceID                  string
+	IKERetryClock IKERetryClock
+	DeviceID      string
+	// ResolveRadioPolicy is evaluated for each enable/reconnect attempt. A
+	// nil resolver selects Exclusive. A live transaction keeps its captured
+	// policy until Disable has acknowledged its radio cleanup.
+	ResolveRadioPolicy        func(context.Context) (RadioPolicy, error)
 	AllowMissingResponderAUTH bool
 	AllowIMSWithoutSMS        bool
 	CleanupTimeout            time.Duration

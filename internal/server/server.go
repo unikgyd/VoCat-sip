@@ -23,6 +23,9 @@ import (
 	"vocat/internal/extensions"
 	"vocat/internal/httpsmode"
 	"vocat/internal/loghub"
+	"vocat/internal/modulecall"
+	"vocat/internal/sipgateway"
+	"vocat/internal/smsapi"
 	"vocat/internal/store"
 	"vocat/internal/update"
 	"vocat/internal/vowifi"
@@ -39,6 +42,8 @@ type Options struct {
 	Auth                *auth.Service
 	Devices             DeviceController
 	VoWiFi              VoWiFiController
+	HostIMS             VoWiFiController
+	ReadSubscription    func(context.Context, string) (vowifi.SIMIdentity, error)
 	Logs                *loghub.Hub
 	Assets              fs.FS
 	Logger              *slog.Logger
@@ -58,6 +63,16 @@ type Server struct {
 	auth                      *auth.Service
 	devices                   DeviceController
 	vowifi                    VoWiFiController
+	wifiIMS                   VoWiFiController
+	hostIMS                   VoWiFiController
+	readSubscription          func(context.Context, string) (vowifi.SIMIdentity, error)
+	moduleCallScopes          sync.Map
+	moduleCalls               *modulecall.Manager
+	callNotifications         callNotificationHistory
+	imsConfigMu               sync.Mutex
+	imsCallsMu                sync.Mutex
+	imsDialogOwners           map[string]VoWiFiController
+	imsCallOwners             map[string]VoWiFiController
 	ussdSessions              ussdSessionStore
 	logs                      *loghub.Hub
 	assets                    fs.FS
@@ -90,7 +105,9 @@ type Server struct {
 	lookupPublicIP            func(context.Context, string) (exportproxy.PublicIPInfo, error)
 	automaticTasks            *automaticTaskScheduler
 	smsSyncMu                 sync.Mutex
-	esimSIMResetAttempted     map[string]bool // 由 smsSyncMu 保护；读取成功后允许下一次故障恢复。
+	smsForwardScans           map[string]smsForwardScan // Only smsSyncMu may access observation qualifications.
+	smsForwardScanBlocked     bool                      // Lost bounded protection evidence: AT forwarding stays archive-only for this process.
+	esimSIMResetAttempted     map[string]bool           // 由 smsSyncMu 保护；读取成功后允许下一次故障恢复。
 	smsStorageMu              sync.Mutex
 	smsStorage                map[string]device.SMSStorageUsage
 	cellularDataOnce          sync.Once
@@ -98,6 +115,9 @@ type Server struct {
 	cellularDataEventOnce     sync.Once
 	cellularDataLifecycleOnce sync.Once
 	cellularData              *cellularDataRuntime
+	sipGateway                *sipgateway.Manager
+	webPhone                  *webPhone
+	smsAPI                    *smsapi.Service
 }
 
 func New(options Options) (*Server, error) {
@@ -129,6 +149,10 @@ func New(options Options) (*Server, error) {
 		auth:                options.Auth,
 		devices:             options.Devices,
 		vowifi:              options.VoWiFi,
+		wifiIMS:             options.VoWiFi,
+		hostIMS:             options.HostIMS,
+		readSubscription:    options.ReadSubscription,
+		imsCallOwners:       make(map[string]VoWiFiController),
 		ussdSessions:        newUSSDSessionStore(),
 		logs:                options.Logs,
 		assets:              options.Assets,
@@ -155,10 +179,19 @@ func New(options Options) (*Server, error) {
 		updateApply:         update.ApplyLatest,
 		updateRestart:       update.RestartService,
 	}
+	if options.VoWiFi != nil || options.HostIMS != nil {
+		server.vowifi = &imsServiceDispatch{server: server}
+	}
+	if _, ok := options.Devices.(moduleVoiceController); ok {
+		server.moduleCalls = modulecall.New(context.Background(), moduleVoiceBackend{server})
+	}
 	server.cellularDataRuntime()
 	server.loadAccessConfig(context.Background())
 	server.loadUILanguage(context.Background())
 	server.loadLoggingConfig(context.Background())
+	server.sipGateway = sipgateway.New(context.Background(), options.Store, sipgateway.WithCarrierBackend(sipCarrierBackend{server}), sipgateway.WithCarrierSMSBackend(sipSMSBackend{server}))
+	server.webPhone = newWebPhone(server)
+	server.smsAPI = smsapi.New(context.Background(), server.store)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", server.handleLiveness)
@@ -177,6 +210,27 @@ func New(options Options) (*Server, error) {
 		server.securityHeaders(server.accessControl(server.logUserOperation(mux))),
 	)
 	return server, nil
+}
+
+// CloseSIPGateway releases the optional SIP and read-only SMS API services. It does not
+// reconfigure modems or wait for carrier registration to change.
+func (s *Server) CloseSIPGateway() {
+	if s.smsAPI != nil {
+		s.smsAPI.Close()
+	}
+	if s.webPhone != nil {
+		s.webPhone.close()
+	}
+	if s.sipGateway != nil {
+		s.sipGateway.Close()
+	}
+	if s.moduleCalls != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := s.moduleCalls.Close(ctx); err != nil && s.logger != nil {
+			s.logger.Warn("module call cleanup remains unconfirmed", "category", "call", "error", err)
+		}
+	}
 }
 
 // VoWiFiController is the asynchronous runtime boundary used by the HTTP
@@ -206,6 +260,10 @@ type VoWiFiCallController interface {
 
 type VoWiFiCallMediaController interface {
 	CallMedia(context.Context, string, string) (vowifi.CallMedia, error)
+}
+
+type VoWiFiCallDTMFController interface {
+	SendDTMF(context.Context, string, string, byte) error
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -401,6 +459,9 @@ func (s *Server) handleAPI(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+	}
+	if s.routePhoneAPI(w, r) {
+		return
 	}
 	if s.routeDeviceAPI(w, r) {
 		return

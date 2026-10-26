@@ -62,6 +62,8 @@ type entry struct {
 	disablePending   bool
 	desiredEnabled   bool
 	autoRetryPending bool
+	retryCancel      context.CancelFunc
+	retryGeneration  uint64
 	retryFailures    uint
 	operationCancel  context.CancelFunc
 	stopWatch        func()
@@ -84,6 +86,7 @@ func (manager *Manager) BeginMaintenance(deviceID string) error {
 		return ErrNotRegistered
 	}
 	item.maintenance = true
+	manager.cancelAutoRetryLocked(item)
 	return nil
 }
 
@@ -95,6 +98,55 @@ func (manager *Manager) EndMaintenance(deviceID string) {
 		item.maintenance = false
 	}
 	manager.mu.Unlock()
+}
+
+// StopDevice fences background enable/reconnect and joins the line's worker
+// before confirming cleanup. A status snapshot alone cannot prove that a
+// queued enable worker has finished. EndMaintenance explicitly releases the
+// fence after a mode switch or exclusive hardware operation.
+func (manager *Manager) StopDevice(ctx context.Context, deviceID string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := manager.BeginMaintenance(deviceID); err != nil {
+		return err
+	}
+	if _, err := manager.RequestEnabled(deviceID, false); err != nil && !errors.Is(err, ErrOperationInProgress) {
+		return err
+	}
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		manager.mu.Lock()
+		item := manager.entries[deviceID]
+		if manager.closed || item == nil {
+			manager.mu.Unlock()
+			return ErrClosed
+		}
+		if !item.busy {
+			// Reserve the same lifecycle gate before releasing the mutex. The
+			// final Disable also retries resources retained by a failed cleanup.
+			item.busy = true
+			manager.mu.Unlock()
+			state, err := item.orchestrator.Disable(ctx)
+			manager.mu.Lock()
+			item.busy = false
+			manager.mu.Unlock()
+			if err != nil {
+				return err
+			}
+			if state.Enabled || state.Active || state.IMSReady || len(state.CleanupErrors) > 0 {
+				return vowifi.ErrCleanupIncomplete
+			}
+			return nil
+		}
+		manager.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func New(options Options) *Manager {
@@ -270,6 +322,7 @@ func (manager *Manager) RequestEnabled(deviceID string, enabled bool) (vowifi.St
 		return state, nil
 	}
 	item.desiredEnabled = enabled
+	manager.cancelAutoRetryLocked(item)
 	if item.busy {
 		manager.logger.Info(
 			"VoWiFi desired state updated while lifecycle operation is active",
@@ -296,7 +349,12 @@ func (manager *Manager) RequestEnabled(deviceID string, enabled bool) (vowifi.St
 	}
 	manager.mu.Unlock()
 	return manager.startOperation(deviceID, false, func(ctx context.Context, orchestrator *vowifi.Orchestrator) error {
-		if enabled {
+		// Re-read intent at execution, not only before queueing. A StopDevice
+		// can complete while an earlier caller is delayed before startOperation.
+		manager.mu.Lock()
+		mayEnable := enabled && item.desiredEnabled && !item.maintenance
+		manager.mu.Unlock()
+		if mayEnable {
 			_, err := orchestrator.Enable(ctx)
 			return err
 		}
@@ -311,10 +369,24 @@ func (manager *Manager) RequestReconnect(deviceID string) (vowifi.State, error) 
 	}
 	manager.mu.Lock()
 	if item := manager.entries[deviceID]; item != nil {
+		if item.maintenance {
+			state := item.orchestrator.State()
+			manager.mu.Unlock()
+			return state, nil
+		}
 		item.desiredEnabled = true
+		manager.cancelAutoRetryLocked(item)
 	}
 	manager.mu.Unlock()
 	return manager.startOperation(deviceID, true, func(ctx context.Context, orchestrator *vowifi.Orchestrator) error {
+		manager.mu.Lock()
+		item := manager.entries[deviceID]
+		mayReconnect := item != nil && item.desiredEnabled && !item.maintenance
+		manager.mu.Unlock()
+		if !mayReconnect {
+			_, err := orchestrator.Disable(ctx)
+			return err
+		}
 		_, err := orchestrator.Reconnect(ctx)
 		return err
 	})
@@ -339,6 +411,18 @@ func (manager *Manager) SendSMS(
 		return vowifi.SMSSubmitResult{}, ErrNotRegistered
 	}
 	return item.orchestrator.SendSMS(ctx, request)
+}
+
+// Unlike the management convenience API, this must not Ensure/start a runtime.
+func (manager *Manager) SendSMSForSubscription(ctx context.Context, deviceID, imsi, iccid string, request vowifi.SMSSubmitRequest) (vowifi.SMSSubmitResult, error) {
+	manager.mu.Lock()
+	item := manager.entries[deviceID]
+	closed := manager.closed
+	manager.mu.Unlock()
+	if closed || item == nil {
+		return vowifi.SMSSubmitResult{}, ErrNotRegistered
+	}
+	return item.orchestrator.SendSMSForSubscription(ctx, imsi, iccid, request)
 }
 
 func (manager *Manager) SendUSSI(
@@ -445,6 +529,19 @@ func (manager *Manager) CallMedia(ctx context.Context, deviceID, id string) (vow
 	return item.orchestrator.CallMedia(ctx, id)
 }
 
+func (manager *Manager) SendDTMF(ctx context.Context, deviceID, id string, digit byte) error {
+	if err := manager.Ensure(ctx, deviceID); err != nil {
+		return err
+	}
+	manager.mu.Lock()
+	item := manager.entries[deviceID]
+	manager.mu.Unlock()
+	if item == nil {
+		return ErrNotRegistered
+	}
+	return item.orchestrator.SendDTMF(ctx, id, digit)
+}
+
 func (manager *Manager) startOperation(
 	deviceID string,
 	coalesceReconnect bool,
@@ -493,7 +590,7 @@ func (manager *Manager) runOperations(
 	for {
 		ctx, cancel := context.WithTimeout(manager.ctx, manager.operationTimeout)
 		manager.mu.Lock()
-		if item.disablePending {
+		if item.maintenance || item.disablePending {
 			item.disablePending = false
 			item.reconnectPending = false
 			operation = func(ctx context.Context, orchestrator *vowifi.Orchestrator) error {
@@ -549,7 +646,10 @@ func (manager *Manager) runOperations(
 		// Reconcile a switch change that arrived while the previous lifecycle
 		// operation was busy. Keep using the same worker so enable/disable can
 		// never overlap on the modem or tunnel resources.
-		if item.desiredEnabled && !state.Enabled {
+		// An Enable rejected by a retained cleanup lease must settle and use
+		// normal retry/backoff. Repeating it in this worker would spin forever
+		// because the orchestrator intentionally leaves Enabled=false.
+		if item.desiredEnabled && !state.Enabled && err == nil {
 			manager.mu.Unlock()
 			operation = func(ctx context.Context, orchestrator *vowifi.Orchestrator) error {
 				_, err := orchestrator.Enable(ctx)
@@ -587,8 +687,23 @@ func (manager *Manager) scheduleAutoRetry(deviceID string, item *entry) {
 	manager.mu.Unlock()
 }
 
+// A carrier wait can be hours rather than the old 30-second ladder. Manual
+// operations and mode switches must release its worker and busy indication.
+func (manager *Manager) cancelAutoRetryLocked(item *entry) {
+	if item.retryCancel != nil {
+		item.retryCancel()
+		item.retryCancel = nil
+	}
+	item.retryGeneration++
+	item.autoRetryPending = false
+}
+
 func (manager *Manager) scheduleAutoRetryLocked(deviceID string, item *entry) {
 	if manager.closed || item.busy || item.autoRetryPending || !item.desiredEnabled {
+		return
+	}
+	carrierRetry := item.orchestrator.State().IKERetry
+	if carrierRetry != nil && carrierRetry.UntilCardEvent {
 		return
 	}
 	delay := manager.retryInitial
@@ -602,8 +717,19 @@ func (manager *Manager) scheduleAutoRetryLocked(deviceID string, item *entry) {
 	if delay > manager.retryMaximum {
 		delay = manager.retryMaximum
 	}
+	// Carrier delay is not capped by the ordinary network retry ladder. A
+	// later wall-clock change cannot authorize IKE: the gate checks uptime.
+	if carrierRetry != nil && carrierRetry.AfterSeconds > 0 && carrierRetry.AfterSeconds <= 1116000 {
+		if carrier := time.Duration(carrierRetry.AfterSeconds) * time.Second; carrier > delay {
+			delay = carrier
+		}
+	}
 	item.retryFailures++
 	item.autoRetryPending = true
+	item.retryGeneration++
+	generation := item.retryGeneration
+	retryContext, retryCancel := context.WithCancel(manager.ctx)
+	item.retryCancel = retryCancel
 	manager.wg.Add(1)
 
 	manager.logger.Info(
@@ -613,16 +739,22 @@ func (manager *Manager) scheduleAutoRetryLocked(deviceID string, item *entry) {
 	)
 	go func() {
 		defer manager.wg.Done()
+		defer retryCancel()
 		timer := time.NewTimer(delay)
 		defer timer.Stop()
 		select {
-		case <-manager.ctx.Done():
+		case <-retryContext.Done():
 			return
 		case <-timer.C:
 		}
 
 		manager.mu.Lock()
+		if item.retryGeneration != generation {
+			manager.mu.Unlock()
+			return
+		}
 		item.autoRetryPending = false
+		item.retryCancel = nil
 		if manager.closed || manager.entries[deviceID] != item || !item.desiredEnabled {
 			manager.mu.Unlock()
 			return
@@ -697,10 +829,9 @@ func (manager *Manager) Close(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	manager.mu.Lock()
-	if manager.closed {
-		manager.mu.Unlock()
-		return nil
-	}
+	// Closing fences new work immediately, but may leave a radio checkpoint
+	// after an unacknowledged Restore. Repeated Close must retry those owners
+	// rather than claim that the already-closed manager is fully cleaned up.
 	manager.closed = true
 	manager.cancel()
 	items := make([]*entry, 0, len(manager.entries))

@@ -51,7 +51,11 @@ jobs:
           name: web-dist
           path: web/dist
       - name: Test
-        run: go test ./...
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dbus-daemon libopencore-amrnb0
+          export VOCAT_REQUIRE_AMR_TEST=1
+          go test ./...
 
   binaries:
     needs: [web, test]
@@ -110,24 +114,32 @@ jobs:
           mkdir -p dist
           VERSION="${VERSION#v}"
           BUILD_TIME="$(git show -s --format=%cI HEAD)"
-          go build -trimpath \
-            -ldflags "-s -w -X vocat/internal/buildinfo.Version=${VERSION} -X vocat/internal/buildinfo.BuildTime=${BUILD_TIME}" \
-            -o "$OUTPUT" \
-            ./cmd/vocat
+          export VERSION BUILD_TIME
+          sh scripts/build-linux.sh "$OUTPUT" native
           chmod 0755 "$OUTPUT"
-          if readelf -l "$OUTPUT" | grep -q 'Requesting program interpreter'; then
-            echo "ERROR: $OUTPUT unexpectedly requires a dynamic loader" >&2
+          # Default builds include native AMR and deliberately require glibc.
+          # Publish a separately named static fallback for musl/OpenWrt.
+          sh scripts/build-linux.sh "$OUTPUT-static" static
+          if readelf -l "$OUTPUT-static" | grep -q 'Requesting program interpreter'; then
+            echo "ERROR: $OUTPUT-static unexpectedly requires a dynamic loader" >&2
+            exit 1
+          fi
+          if ! readelf -l "$OUTPUT" | grep -q 'Requesting program interpreter'; then
+            echo "ERROR: $OUTPUT lost the native AMR/glibc backend" >&2
             readelf -l "$OUTPUT" >&2
             exit 1
           fi
+          if [ "${{ matrix.goarch }}" = arm ]; then
+            readelf -l "$OUTPUT" | grep -F '/lib/ld-linux-armhf.so.3'
+          fi
           case "${{ matrix.goarch }}" in
-            amd64|arm64) "$OUTPUT" version ;;
+            amd64|arm64) "$OUTPUT" version; "$OUTPUT-static" media-check --json ;;
           esac
       - name: Upload ${{ matrix.target }}
         uses: actions/upload-artifact@v6
         with:
           name: binary-${{ matrix.target }}
-          path: dist/${{ matrix.filename }}
+          path: dist/${{ matrix.filename }}*
           if-no-files-found: error
           retention-days: 1
 
@@ -138,15 +150,21 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      - uses: actions/checkout@v6
       - name: Download binaries
         uses: actions/download-artifact@v7
         with:
           pattern: binary-*
           path: dist
           merge-multiple: true
+      - name: Include license notices
+        run: |
+          cp LICENSE dist/LICENSE.txt
+          cp NOTICE dist/NOTICE.txt
+          tar -czf dist/third-party-licenses.tar.gz third_party/licenses LICENSES
       - name: Generate checksums
         working-directory: dist
-        run: sha256sum vocat-linux-* | sort > SHA256SUMS
+        run: sha256sum vocat-linux-* LICENSE.txt NOTICE.txt third-party-licenses.tar.gz | sort > SHA256SUMS
       - name: Create or update GitHub Release
         run: |
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then

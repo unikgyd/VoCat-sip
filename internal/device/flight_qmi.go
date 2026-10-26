@@ -166,6 +166,25 @@ func (session *productionQMIRadioSession) AttachDetach(ctx context.Context, atta
 // 410 firmware rejects AT+CFUN=1 even though the equivalent DMS online request
 // is supported, so native WWAN devices must not fall back to the AT path.
 func openQMIRadioSession(ctx context.Context, controlDevice string) (qmiRadioSession, error) {
+	return openQMIRadioSessionWithPolicy(ctx, controlDevice, false)
+}
+
+func openQMISharedSIMSession(ctx context.Context, controlDevice string) (qmiRadioSession, error) {
+	return openQMIRadioSessionWithPolicy(ctx, controlDevice, true)
+}
+
+func sharedSIMClientOptions() qmi.ClientOptions {
+	opts := qmi.DefaultClientOptions()
+	opts.UseProxy, opts.SyncOnOpen, opts.QueryVersionOnOpen, opts.ProxyFallbackToRaw = true, false, false, false
+	// This client version restores Sync/Query=true when every queue/deadline
+	// option equals its defaults. Give shared SIM requests their own bounded
+	// timeout so the explicit false flags survive option normalization.
+	opts.DefaultRequestTimeout = 10 * time.Second
+	opts.Logf = func(qmi.ClientLogLevel, string, ...any) {}
+	return opts
+}
+
+func openQMIRadioSessionWithPolicy(ctx context.Context, controlDevice string, sharedSIM bool) (qmiRadioSession, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -178,6 +197,9 @@ func openQMIRadioSession(ctx context.Context, controlDevice string) (qmiRadioSes
 	opts := qmi.DefaultClientOptions()
 	opts.UseProxy = true
 	opts.Logf = func(qmi.ClientLogLevel, string, ...any) {}
+	if sharedSIM {
+		opts = sharedSIMClientOptions()
+	}
 	client, err := qmi.NewClientWithOptions(openContext, controlDevice, opts)
 	if err != nil {
 		lease.Release()
@@ -231,7 +253,7 @@ func (session *productionQMIRadioSession) GetNativeMCCMNC(ctx context.Context) (
 	if err != nil {
 		return "", "", err
 	}
-	return uim.GetNativeMCCMNC(ctx)
+	return readQMIHomePLMN(ctx, uim)
 }
 
 func (session *productionQMIRadioSession) GetUSIMAID(ctx context.Context) ([]byte, error) {

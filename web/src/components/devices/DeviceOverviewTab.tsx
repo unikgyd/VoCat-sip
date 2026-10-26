@@ -10,6 +10,9 @@ import { OperatorSelectionDialog } from "./OperatorSelectionDialog";
 import type { DeviceDetail } from "./types";
 import { useI18n } from "../../lib/i18n";
 import { isVoWiFiInUse } from "./shared";
+import { EpdgDiscoveryPanel } from "./EpdgDiscoveryPanel";
+import { IMSLinePanel, OverviewHostIMSCard } from "./IMSLinePanel";
+import { selectedIMSMode } from "./imsLineModel";
 
 export interface DeviceOverviewTabProps {
   device: DeviceDetail;
@@ -28,6 +31,7 @@ export function DeviceOverviewTab(props: DeviceOverviewTabProps) {
   const { t } = useI18n();
   const [operatorOpen, setOperatorOpen] = useState(false);
   const { device } = props;
+  const imsMode = selectedIMSMode(device);
 	const wifiCallingOnly = device.deviceType === "usb_sim_reader";
   const supportsCellLock = device.supportsCellLock === true;
   const cellLock = useDeviceCellLock(device.id, supportsCellLock);
@@ -35,10 +39,14 @@ export function DeviceOverviewTab(props: DeviceOverviewTabProps) {
 	const showNetworkDetails = !!device.developerEnabled && !wifiCallingOnly;
   return (
     <div className="space-y-4">
+      <IMSLinePanel device={device} onUpdated={props.onRefresh} />
       <div className={`grid grid-cols-1 gap-4 ${showNetworkDetails ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
         <div className="ui-panel-muted p-4">
           <div className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">{t("运行状态")}</div>
-		  {isVoWiFiInUse(device) && !(device.modem?.imei && device.modem?.simInserted === false) ? (
+		  {device.telephonyPolicy ? <div className="space-y-5">
+            {!wifiCallingOnly && (device.telephonyPolicy.cellularMode === "host_ims" ? <OverviewHostIMSCard device={device} /> : <OverviewNetworkCard device={device} onOpenOperatorSelection={() => setOperatorOpen(true)} onOpenCellLock={supportsCellLock ? cellLock.openDialog : undefined} cellLocked={cellLocked} />)}
+            <OverviewVowifiCard device={device} />
+          </div> : imsMode === "host_ims" ? <OverviewHostIMSCard device={device} /> : (imsMode === "vowifi" || isVoWiFiInUse(device)) ? (
             <OverviewVowifiCard device={device} />
           ) : (
             <OverviewNetworkCard device={device} onOpenOperatorSelection={() => setOperatorOpen(true)}
@@ -60,6 +68,7 @@ export function DeviceOverviewTab(props: DeviceOverviewTabProps) {
           trafficSpeedTx={props.trafficSpeedTx}
 		/> : null}
       </div>
+      {(!!device.telephonyPolicy || imsMode === "vowifi") && <EpdgDiscoveryPanel deviceId={device.id} simKey={device.modem?.simInserted === false ? "" : device.modem?.iccid || device.vowifiRuntime?.iccid || ""} />}
       {device.developerEnabled && device.networkEnabled && device.id ? <OverviewTrafficChart deviceId={device.id} /> : null}
 	  {device?.id && !wifiCallingOnly ? (
         <OperatorSelectionDialog

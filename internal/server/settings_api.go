@@ -83,6 +83,9 @@ func (s *Server) routeSettingsAPI(
 ) bool {
 	cleanPath = strings.Trim(cleanPath, "/")
 	switch cleanPath {
+	case "settings/sms-api":
+		s.handleSMSTokenAPISettings(w, r)
+		return true
 	case "settings/notifications":
 		s.handleNotificationSettings(w, r)
 		return true
@@ -100,6 +103,9 @@ func (s *Server) routeSettingsAPI(
 		return true
 	case "settings/vowifi":
 		s.handleVoWiFiSettings(w, r)
+		return true
+	case "settings/sip":
+		s.handleSIPSettings(w, r)
 		return true
 	case "settings/sms":
 		s.handleSMSSettings(w, r)
@@ -1439,7 +1445,7 @@ func (s *Server) liveCardPolicyFlags(ctx context.Context, iccid string) (vowifi,
 		// VoWiFi is selected both switches are on, but the airplane switch is
 		// read-only in the UI. Once VoWiFi is disabled, airplane remains on until
 		// the user explicitly turns it off.
-		return config.VoWiFiEnabled, config.VoWiFiEnabled || entry.Snapshot.FlightMode, true
+		return config.VoWiFiEnabled, config.VoWiFiEnabled && store.WiFiExclusive(config) || entry.Snapshot.FlightMode, true
 	}
 	return false, false, false
 }
@@ -1471,7 +1477,11 @@ func (s *Server) handleCardPolicy(w http.ResponseWriter, r *http.Request, iccid 
 			policy.VoWiFiEnabled = vowifi
 			policy.AirplaneEnabled = airplane
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"data": cardPolicyResponse(policy)})
+		response := cardPolicyResponse(policy)
+		if telephony, err := s.store.SIMTelephonyPolicy(r.Context(), iccid); err == nil {
+			response["telephony_policy"] = telephony
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"data": response})
 	case http.MethodPut:
 		var request struct {
 			VoWiFiEnabled     *bool   `json:"vowifi_enabled"`
@@ -1495,6 +1505,15 @@ func (s *Server) handleCardPolicy(w http.ResponseWriter, r *http.Request, iccid 
 				"at least one card policy field is required",
 			)
 			return
+		}
+		if request.VoWiFiEnabled != nil || request.AirplaneEnabled != nil {
+			if _, err := s.store.SIMTelephonyPolicy(r.Context(), iccid); err == nil {
+				writeError(w, 409, "independent_telephony_policy", "use the SIM telephony settings for independently configured access")
+				return
+			} else if !errors.Is(err, store.ErrNotFound) {
+				s.writeStoreError(w, err)
+				return
+			}
 		}
 		policy, err := s.store.CardPolicy(r.Context(), iccid)
 		if errors.Is(err, store.ErrNotFound) {
@@ -1591,8 +1610,11 @@ func (s *Server) applyLiveCardMBN(iccid string) {
 		return
 	}
 	clean := strings.TrimSpace(iccid)
-	var deviceID string
+	var deviceID, configuredID string
 	for _, config := range configs {
+		if store.HostIMSConfigured(config) {
+			continue
+		}
 		entry, physicalID, present := s.physicalForConfig(config)
 		if !present || entry.Snapshot == nil {
 			continue
@@ -1601,6 +1623,7 @@ func (s *Server) applyLiveCardMBN(iccid string) {
 			continue
 		}
 		deviceID = physicalID
+		configuredID = config.ID
 		break
 	}
 	if deviceID == "" {
@@ -1609,6 +1632,17 @@ func (s *Server) applyLiveCardMBN(iccid string) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
+		lock := s.imsModeLock(configuredID)
+		lock.RLock()
+		defer lock.RUnlock()
+		current, err := s.store.Device(ctx, configuredID)
+		if err != nil || store.HostIMSConfigured(current) {
+			return
+		}
+		_, physicalID, present := s.physicalForConfig(current)
+		if !present || physicalID != deviceID {
+			return
+		}
 		if err := reconciler.ReconcileEC20MBNAfterProfileSwitch(ctx, deviceID, clean); err != nil && s.logger != nil {
 			s.logger.Warn("apply card MBN policy", "device_id", deviceID, "iccid", clean, "error", err)
 		}

@@ -25,6 +25,7 @@ export function DeviceDetailHeader(props: DeviceDetailHeaderProps) {
   const { t } = useI18n();
   const { device } = props;
 	const vowifiInUse = isVoWiFiInUse(device);
+  const hostIMS = device.imsMode === "host_ims";
   return (
     <div className="ui-card p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -46,7 +47,7 @@ export function DeviceDetailHeader(props: DeviceDetailHeaderProps) {
             <Button loading={props.reconnectingVoWiFi} onClick={props.onReconnectVowifi} className="ui-glass-border !border-0" icon={<ArrowSyncRegular />}>
               {t("重连 VoWiFi")}
             </Button>
-		  ) : device.developerEnabled && !props.wifiCallingOnly ? (
+		  ) : device.developerEnabled && !props.wifiCallingOnly && !hostIMS ? (
 			<div
 			  className="ui-glass-border flex h-8 items-center gap-2 rounded-lg px-3 text-sm text-gray-700 dark:text-gray-200"
 			  title={t("蜂窝数据仅进入 Export Proxy 的受保护路由，不会成为主机默认出口")}
@@ -73,7 +74,7 @@ export function DeviceDetailHeader(props: DeviceDetailHeaderProps) {
 			  ) : null}
 			</div>
 		  ) : null}
-		  {!props.wifiCallingOnly && !props.modemControlOnly ? <Button loading={props.rebooting} onClick={props.onRebootModem} className="ui-glass-border !border-0 hover:!text-red-600" icon={<PowerRegular />}>
+		  {!props.wifiCallingOnly && !props.modemControlOnly && !hostIMS ? <Button loading={props.rebooting} onClick={props.onRebootModem} className="ui-glass-border !border-0 hover:!text-red-600" icon={<PowerRegular />}>
             {t("重启模组")}
 		  </Button> : null}
           {!props.modemControlOnly ? <Button onClick={props.onOpenSms} className="ui-glass-border !border-0" icon={<ChatRegular />}>

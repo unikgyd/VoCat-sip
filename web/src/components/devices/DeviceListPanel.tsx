@@ -40,6 +40,7 @@ function primaryLine(d: DeviceListItem): string {
 }
 
 function statusLine(d: DeviceListItem): string {
+  if (d.imsMode === "host_ims") return "Host IMS";
   if (isVoWiFiInUse(d)) return "WiFi-Calling";
   return primaryLine(d);
 }

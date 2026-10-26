@@ -82,12 +82,16 @@ func (s *Store) PhoneAssociation(
 // A user override wins over an IMS-published association, matching the device
 // overview while keeping the lookup scoped to the historical ICCID.
 func (s *Store) PhoneNumberForICCID(ctx context.Context, iccid string) (string, error) {
+	return phoneNumberForICCID(ctx, s.db, iccid)
+}
+
+func phoneNumberForICCID(ctx context.Context, executor contextQueryExecer, iccid string) (string, error) {
 	iccid = strings.TrimSpace(iccid)
 	if iccid == "" {
 		return "", ErrNotFound
 	}
 	var number string
-	err := s.db.QueryRowContext(ctx, `
+	err := executor.QueryRowContext(ctx, `
 		SELECT number
 		FROM (
 			SELECT custom_phone_number AS number, 0 AS priority

@@ -8,6 +8,7 @@ import {
 import type { SystemInfo } from "../../types";
 import { useI18n } from "../../lib/i18n";
 import { Button } from "../ui/Button";
+import { StatusDot } from "../ui/StatusDot";
 import { FieldRow, PasswordInput } from "./controls";
 
 export interface PasswordForm {
@@ -180,6 +181,10 @@ export function SystemInfoCard({
         <div className="rounded-lg bg-gray-50 p-3 dark:bg-white/5">
           <FieldRow label={t("架构")} value={info.architecture} monospace />
         </div>
+          {info.mediaCapabilities && <div className="rounded-lg bg-gray-50 p-3 dark:bg-white/5">
+            <FieldRow label="AMR-NB"><span className="inline-flex items-center gap-2"><StatusDot tone={info.mediaCapabilities.amrNb.available ? "success" : "danger"} animated={false}/>{t(info.mediaCapabilities.amrNb.available ? "编解码可用" : "编解码不可用")}</span></FieldRow>
+            {!info.mediaCapabilities.amrNb.available && <details className="mt-3 text-xs leading-6 text-gray-500 dark:text-gray-400"><summary className="cursor-pointer">{t("查看媒体依赖")}</summary><p className="mt-2">{t(info.mediaCapabilities.amrNb.built ? "请安装匹配架构的 OpenCORE-AMR-NB 运行库后重试；Debian／Ubuntu 包名为 libopencore-amrnb0。" : "当前是静态／不支持的平台构建，仅提供 G.711。需要 AMR 语音时请使用 glibc-AMR 版本。")}</p><code>vocat media-check --require-amr --json</code></details>}
+          </div>}
       </div>
     </div>
   );

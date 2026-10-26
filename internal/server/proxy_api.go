@@ -320,21 +320,22 @@ func (s *Server) handleProfileProxyBindings(w http.ResponseWriter, r *http.Reque
 // returned as advisory information: the chosen route will still be used on
 // the next VoWiFi start/reconnect.
 func (s *Server) requestProfileProxyRouteReconnect(deviceID, iccid string) (bool, error) {
-	if s.vowifi == nil {
+	controller := s.wifiController()
+	if controller == nil {
 		return false, nil
 	}
 	config, err := s.store.Device(context.Background(), deviceID)
 	if err != nil {
 		return false, err
 	}
-	if !config.VoWiFiEnabled {
+	if !store.AccessEnabled(config, store.IMSModeVoWiFi) {
 		return false, nil
 	}
-	state, stateErr := s.vowifi.State(deviceID)
+	state, stateErr := controller.State(deviceID)
 	if stateErr != nil || strings.TrimSpace(state.ICCID) == "" || strings.TrimSpace(state.ICCID) != strings.TrimSpace(iccid) {
 		return false, nil
 	}
-	if _, err := s.vowifi.RequestReconnect(deviceID); err != nil {
+	if _, err := controller.RequestReconnect(deviceID); err != nil {
 		s.logger.Warn("VoWiFi proxy route saved but immediate reconnect was not started", "device_id", deviceID, "error", err)
 		return false, err
 	}

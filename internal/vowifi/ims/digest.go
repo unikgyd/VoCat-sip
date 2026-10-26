@@ -170,6 +170,11 @@ func authenticateAKA(
 	challenge digestChallenge,
 	preference string,
 ) (akaMaterial, error) {
+	physical, err := vowifi.AKAIdentity(identity)
+	if err != nil {
+		return akaMaterial{}, err
+	}
+	identity = physical
 	nonce, err := decodeAKANonce(challenge.Nonce)
 	if err != nil {
 		return akaMaterial{}, err

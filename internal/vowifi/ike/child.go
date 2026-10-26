@@ -180,6 +180,10 @@ type networkConfiguration struct {
 }
 
 func configurationRequest() payload {
+	return configurationRequestForFamily(innerDual)
+}
+
+func configurationRequestForFamily(family innerFamily) payload {
 	attributes := []uint16{
 		configInternalIPv4Address,
 		configInternalIPv6Address,
@@ -190,6 +194,12 @@ func configurationRequest() payload {
 		// Android's IKE library always appends APPLICATION_VERSION to the
 		// initial configuration request, even when the value is empty.
 		configApplicationVersion,
+	}
+	if family == innerIPv6 {
+		attributes = []uint16{configInternalIPv6Address, configInternalIPv6DNS, configPCSCFIPv6Address, configApplicationVersion}
+	}
+	if family == innerIPv4 {
+		attributes = []uint16{configInternalIPv4Address, configInternalIPv4DNS, configPCSCFIPv4Address, configApplicationVersion}
 	}
 	body := []byte{configRequest, 0, 0, 0}
 	for _, attribute := range attributes {
@@ -209,14 +219,26 @@ func parseConfiguration(item payload) (networkConfiguration, error) {
 		if offset+4 > len(item.Body) {
 			return networkConfiguration{}, errors.New("ike: truncated configuration attribute")
 		}
-		kind := binary.BigEndian.Uint16(item.Body[offset : offset+2])
+		// RFC 7296 3.15.1: the high bit is reserved, not a TV/TLV flag,
+		// and MUST be ignored on receipt. Apply length checks to the type.
+		kind := binary.BigEndian.Uint16(item.Body[offset:offset+2]) & 0x7fff
 		length := int(binary.BigEndian.Uint16(item.Body[offset+2 : offset+4]))
 		offset += 4
 		if offset+length > len(item.Body) {
 			return networkConfiguration{}, errors.New("ike: invalid configuration attribute length")
 		}
 		value := item.Body[offset : offset+length]
-		switch kind & 0x7fff {
+		switch kind {
+		case configInternalIPv4Address, configInternalIPv4DNS, configPCSCFIPv4Address:
+			if length != 4 {
+				return networkConfiguration{}, errors.New("ike: IPv4 configuration attribute has invalid length")
+			}
+		case configInternalIPv6DNS, configPCSCFIPv6Address:
+			if length != 16 {
+				return networkConfiguration{}, errors.New("ike: IPv6 configuration attribute has invalid length")
+			}
+		}
+		switch kind {
 		case configInternalIPv4Address:
 			if length == 4 {
 				configuration.LocalIPv4 = append(net.IP(nil), value...)

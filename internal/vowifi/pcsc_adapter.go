@@ -19,6 +19,7 @@ type PCSCAdapter struct {
 	resolve  PCSCBindingResolver
 	mu       sync.RWMutex
 	bindings map[string]string
+	options  SIMReaderOptions
 }
 
 var (
@@ -29,11 +30,18 @@ var (
 	_ RadioController      = (*PCSCAdapter)(nil)
 )
 
-func NewPCSCAdapter(service *pcsc.Service, resolver PCSCBindingResolver) (*PCSCAdapter, error) {
+func NewPCSCAdapter(service *pcsc.Service, resolver PCSCBindingResolver, options ...SIMReaderOptions) (*PCSCAdapter, error) {
 	if service == nil || resolver == nil {
 		return nil, errors.New("vocat: PC/SC service and reader resolver are required")
 	}
-	return &PCSCAdapter{service: service, resolve: resolver, bindings: make(map[string]string)}, nil
+	if len(options) > 1 {
+		return nil, errors.New("vocat: only one SIM reader policy is allowed")
+	}
+	policy := SIMReaderOptions{}
+	if len(options) == 1 {
+		policy = options[0]
+	}
+	return &PCSCAdapter{service: service, resolve: resolver, bindings: make(map[string]string), options: policy}, nil
 }
 
 func (adapter *PCSCAdapter) ReadIdentity(ctx context.Context, deviceID string) (SIMIdentity, error) {
@@ -41,34 +49,50 @@ func (adapter *PCSCAdapter) ReadIdentity(ctx context.Context, deviceID string) (
 	if err != nil {
 		return SIMIdentity{}, err
 	}
-	identity, err := adapter.service.ReadIdentity(ctx, selector, pin)
+	var identity pcsc.Identity
+	if adapter.options.AllowUnresolvedMNCLength {
+		identity, err = adapter.service.ReadIdentityVerified(ctx, selector, pin)
+	} else {
+		identity, err = adapter.service.ReadIdentity(ctx, selector, pin)
+	}
 	if err != nil {
 		return SIMIdentity{}, fmt.Errorf("read USB SIM identity: %w", err)
 	}
 	if len(identity.IMSI) < 5 {
 		return SIMIdentity{}, errors.New("vocat: USB SIM reader returned an invalid IMSI")
 	}
-	adapter.mu.Lock()
-	adapter.bindings[identity.ICCID] = strings.TrimSpace(deviceID)
-	if identity.IMSI != "" {
-		adapter.bindings[identity.IMSI] = strings.TrimSpace(deviceID)
-	}
-	adapter.mu.Unlock()
 	mncLength := identity.MNCLength
+	result := SIMIdentity{ICCID: identity.ICCID, IMSI: identity.IMSI, SMSC: identity.SMSC, SPN: identity.SPN}
 	if mncLength != 2 && mncLength != 3 {
 		if mcc, mnc, ok := assignedHomePLMN(identity.IMSI); ok {
-			return applyAssignedCarrierRoute(SIMIdentity{ICCID: identity.ICCID, IMSI: identity.IMSI, HomeMCC: mcc, HomeMNC: mnc, SMSC: identity.SMSC, SPN: identity.SPN}), nil
+			result.HomeMCC, result.HomeMNC = mcc, mnc
+		} else if adapter.options.AllowUnresolvedMNCLength && validDigits(identity.IMSI, 6, 16) {
+			result.HomeMCC, result.HomeMNC = identity.IMSI[:3], identity.IMSI[3:5]
+			result.HomeMNCUncertain = true
+		} else {
+			return SIMIdentity{}, ErrEC20MNCUnavailable
 		}
-		return SIMIdentity{}, ErrEC20MNCUnavailable
+	} else {
+		if len(identity.IMSI) < 3+mncLength {
+			return SIMIdentity{}, errors.New("vocat: USB SIM IMSI is shorter than its EF_AD home PLMN")
+		}
+		result.HomeMCC, result.HomeMNC = identity.IMSI[:3], identity.IMSI[3:3+mncLength]
 	}
-	if len(identity.IMSI) < 3+mncLength {
-		return SIMIdentity{}, errors.New("vocat: USB SIM IMSI is shorter than its EF_AD home PLMN")
+	result = applyAssignedCarrierRoute(result)
+	if ResolveCarrierProfile(result).RouteMCC != "" {
+		result.HomeMNCUncertain = false
 	}
-	return applyAssignedCarrierRoute(SIMIdentity{
-		ICCID: identity.ICCID, IMSI: identity.IMSI,
-		HomeMCC: identity.IMSI[:3], HomeMNC: identity.IMSI[3 : 3+mncLength],
-		SMSC: identity.SMSC, SPN: identity.SPN,
-	}), nil
+	if err := result.validate(); err != nil {
+		return SIMIdentity{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return SIMIdentity{}, err
+	}
+	adapter.mu.Lock()
+	adapter.bindings[result.ICCID] = strings.TrimSpace(deviceID)
+	adapter.bindings[result.IMSI] = strings.TrimSpace(deviceID)
+	adapter.mu.Unlock()
+	return result, nil
 }
 
 func (adapter *PCSCAdapter) ReadSMSCenter(ctx context.Context, deviceID string) (string, error) {
@@ -91,11 +115,31 @@ func (adapter *PCSCAdapter) CheckReady(ctx context.Context, identity SIMIdentity
 	if err != nil {
 		return AKAEvidence{}, err
 	}
+	if err := adapter.verifySubscriber(ctx, selector, pin, identity); err != nil {
+		return AKAEvidence{}, err
+	}
 	aid, err := adapter.service.CheckReady(ctx, selector, identity.ICCID, pin)
 	if err != nil {
 		return AKAEvidence{}, fmt.Errorf("check USB SIM AKA application: %w", err)
 	}
 	return AKAEvidence{Ready: true, Application: aid}, nil
+}
+
+func (adapter *PCSCAdapter) verifySubscriber(ctx context.Context, selector pcsc.Selector, pin string, expected SIMIdentity) error {
+	if !adapter.options.AllowUnresolvedMNCLength {
+		return nil
+	}
+	live, err := adapter.service.ReadIdentityVerified(ctx, selector, pin)
+	if err != nil {
+		return err
+	}
+	if live.ICCID != expected.ICCID || live.IMSI != expected.IMSI {
+		return pcsc.ErrCardChanged
+	}
+	if (expected.HomeMNCUncertain || ResolveCarrierProfile(expected).RouteMCC == "") && (live.MNCLength == 2 || live.MNCLength == 3) && live.IMSI[3:3+live.MNCLength] != expected.HomeMNC {
+		return pcsc.ErrCardChanged
+	}
+	return ctx.Err()
 }
 
 func (adapter *PCSCAdapter) deviceID(identity SIMIdentity) string {
@@ -133,6 +177,9 @@ func (adapter *PCSCAdapter) AuthenticateWithPreference(
 ) (AKAResult, error) {
 	selector, pin, err := adapter.resolve(ctx, adapter.deviceID(identity))
 	if err != nil {
+		return AKAResult{}, err
+	}
+	if err := adapter.verifySubscriber(ctx, selector, pin, identity); err != nil {
 		return AKAResult{}, err
 	}
 	result, err := adapter.service.AuthenticateWithPreference(

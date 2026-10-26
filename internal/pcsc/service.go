@@ -138,6 +138,17 @@ func (service *Service) Snapshot(ctx context.Context, selector Selector, pin str
 }
 
 func (service *Service) ReadIdentity(ctx context.Context, selector Selector, pin string) (Identity, error) {
+	return service.readIdentityTransaction(ctx, selector, pin, false)
+}
+
+func (service *Service) ReadIdentityVerified(ctx context.Context, selector Selector, pin string) (Identity, error) {
+	return service.readIdentityTransaction(ctx, selector, pin, true)
+}
+
+func (service *Service) readIdentityTransaction(ctx context.Context, selector Selector, pin string, verify bool) (Identity, error) {
+	if err := ctx.Err(); err != nil {
+		return Identity{}, err
+	}
 	if service == nil || service.backend == nil {
 		return Identity{}, ErrUnavailable
 	}
@@ -151,7 +162,46 @@ func (service *Service) ReadIdentity(ctx context.Context, selector Selector, pin
 		return Identity{}, err
 	}
 	defer card.Close()
-	return readIdentity(ctx, card, pin)
+	identity, err := readIdentityWithHomePolicy(ctx, card, pin, verify)
+	if err != nil {
+		// Preserve legacy PIN-required/tries metadata for the admin reader UI.
+		// Callers still receive an error; no VoWiFi binding is published.
+		return identity, err
+	}
+	if verify {
+		if err := verifyHomeIdentity(ctx, card, identity); err != nil {
+			return Identity{}, err
+		}
+	}
+	return identity, nil
+}
+
+func verifyHomeIdentity(ctx context.Context, card Card, identity Identity) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	iccid, err := readICCID(ctx, card)
+	if err != nil {
+		return err
+	}
+	if _, err = selectApplication(ctx, card, identity.USIMAID); err != nil {
+		return err
+	}
+	if err = selectFile(ctx, card, []byte{0x6F, 7}); err != nil {
+		return err
+	}
+	data, err := readBinary(ctx, card, 9)
+	if err != nil {
+		return err
+	}
+	imsi, err := decodeIMSI(data)
+	if err != nil {
+		return err
+	}
+	if identity.ICCID != iccid || identity.IMSI != imsi {
+		return ErrCardChanged
+	}
+	return ctx.Err()
 }
 
 func (service *Service) CheckReady(
@@ -265,6 +315,10 @@ func matchReader(readers []Reader, selector Selector) (Reader, bool) {
 }
 
 func readIdentity(ctx context.Context, card Card, pin string) (Identity, error) {
+	return readIdentityWithHomePolicy(ctx, card, pin, false)
+}
+
+func readIdentityWithHomePolicy(ctx context.Context, card Card, pin string, verifiedHome bool) (Identity, error) {
 	identity := Identity{PINTries: -1}
 	iccid, err := readICCID(ctx, card)
 	if err != nil {
@@ -295,7 +349,15 @@ func readIdentity(ctx context.Context, card Card, pin string) (Identity, error) 
 	if err != nil {
 		return identity, err
 	}
-	if _, selectErr := selectApplication(ctx, card, aid); selectErr == nil {
+	if verifiedHome {
+		if _, err := selectApplication(ctx, card, aid); err != nil {
+			return identity, err
+		}
+		identity.MNCLength, err = readVerifiedMNCLength(ctx, card)
+		if err != nil {
+			return identity, fmt.Errorf("pcsc: read home length: %w", err)
+		}
+	} else if _, selectErr := selectApplication(ctx, card, aid); selectErr == nil {
 		if selectErr = selectFile(ctx, card, []byte{0x6F, 0xAD}); selectErr == nil {
 			if data, readErr := readBinary(ctx, card, 4); readErr == nil && len(data) >= 4 {
 				length := int(data[3] & 0x0f)
@@ -312,6 +374,41 @@ func readIdentity(ctx context.Context, card Card, pin string) (Identity, error) 
 		identity.SMSC = readSMSC(ctx, card)
 	}
 	return identity, nil
+}
+
+// The verified reader may tolerate absent/short EF_AD, not arbitrary I/O or
+// security failures. Keep legacy metadata reads unchanged for existing users.
+func readVerifiedMNCLength(ctx context.Context, card Card) (int, error) {
+	_, sw, err := card.Transmit(ctx, []byte{0, 0xA4, 0, 0x0C, 2, 0x6F, 0xAD})
+	if err != nil {
+		return 0, err
+	}
+	if sw == 0x6A82 {
+		return 0, ctx.Err()
+	}
+	if sw != 0x9000 && sw>>8 != 0x91 {
+		return 0, fmt.Errorf("select EF_AD status %04X", sw)
+	}
+	data, sw, err := card.Transmit(ctx, []byte{0, 0xB0, 0, 0, 4})
+	if err != nil {
+		return 0, err
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if sw == 0x6282 && len(data) < 4 {
+		return 0, nil
+	}
+	if sw != 0x9000 && sw>>8 != 0x91 {
+		return 0, fmt.Errorf("read EF_AD status %04X", sw)
+	}
+	if len(data) >= 4 {
+		length := int(data[3] & 0x0F)
+		if length == 2 || length == 3 {
+			return length, nil
+		}
+	}
+	return 0, nil
 }
 
 func readICCID(ctx context.Context, card Card) (string, error) {

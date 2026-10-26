@@ -1,6 +1,16 @@
 export type ApiStatus = "ok" | "error";
 
 export type DeviceType = "wifi_410" | "dji_4g" | "ml307" | "pcie_ec20_ec25" | "usb_sim_reader";
+export type IMSMode = "module" | "vowifi" | "host_ims";
+
+export interface TelephonyPolicy {
+  iccid: string;
+  cellularMode: "module" | "host_ims";
+  autoConnectCellular: boolean;
+  autoConnectWifi: boolean;
+  defaultRoute: IMSMode;
+  wifiRadioPolicy: "coexist" | "exclusive";
+}
 
 export interface Session {
   authenticated: boolean;
@@ -51,6 +61,17 @@ export interface DeviceCells {
   neighborsStatus: "available" | "unsupported" | "unavailable";
 }
 
+export interface IKERetryObservation {
+  source: string;
+  scope: string;
+  notifyType: number;
+  afterSeconds: number;
+  untilCardEvent: boolean;
+  cached: boolean;
+  cleanupPending: boolean;
+  observedAt?: string;
+}
+
 export interface VoWiFiRuntime {
   deviceId: string;
   phase: string;
@@ -75,6 +96,7 @@ export interface VoWiFiRuntime {
   lastError: string;
   lastReason: string;
   updatedAt: string;
+  ikeRetry?: IKERetryObservation;
   tunnel?: Record<string, unknown>;
   imscore?: Record<string, unknown>;
   smsip?: Record<string, unknown>;
@@ -161,6 +183,11 @@ export interface DeviceListItem {
   smsStorage?: SMSStorageUsage;
 	  networkEnabled: boolean;
   vowifiEnabled: boolean;
+  imsMode?: IMSMode;
+  imsEnabled?: boolean;
+  imsRuntime?: VoWiFiRuntime;
+  cellularImsRuntime?: VoWiFiRuntime;
+  telephonyPolicy?: TelephonyPolicy | null;
   vowifiActive?: boolean;
   vowifiRuntime: VoWiFiRuntime;
   modem: ModemSummary;
@@ -186,6 +213,9 @@ export interface DashboardDevice {
   proxyPort: number;
   publicIp: string;
   healthy: boolean;
+  imsMode?: IMSMode;
+  imsEnabled?: boolean;
+  imsRuntime?: VoWiFiRuntime;
   operator: string;
   signalDbm: number;
   networkMode: string;
@@ -319,6 +349,7 @@ export interface OperatorSelection {
 }
 
 export interface CardPolicy {
+  telephonyPolicy?: TelephonyPolicy;
   iccid: string;
   vowifiEnabled: boolean;
   airplaneEnabled: boolean;
@@ -505,6 +536,7 @@ export interface LoggingSettings {
 }
 
 export interface SystemInfo {
+  mediaCapabilities?: { runtimeFlavor: string; pcmCodecs: string[]; amrNb: { built: boolean; available: boolean; code: string }; amrWb: { available: boolean } };
   version: string;
   buildTime: string;
   config: string;

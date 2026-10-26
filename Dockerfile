@@ -12,8 +12,9 @@ COPY web/ ./
 RUN npm run build
 
 # ---- Stage 2: cross-compile the Go binary on the native builder ----
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS go-builder
-RUN apk add --no-cache git
+FROM --platform=$BUILDPLATFORM golang:1.25-bookworm AS go-builder
+RUN apt-get update && apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 
 ARG VERSION=0.1.0-dev
@@ -22,33 +23,42 @@ ARG TARGETOS
 ARG TARGETARCH
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . .
 # Overlay the freshly built frontend so go:embed web/dist picks it up.
 COPY --from=web-builder /web/dist ./web/dist
 
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
-    -trimpath \
-    -ldflags "-s -w -X vocat/internal/buildinfo.Version=${VERSION} -X vocat/internal/buildinfo.BuildTime=${BUILD_TIME}" \
-    -o /out/vocat \
-    ./cmd/vocat
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOARCH=${TARGETARCH} VERSION="${VERSION}" BUILD_TIME="${BUILD_TIME}" \
+    sh scripts/build-linux.sh /out/vocat native
 
 # ---- Stage 3: minimal runtime ----
-FROM alpine:3.20
-RUN apk add --no-cache ca-certificates ccid iproute2 pcsc-lite qmi-utils tzdata && \
-    addgroup -S -g 1000 vocat && \
-    adduser -S -D -H -u 1000 -G vocat vocat
+FROM debian:bookworm-slim AS runtime
+# The normal Linux build uses purego's glibc loader. Keep musl/static builds
+# separate instead of shipping a binary that cannot start in Alpine.
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates iproute2 libccid libopencore-amrnb0 libpcsclite1 \
+      libqmi-utils passwd pcscd tzdata && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd --gid 1000 vocat && \
+    useradd --uid 1000 --gid vocat --no-create-home vocat
 
 RUN mkdir -p /opt/vocat/bin /opt/vocat/data && \
     chown -R vocat:vocat /opt/vocat
 
 COPY --from=go-builder /out/vocat /opt/vocat/bin/vocat
+COPY LICENSE NOTICE /opt/vocat/share/licenses/
+COPY third_party/licenses/ /opt/vocat/share/licenses/third-party/
+COPY LICENSES/ /opt/vocat/share/licenses/local-dependencies/
 COPY scripts/docker-entrypoint.sh /usr/local/bin/vocat-entrypoint
 
 # Symlink into /usr/local/bin so `docker exec <ctr> vocat ...` finds it via $PATH.
 RUN ln -s /opt/vocat/bin/vocat /usr/local/bin/vocat && \
-    chmod 0755 /usr/local/bin/vocat-entrypoint
+    chmod 0755 /usr/local/bin/vocat-entrypoint && \
+    /opt/vocat/bin/vocat media-check --require-amr --json
 
 # Hardware access and the bundled pcscd daemon require root inside the
 # container. The container already needs host networking and privileged device

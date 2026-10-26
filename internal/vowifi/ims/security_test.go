@@ -247,8 +247,8 @@ func TestXFRMPlanContainsFourStatesAndProtocolSpecificPolicies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildXFRMInstallPlan() error = %v", err)
 	}
-	if len(install) != 10 {
-		t.Fatalf("install operation count = %d, want 10", len(install))
+	if len(install) != 12 {
+		t.Fatalf("install operation count = %d, want 12", len(install))
 	}
 	for index, operation := range install[:4] {
 		if !containsArguments(operation.arguments, "xfrm", "state", "add") {
@@ -277,19 +277,25 @@ func TestXFRMPlanContainsFourStatesAndProtocolSpecificPolicies(t *testing.T) {
 		"tcp 40666 50600 out": false,
 		"udp 40666 50600 out": false,
 		"tcp 50600 40666 in":  false,
+		"udp 50600 40666 in":  false,
 		"tcp * 55610 in":      false,
 		"udp * 55610 in":      false,
-		"tcp 55610 50601 out": false,
+		"tcp 55610 * out":     false,
+		"udp 55610 * out":     false,
 	}
 	for _, operation := range install[4:] {
 		sourcePort := "*"
 		if value, ok := optionalArgumentAfter(operation.arguments, "sport"); ok {
 			sourcePort = value
 		}
+		destinationPort := "*"
+		if value, ok := optionalArgumentAfter(operation.arguments, "dport"); ok {
+			destinationPort = value
+		}
 		key := strings.Join([]string{
 			argumentAfter(t, operation.arguments, "proto"),
 			sourcePort,
-			argumentAfter(t, operation.arguments, "dport"),
+			destinationPort,
 			argumentAfter(t, operation.arguments, "dir"),
 		}, " ")
 		if _, expected := wantPolicies[key]; !expected {
@@ -304,8 +310,8 @@ func TestXFRMPlanContainsFourStatesAndProtocolSpecificPolicies(t *testing.T) {
 	}
 
 	cleanup := buildXFRMCleanupPlan(config)
-	if len(cleanup) != 10 {
-		t.Fatalf("cleanup operation count = %d, want 10", len(cleanup))
+	if len(cleanup) != 12 {
+		t.Fatalf("cleanup operation count = %d, want 12", len(cleanup))
 	}
 	keyHex := "0x" + strings.Repeat("11", 16)
 	for _, operation := range cleanup {

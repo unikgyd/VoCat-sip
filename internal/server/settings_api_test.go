@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -25,8 +26,18 @@ type settingsAPITest struct {
 }
 
 func newSettingsAPITest(t *testing.T) settingsAPITest {
+	return newSettingsAPITestAtPath(t, ":memory:")
+}
+
+// SIP settings admission claims real durability; its API tests must not use a
+// memory database that cannot provide the production FULL commit contract.
+func newDurableSettingsAPITest(t *testing.T) settingsAPITest {
+	return newSettingsAPITestAtPath(t, filepath.Join(t.TempDir(), "settings-api.db"))
+}
+
+func newSettingsAPITestAtPath(t *testing.T, path string) settingsAPITest {
 	t.Helper()
-	database, err := store.Open(context.Background(), ":memory:")
+	database, err := store.Open(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}

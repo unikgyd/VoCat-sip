@@ -118,7 +118,7 @@ func ApplyLatest(ctx context.Context, logger *slog.Logger, opts Options, restart
 }
 
 func applyUpdate(ctx context.Context, logger *slog.Logger, opts Options, release *Release, latest string, restart bool) error {
-	assetNames := assetNamesFor(runtime.GOOS, runtime.GOARCH)
+	assetNames := releaseAssetNamesFor(runtime.GOOS, runtime.GOARCH, buildinfo.RuntimeFlavor)
 	var asset *Asset
 	for _, name := range assetNames {
 		if asset = findAsset(release, name); asset != nil {

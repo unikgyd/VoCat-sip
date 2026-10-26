@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/coder/websocket"
 
@@ -22,35 +23,74 @@ func (s *Server) handleCallMedia(w http.ResponseWriter, r *http.Request, config 
 	if !requireMethod(w, r, http.MethodGet) {
 		return true
 	}
-	if s.callTransport(config.ID) != "vowifi" {
-		writeError(w, http.StatusNotImplemented, "call_media_unavailable", "browser audio is only available for an active VoWiFi IMS call")
-		return true
-	}
 	callID := strings.TrimSpace(r.URL.Query().Get("call_id"))
 	if callID == "" || len(callID) > 256 {
 		writeError(w, http.StatusBadRequest, "invalid_call_id", "call_id is required")
 		return true
 	}
-	controller, ok := s.vowifi.(VoWiFiCallMediaController)
-	if !ok {
-		writeError(w, http.StatusNotImplemented, "call_media_unavailable", "the active IMS session does not expose RTP media")
+	if transport := s.callTransportForConfig(config); transport != "vowifi" && transport != "host_ims" && !s.moduleVoiceCall(config.ID, callID) && !(config.Telephony != nil && s.ownerIMSCall(config.ID, callID) != nil) {
+		writeError(w, 501, "call_media_unavailable", "the exact call has no owned media path")
 		return true
 	}
-	media, err := controller.CallMedia(r.Context(), config.ID, callID)
+	if s.sipGateway != nil && s.sipGateway.CarrierOwnsMedia(config.ID, callID) {
+		writeError(w, http.StatusConflict, "call_media_owned_by_sip", "this call's audio is connected to a SIP extension")
+		return true
+	}
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	var token string
+	pcmProtocol := false
+	for _, protocol := range strings.Split(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
+		protocol = strings.TrimSpace(protocol)
+		if protocol == "vocat-pcm" {
+			pcmProtocol = true
+		}
+		if strings.HasPrefix(protocol, "lease-") {
+			token = strings.TrimPrefix(protocol, "lease-")
+		}
+	}
+	if s.webPhone == nil || !pcmProtocol {
+		writeError(w, 409, "audio_lease_required", "start or answer the call from the web phone first")
+		return true
+	}
+	lease, claimed := s.webPhone.attach(config.ID, callID, token, cancel)
+	if !claimed {
+		writeError(w, 409, "audio_lease_required", "audio is already owned or the web phone lease is missing")
+		return true
+	}
+	defer s.webPhone.detach(lease)
+	media, err := (sipCarrierBackend{s}).Media(ctx, config.ID, callID)
 	if err != nil {
 		writeError(w, http.StatusConflict, "call_media_unavailable", err.Error())
 		return true
 	}
 	connection, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionDisabled,
+		Subprotocols:    []string{"vocat-pcm"},
 	})
 	if err != nil {
 		return true
 	}
 	connection.SetReadLimit(maxCallMediaMessage)
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-	defer connection.Close(websocket.StatusNormalClosure, "call media closed")
+	defer connection.CloseNow()
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				pingCtx, stop := context.WithTimeout(ctx, 3*time.Second)
+				err := connection.Ping(pingCtx)
+				stop()
+				if err != nil {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
 
 	downlink := make(chan error, 1)
 	go func() {
@@ -65,13 +105,17 @@ func (s *Server) handleCallMedia(w http.ResponseWriter, r *http.Request, config 
 			for index, sample := range samples {
 				binary.LittleEndian.PutUint16(payload[index*2:], uint16(sample))
 			}
-			if writeErr := connection.Write(ctx, websocket.MessageBinary, payload); writeErr != nil {
+			writeCtx, stop := context.WithTimeout(ctx, 3*time.Second)
+			writeErr := connection.Write(writeCtx, websocket.MessageBinary, payload)
+			stop()
+			if writeErr != nil {
 				downlink <- writeErr
 				return
 			}
 		}
 	}()
 
+	budget, last := 1600.0, time.Now()
 	for {
 		select {
 		case err := <-downlink:
@@ -85,9 +129,16 @@ func (s *Server) handleCallMedia(w http.ResponseWriter, r *http.Request, config 
 		if readErr != nil {
 			return true
 		}
-		if messageType != websocket.MessageBinary || len(payload) == 0 || len(payload)%2 != 0 {
-			continue
+		if messageType != websocket.MessageBinary || len(payload) == 0 || len(payload)%2 != 0 || len(payload) > 640 {
+			return true
 		}
+		now := time.Now()
+		budget = min(1600, budget+now.Sub(last).Seconds()*8000)
+		last = now
+		budget -= float64(len(payload) / 2)
+		if budget < 0 {
+			return true
+		} // Bound queued uplink; never replay seconds of stale speech.
 		samples := make([]int16, len(payload)/2)
 		for index := range samples {
 			samples[index] = int16(binary.LittleEndian.Uint16(payload[index*2:]))

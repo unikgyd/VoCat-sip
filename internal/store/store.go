@@ -14,7 +14,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 27
+const schemaVersion = 30
 
 var ErrNotFound = errors.New("store: not found")
 
@@ -25,9 +25,11 @@ type Store struct {
 	logClearedAt time.Time
 	logMinLevel  string
 
-	startupSMSID  int64 // see StartupSMSMessageID
-	smsInsertedMu sync.Mutex
-	smsInserted   chan struct{} // see SMSInserted
+	startupSMSID      int64 // see StartupSMSMessageID
+	smsInsertedMu     sync.Mutex
+	smsInserted       chan struct{} // see SMSInserted
+	smsForwardMu      sync.RWMutex
+	smsForwardPlanner SMSForwardPlanner
 }
 
 type Admin struct {
@@ -53,7 +55,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite", path)
+	db, err := openStoreDatabase(path)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -68,15 +70,6 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if err := db.PingContext(ctx); err != nil {
 		return closeOnError(fmt.Errorf("ping sqlite: %w", err))
 	}
-	for _, pragma := range []string{
-		"PRAGMA foreign_keys = ON",
-		"PRAGMA busy_timeout = 5000",
-		"PRAGMA journal_mode = WAL",
-	} {
-		if _, err := db.ExecContext(ctx, pragma); err != nil {
-			return closeOnError(fmt.Errorf("%s: %w", pragma, err))
-		}
-	}
 	if err := migrate(ctx, db); err != nil {
 		return closeOnError(err)
 	}
@@ -86,6 +79,9 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		}
 	}
 	s := &Store{db: db}
+	if err := s.initializeSMSForwardReceipts(ctx); err != nil {
+		return closeOnError(err)
+	}
 	// Captured before this process can save an SMS; see StartupSMSMessageID.
 	if s.startupSMSID, err = s.LatestSMSMessageID(ctx); err != nil {
 		return closeOnError(err)
@@ -140,7 +136,8 @@ func migrate(ctx context.Context, db *sql.DB) error {
 					(nextVersion == 19 && strings.Contains(statement, "ADD COLUMN")) ||
 					(nextVersion == 23 && strings.Contains(statement, "ADD COLUMN")) ||
 					(nextVersion == 24 && strings.Contains(statement, "ADD COLUMN mbn_profile")) ||
-					(nextVersion == 26 && strings.Contains(statement, "ADD COLUMN revert_profile"))
+					(nextVersion == 26 && strings.Contains(statement, "ADD COLUMN revert_profile")) ||
+					(nextVersion == 28 && (strings.Contains(statement, "ADD COLUMN ims_mode") || strings.Contains(statement, "ADD COLUMN ims_enabled")))
 				if duplicateAdditiveColumn && strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
 					continue
 				}

@@ -8,6 +8,7 @@ import (
 
 	"vocat/internal/exportproxy"
 	"vocat/internal/httpsmode"
+	"vocat/internal/linelock"
 	"vocat/internal/store"
 )
 
@@ -147,14 +148,24 @@ func ResetExperimental(ctx context.Context, database *store.Store) error {
 	if err != nil {
 		resetErrors = append(resetErrors, fmt.Errorf("list devices while disabling roaming data: %w", err))
 	} else {
-		for _, device := range devices {
-			if !device.NetworkEnabled {
-				continue
-			}
-			device.NetworkEnabled = false
-			if err := database.UpsertDevice(ctx, device); err != nil {
-				resetErrors = append(resetErrors, fmt.Errorf("disable roaming data for device %s: %w", device.ID, err))
-			}
+		for _, listed := range devices {
+			func() {
+				gate := linelock.For(listed.ID)
+				gate.RLock()
+				defer gate.RUnlock()
+				device, err := database.Device(ctx, listed.ID)
+				if err != nil {
+					resetErrors = append(resetErrors, fmt.Errorf("reload device while disabling roaming data: %w", err))
+					return
+				}
+				if !device.NetworkEnabled {
+					return
+				}
+				device.NetworkEnabled = false
+				if err := database.UpsertDevice(ctx, device); err != nil {
+					resetErrors = append(resetErrors, fmt.Errorf("disable roaming data for device %s: %w", device.ID, err))
+				}
+			}()
 		}
 	}
 	policies, err := database.ListCardPolicies(ctx)

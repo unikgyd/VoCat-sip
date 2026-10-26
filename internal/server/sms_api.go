@@ -265,6 +265,9 @@ func (s *Server) handleSMSSend(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "device_required", "a sending device is required")
 		return
 	}
+	lock := s.imsModeLock(request.DeviceID)
+	lock.RLock()
+	defer lock.RUnlock()
 	if blocked, reason := blockedSMSDestination(request.Phone); blocked {
 		writeError(w, http.StatusBadRequest, "blocked_destination", reason)
 		return
@@ -311,7 +314,13 @@ func (s *Server) handleSMSSend(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if config.VoWiFiEnabled && s.vowifi != nil {
+	hostIMS := store.EffectiveIMSMode(config) == store.IMSModeHost
+	if config.Telephony != nil && !store.AccessEnabled(config, store.EffectiveIMSMode(config)) {
+		writeError(w, http.StatusConflict, "access_disabled", "the default SMS access is disabled")
+		return
+	}
+	explicitIMS := config.IMSMode != "" && store.EffectiveIMSMode(config) != store.IMSModeModule
+	if (config.VoWiFiEnabled || hostIMS) && s.vowifi != nil {
 		state, stateErr := s.vowifi.State(request.DeviceID)
 		sender, canSendIMS := s.vowifi.(imsSMSController)
 		if stateErr == nil && state.IMSReady && state.SMSReady && canSendIMS {
@@ -324,6 +333,10 @@ func (s *Server) handleSMSSend(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+	if explicitIMS {
+		writeError(w, http.StatusServiceUnavailable, "ims_sms_not_ready", "the selected IMS line is not ready for SMS; no modem submission was attempted")
+		return
 	}
 	// Prefer VoWiFi IMS when it is ready. If IMS is unavailable, including on a
 	// native OpenStick 410 registered on a roaming cellular network, use the
@@ -641,233 +654,562 @@ func (s *Server) handleSMSMessage(w http.ResponseWriter, r *http.Request, idText
 }
 
 func (s *Server) syncModemSMS(ctx context.Context, onlyDevice string) {
+	s.syncModemSMSWithObservation(ctx, onlyDevice, false)
+}
+
+// An observed scan is not proof of a network arrival. It only permits new
+// physical rows after a full successful archive baseline in the same scope.
+func (s *Server) syncObservedModemSMS(ctx context.Context, onlyDevice string) {
+	s.syncModemSMSWithObservation(ctx, onlyDevice, true)
+}
+
+func (s *Server) syncModemSMSWithObservation(ctx context.Context, onlyDevice string, allowLive bool) {
 	s.smsSyncMu.Lock()
 	defer s.smsSyncMu.Unlock()
 	if s.devices == nil {
+		s.invalidateSMSForwardScans()
 		return
 	}
 	configs, err := s.store.ListDevices(ctx)
 	if err != nil {
+		s.invalidateSMSForwardScans()
 		s.logger.Warn("list devices for SMS synchronization failed", "error", err)
 		return
 	}
+	configured := map[string]bool{}
 	for _, config := range configs {
+		configured[config.ID] = true
 		if onlyDevice != "" && config.ID != onlyDevice {
 			continue
 		}
-		// A PC/SC USB reader has no modem storage or AT command channel. Its
-		// messages are delivered by the active VoWiFi IMS session, so attempting
-		// an AT+CMGL catch-up scan would only poison the reader's health state
-		// with ErrNoATPort.
-		if !supportsModemSMSStorage(config) {
-			continue
+		s.syncOneModemSMSObservedLocked(ctx, config.ID, allowLive)
+	}
+	if onlyDevice != "" {
+		if !configured[onlyDevice] {
+			s.forgetSMSForwardScan(onlyDevice)
 		}
-		// Do not queue CMGL traffic on the same serial actor while VoWiFi is
-		// reading the SIM or running AKA. Once the session is stable, resume the
-		// SM/ME scan as a catch-up path: an SMS submitted while the card was
-		// offline may be delivered to modem storage when it comes back, even
-		// though subsequent live SMS is delivered by SIP MESSAGE.
-		if s.vowifi != nil {
-			state, stateErr := s.vowifi.State(config.ID)
-			deferSync := shouldDeferModemSMSSync(state, stateErr)
-			if !deferSync && stateErr == nil && state.Enabled && state.Phase == vowifi.PhaseFailed {
-				if controller, ok := s.vowifi.(VoWiFiSMSSyncController); ok {
-					deferSync = controller.ModemSMSSyncBlocked(config.ID)
-				}
+	} else {
+		for id := range s.smsForwardScans {
+			if !configured[id] {
+				s.forgetSMSForwardScan(id)
 			}
-			if deferSync {
-				s.logger.Debug("modem SMS synchronization deferred during VoWiFi setup",
-					"category", "sms", "device_id", config.ID, "phase", state.Phase)
-				continue
-			}
-		}
-		entry, physicalID, present := s.physicalForConfig(config)
-		if !present {
-			continue
-		}
-		identityBefore := smsIdentityFromSnapshot(entry.Snapshot)
-		// Store new SMS and announce them with +CMTI. Re-applied every scan:
-		// firmware (e.g. OpenStick 410) can reset CNMI after a profile switch.
-		setupContext, cancelSetup := context.WithTimeout(ctx, 5*time.Second)
-		_, setupErr := s.devices.ExecuteAT(setupContext, physicalID, `AT+CNMI=2,1,0,0,0`)
-		cancelSetup()
-		if setupErr != nil {
-			s.logger.Debug("cellular SMS notification setup skipped", "device_id", config.ID, "error", setupErr)
-		}
-		listContext, cancelList := context.WithTimeout(ctx, 30*time.Second)
-		listing, err := s.devices.ListSMS(listContext, physicalID)
-		cancelList()
-		if err != nil {
-			s.logger.Debug("modem SMS synchronization skipped", "device_id", config.ID, "error", err)
-			continue
-		}
-		s.rememberSMSStorage(config.ID, listing.Storage)
-		messages := listing.Messages
-		currentEntry, currentErr := s.devices.Get(physicalID)
-		if currentErr != nil || !currentEntry.Discovered {
-			s.logger.Debug("modem SMS synchronization lost device identity", "device_id", config.ID, "error", currentErr)
-			continue
-		}
-		identityAfter := smsIdentityFromSnapshot(currentEntry.Snapshot)
-		if identityBefore != identityAfter {
-			s.logger.Info(
-				"modem SMS synchronization deferred after subscription identity changed",
-				"category", "sms", "device_id", config.ID,
-				"previous_iccid", identityBefore.ICCID, "current_iccid", identityAfter.ICCID,
-			)
-			continue
-		}
-		localPhone := s.smsLocalPhone(ctx, config.ID, identityAfter, currentEntry.Snapshot)
-		modemIMEI := firstNonEmpty(
-			snapshotString(currentEntry.Snapshot, func(snapshot *device.Snapshot) string { return snapshot.IMEI }),
-			config.ModemIMEI,
-		)
-		concatSources := modemSMSConcatSources(messages)
-		autoClear := developer.AutoClearModemStorage(ctx, s.store)
-		var clearSlots []modemSMSSlot
-		// Multipart IDs derive from the first segment's slot in this scan, so
-		// keep segments in storage until complete or modemSMSIncompleteHoldLimit.
-		concatSlots := make(map[string][]modemSMSSlot)
-		concatComplete := make(map[string]bool)
-		concatFirstSeen := make(map[string]time.Time)
-		concatSafeToClear := make(map[string]bool)
-		for _, message := range messages {
-			if message.Direction != device.SMSDirectionStatusReport && firstNonEmpty(message.From, message.To) == "" {
-				message.DecodeError = firstNonEmpty(message.DecodeError, "SMS sender address is empty")
-			}
-			// Archive before sender parsing, delivery-report matching, or inbox
-			// persistence. None of those operations may discard the only PDU.
-			archiveErr := s.store.SaveSMSRawRecord(ctx, store.SMSRawRecord{
-				DeviceID: config.ID, ModemIMEI: modemIMEI, ICCID: identityAfter.ICCID,
-				IMSI: identityAfter.IMSI, Storage: message.Storage, Slot: message.Index,
-				RawPDU: message.RawPDU, RawUserData: message.RawUserData,
-				Encoding: string(message.Encoding), DecodeError: message.DecodeError,
-			})
-			if archiveErr != nil {
-				s.logger.Warn("archive modem SMS failed; keeping modem copy", "category", "sms",
-					"device_id", config.ID, "storage", message.Storage, "index", message.Index, "error", archiveErr)
-			}
-			if message.Direction == device.SMSDirectionStatusReport &&
-				message.MessageReference != nil && message.StatusCode != nil {
-				_, applyErr := s.store.ApplySMSDeliveryReport(ctx, store.SMSDeliveryReport{
-					DeviceID:          config.ID,
-					ModemIMEI:         modemIMEI,
-					IMSI:              identityAfter.IMSI,
-					Peer:              message.To,
-					Source:            "cellular_at",
-					MessageReference:  *message.MessageReference,
-					StatusCode:        *message.StatusCode,
-					DeliveryState:     message.DeliveryStatus,
-					ServiceCenterTime: message.ServiceCenterTimestamp,
-					DischargeTime:     message.DischargeTimestamp,
-					ReceivedAt:        time.Now().UTC(),
-				})
-				if applyErr != nil {
-					if !errors.Is(applyErr, store.ErrNotFound) {
-						s.logger.Warn("apply modem SMS delivery report failed", "device_id", config.ID, "error", applyErr)
-					}
-					continue
-				}
-				if autoClear && archiveErr == nil && message.DecodeError == "" {
-					clearSlots = appendModemSMSSlot(clearSlots, message)
-				}
-				continue
-			}
-			peer := firstNonEmpty(message.From, message.To, "未知发送方")
-			timestamp := time.Now().UTC()
-			if message.ServiceCenterTimestamp != nil {
-				timestamp = message.ServiceCenterTimestamp.UTC()
-			} else if message.DischargeTimestamp != nil {
-				timestamp = message.DischargeTimestamp.UTC()
-			}
-			direction := "inbound"
-			if message.Direction == device.SMSDirectionSubmitted {
-				direction = "outbound"
-			}
-			messageID := modemSMSMessageID(message, modemIMEI, config.ID, peer, concatSources[modemSMSStorageKey(message)])
-			extra, _ := json.Marshal(map[string]any{
-				"modem_index":        message.Index,
-				"storage":            message.Storage,
-				"storage_status":     message.StorageStatus,
-				"encoding":           message.Encoding,
-				"concat":             message.Concat,
-				"decode_error":       message.DecodeError,
-				"status_code":        message.StatusCode,
-				"message_reference":  message.MessageReference,
-				"delivery_status":    message.DeliveryStatus,
-				"data_coding_scheme": message.DataCodingScheme,
-				// Every AT modem periodically rescans persistent SMS storage. Keep a
-				// completed multipart row's cursor stable when a decoder presents a
-				// segment differently on a later pass, otherwise notification
-				// providers can treat the old message as newly inserted.
-				"keep_durable_id_on_rescan": true,
-			})
-			saveResult, saveErr := s.store.SaveSMSMessageWithResult(ctx, store.SMSMessage{
-				MessageID:     messageID,
-				DeviceID:      config.ID,
-				ModemIMEI:     modemIMEI,
-				ICCID:         identityAfter.ICCID,
-				IMSI:          identityAfter.IMSI,
-				LocalPhone:    localPhone,
-				Peer:          peer,
-				Direction:     direction,
-				Body:          message.Text,
-				Timestamp:     timestamp,
-				Status:        string(message.StorageStatus),
-				Source:        "cellular_at",
-				PartsTotal:    concatTotal(message.Concat),
-				DeliveryState: message.DeliveryStatus,
-				Read:          message.StorageStatus == device.SMSStatusReceivedRead,
-				Extra:         extra,
-			})
-			if saveErr != nil {
-				if message.Concat != nil && message.Concat.Total > 1 {
-					concatSafeToClear[messageID] = false
-				}
-				s.logger.Warn("persist modem SMS failed", "category", "sms", "device_id", config.ID, "raw_error", saveErr)
-				continue
-			}
-			if autoClear {
-				safeToClear := archiveErr == nil && message.DecodeError == "" && strings.TrimSpace(message.Text) != ""
-				if message.Concat != nil && message.Concat.Total > 1 {
-					if _, seen := concatSafeToClear[messageID]; !seen {
-						concatSafeToClear[messageID] = true
-					}
-					concatSafeToClear[messageID] = concatSafeToClear[messageID] && safeToClear && store.SMSDecodeError(saveResult.Message.Extra) == ""
-					concatSlots[messageID] = appendModemSMSSlot(concatSlots[messageID], message)
-					concatComplete[messageID] = store.ConcatSMSReadyToNotify(saveResult.Message.MessageID, saveResult.Message.Extra)
-					// Kept across merges and rescans; unlike SCTS never missing or skewed.
-					concatFirstSeen[messageID] = saveResult.Message.CreatedAt
-				} else if safeToClear {
-					clearSlots = appendModemSMSSlot(clearSlots, message)
-				}
-			}
-			if saved := saveResult.Message; saveResult.Inserted && saved.Direction == "inbound" && smsMessageReadyToNotify(saved) {
-				s.logger.Info("cellular SMS received",
-					"category", "sms", "event", "sms.received", "sms_id", saved.ID,
-					"device_id", config.ID, "peer", saved.Peer,
-					"transport", "cellular_at", "encoding", message.Encoding,
-					"parts", saved.PartsTotal,
-				)
-			}
-		}
-		if autoClear {
-			for messageID, slots := range concatSlots {
-				if !concatSafeToClear[messageID] {
-					continue
-				}
-				if concatComplete[messageID] {
-					clearSlots = append(clearSlots, slots...)
-				} else if time.Since(concatFirstSeen[messageID]) > modemSMSIncompleteHoldLimit {
-					s.logger.Info("clearing incomplete multipart SMS from modem storage",
-						"category", "sms", "device_id", config.ID, "segments", len(slots),
-						"first_seen", concatFirstSeen[messageID])
-					clearSlots = append(clearSlots, slots...)
-				}
-			}
-			s.clearPersistedModemSMS(ctx, physicalID, config.ID, clearSlots)
 		}
 	}
+}
+
+// The caller owns smsSyncMu, but this line's mode gate is released before the
+// next module is scanned, even when that next CMGL operation is slow.
+func (s *Server) syncOneModemSMSLocked(ctx context.Context, id string) {
+	s.syncOneModemSMSObservedLocked(ctx, id, false)
+}
+
+func (s *Server) syncOneModemSMSObservedLocked(ctx context.Context, id string, allowLive bool) {
+	completed := false
+	defer func() {
+		if !completed {
+			s.invalidateSMSForwardScan(id)
+		}
+	}()
+	lock := s.imsModeLock(id)
+	lock.RLock()
+	defer lock.RUnlock()
+	config, err := s.store.Device(ctx, id)
+	if err != nil {
+		return
+	}
+	if store.HostIMSConfigured(config) {
+		// Host owns the modem's UIM/IMS lane even while registering/failed.
+		// Do not run CNMI/CMGL or reset recovery underneath that owner.
+		return
+	}
+	// A PC/SC USB reader has no modem storage or AT command channel. Its
+	// messages are delivered by the active VoWiFi IMS session, so attempting
+	// an AT+CMGL catch-up scan would only poison the reader's health state
+	// with ErrNoATPort.
+	if !supportsModemSMSStorage(config) {
+		return
+	}
+	// Do not queue CMGL traffic on the same serial actor while VoWiFi is
+	// reading the SIM or running AKA. Once the session is stable, resume the
+	// SM/ME scan as a catch-up path: an SMS submitted while the card was
+	// offline may be delivered to modem storage when it comes back, even
+	// though subsequent live SMS is delivered by SIP MESSAGE.
+	if s.vowifi != nil {
+		state, stateErr := s.vowifi.State(config.ID)
+		deferSync := shouldDeferModemSMSSync(state, stateErr)
+		if !deferSync && stateErr == nil && state.Enabled && state.Phase == vowifi.PhaseFailed {
+			if controller, ok := s.vowifi.(VoWiFiSMSSyncController); ok {
+				deferSync = controller.ModemSMSSyncBlocked(config.ID)
+			}
+		}
+		if deferSync {
+			s.logger.Debug("modem SMS synchronization deferred during VoWiFi setup",
+				"category", "sms", "device_id", config.ID, "phase", state.Phase)
+			return
+		}
+	}
+	entry, physicalID, present := s.physicalForConfig(config)
+	if !present {
+		return
+	}
+	identityBefore := smsIdentityFromSnapshot(entry.Snapshot)
+	imeiBefore := strings.TrimSpace(snapshotString(entry.Snapshot, func(snapshot *device.Snapshot) string { return snapshot.IMEI }))
+	// Store new SMS and announce them with +CMTI. Re-applied every scan:
+	// firmware (e.g. OpenStick 410) can reset CNMI after a profile switch.
+	setupContext, cancelSetup := context.WithTimeout(ctx, 5*time.Second)
+	_, setupErr := s.devices.ExecuteAT(setupContext, physicalID, `AT+CNMI=2,1,0,0,0`)
+	cancelSetup()
+	if setupErr != nil {
+		s.logger.Debug("cellular SMS notification setup skipped", "device_id", config.ID, "error", setupErr)
+	}
+	listContext, cancelList := context.WithTimeout(ctx, 30*time.Second)
+	listing, err := s.devices.ListSMS(listContext, physicalID)
+	cancelList()
+	if err != nil {
+		s.logger.Debug("modem SMS synchronization skipped", "device_id", config.ID, "error", err)
+		return
+	}
+	s.rememberSMSStorage(config.ID, listing.Storage)
+	messages := listing.Messages
+	currentEntry, currentErr := s.devices.Get(physicalID)
+	if currentErr != nil || !currentEntry.Discovered || currentEntry.ID != physicalID {
+		s.logger.Debug("modem SMS synchronization lost device identity", "device_id", config.ID, "error", currentErr)
+		return
+	}
+	identityAfter := smsIdentityFromSnapshot(currentEntry.Snapshot)
+	imeiAfter := strings.TrimSpace(snapshotString(currentEntry.Snapshot, func(snapshot *device.Snapshot) string { return snapshot.IMEI }))
+	if identityBefore != identityAfter || imeiBefore != imeiAfter {
+		s.logger.Info(
+			"modem SMS synchronization deferred after subscription identity changed",
+			"category", "sms", "device_id", config.ID,
+			"previous_iccid", identityBefore.ICCID, "current_iccid", identityAfter.ICCID,
+		)
+		return
+	}
+	localPhone := s.smsLocalPhone(ctx, config.ID, identityAfter, currentEntry.Snapshot)
+	modemIMEI := firstNonEmpty(
+		snapshotString(currentEntry.Snapshot, func(snapshot *device.Snapshot) string { return snapshot.IMEI }),
+		config.ModemIMEI,
+	)
+	concatSources := modemSMSConcatSources(messages)
+	scope := smsForwardScanScope{physicalID: physicalID, imei: imeiAfter, iccid: identityAfter.ICCID, imsi: identityAfter.IMSI, mode: store.EffectiveIMSMode(config)}
+	decision, nextScan, trackable := smsForwardScanDecisions(s.smsForwardScans[id], scope, messages, concatSources, allowLive && !s.smsForwardScanBlocked)
+	allSaved := true
+	autoClear := developer.AutoClearModemStorage(ctx, s.store)
+	var clearSlots []modemSMSSlot
+	// Multipart IDs derive from the first segment's slot in this scan, so
+	// keep segments in storage until complete or modemSMSIncompleteHoldLimit.
+	concatSlots := make(map[string][]modemSMSSlot)
+	concatComplete := make(map[string]bool)
+	concatFirstSeen := make(map[string]time.Time)
+	concatSafeToClear := make(map[string]bool)
+	for _, message := range messages {
+		if message.Direction != device.SMSDirectionStatusReport && firstNonEmpty(message.From, message.To) == "" {
+			message.DecodeError = firstNonEmpty(message.DecodeError, "SMS sender address is empty")
+		}
+		// Archive before sender parsing, delivery-report matching, or inbox
+		// persistence. None of those operations may discard the only PDU.
+		archiveErr := s.store.SaveSMSRawRecord(ctx, store.SMSRawRecord{
+			DeviceID: config.ID, ModemIMEI: modemIMEI, ICCID: identityAfter.ICCID,
+			IMSI: identityAfter.IMSI, Storage: message.Storage, Slot: message.Index,
+			RawPDU: message.RawPDU, RawUserData: message.RawUserData,
+			Encoding: string(message.Encoding), DecodeError: message.DecodeError,
+		})
+		if archiveErr != nil {
+			allSaved = false
+			s.logger.Warn("archive modem SMS failed; keeping modem copy", "category", "sms",
+				"device_id", config.ID, "storage", message.Storage, "index", message.Index, "error", archiveErr)
+		}
+		if message.Direction == device.SMSDirectionStatusReport &&
+			message.MessageReference != nil && message.StatusCode != nil {
+			_, applyErr := s.store.ApplySMSDeliveryReport(ctx, store.SMSDeliveryReport{
+				DeviceID:          config.ID,
+				ModemIMEI:         modemIMEI,
+				IMSI:              identityAfter.IMSI,
+				Peer:              message.To,
+				Source:            "cellular_at",
+				MessageReference:  *message.MessageReference,
+				StatusCode:        *message.StatusCode,
+				DeliveryState:     message.DeliveryStatus,
+				ServiceCenterTime: message.ServiceCenterTimestamp,
+				DischargeTime:     message.DischargeTimestamp,
+				ReceivedAt:        time.Now().UTC(),
+			})
+			if applyErr != nil {
+				if !errors.Is(applyErr, store.ErrNotFound) {
+					allSaved = false
+					s.logger.Warn("apply modem SMS delivery report failed", "device_id", config.ID, "error", applyErr)
+				}
+				continue
+			}
+			if autoClear && archiveErr == nil && message.DecodeError == "" {
+				clearSlots = appendModemSMSSlot(clearSlots, message)
+			}
+			continue
+		}
+		peer := firstNonEmpty(message.From, message.To, "未知发送方")
+		originalPeer := message.From
+		if originalPeer == "" {
+			originalPeer = message.To
+		}
+		if strings.TrimSpace(originalPeer) == "" {
+			originalPeer = peer
+		}
+		timestamp := time.Now().UTC()
+		if message.ServiceCenterTimestamp != nil {
+			timestamp = message.ServiceCenterTimestamp.UTC()
+		} else if message.DischargeTimestamp != nil {
+			timestamp = message.DischargeTimestamp.UTC()
+		}
+		direction := "inbound"
+		if message.Direction == device.SMSDirectionSubmitted {
+			direction = "outbound"
+		}
+		messageID := modemSMSMessageID(message, modemIMEI, config.ID, peer, concatSources[modemSMSStorageKey(message)])
+		extra, _ := json.Marshal(map[string]any{
+			"modem_index":        message.Index,
+			"storage":            message.Storage,
+			"storage_status":     message.StorageStatus,
+			"encoding":           message.Encoding,
+			"concat":             message.Concat,
+			"decode_error":       message.DecodeError,
+			"status_code":        message.StatusCode,
+			"message_reference":  message.MessageReference,
+			"delivery_status":    message.DeliveryStatus,
+			"data_coding_scheme": message.DataCodingScheme,
+			// Every AT modem periodically rescans persistent SMS storage. Keep a
+			// completed multipart row's cursor stable when a decoder presents a
+			// segment differently on a later pass, otherwise notification
+			// providers can treat the old message as newly inserted.
+			"keep_durable_id_on_rescan": true,
+		})
+		value := store.SMSMessage{
+			MessageID: messageID,
+			DeviceID:  config.ID,
+			ModemIMEI: modemIMEI,
+			// The immutable origin must retain the actual snapshot spelling;
+			// trimming an untrusted ICCID must not create a reply-capable card.
+			ICCID:         snapshotString(currentEntry.Snapshot, func(snapshot *device.Snapshot) string { return snapshot.ICCID }),
+			IMSI:          identityAfter.IMSI,
+			LocalPhone:    localPhone,
+			Peer:          originalPeer,
+			Direction:     direction,
+			Body:          message.Text,
+			Timestamp:     timestamp,
+			Status:        string(message.StorageStatus),
+			Source:        "cellular_at",
+			PartsTotal:    concatTotal(message.Concat),
+			DeliveryState: message.DeliveryStatus,
+			Read:          message.StorageStatus == device.SMSStatusReceivedRead,
+			Extra:         extra,
+		}
+		// Every new storage scope and every explicit/manual catch-up is an
+		// archive. Old seen rows never gain new forwarding recipients, even if
+		// their Inbox was deleted or the bounded source receipt has expired.
+		var saveResult store.SMSMessageSaveResult
+		var saveErr error
+		if trackable && message.Direction == device.SMSDirectionReceived && decision[modemSMSScanRowKey(message)] && archiveErr == nil {
+			saveResult, saveErr = s.store.SaveSMSMessageWithResult(ctx, value)
+		} else {
+			saveResult, saveErr = s.store.SaveSMSMessageArchiveWithResult(ctx, value)
+		}
+		if saveErr != nil {
+			allSaved = false
+			if message.Concat != nil && message.Concat.Total > 1 {
+				concatSafeToClear[messageID] = false
+			}
+			s.logger.Warn("persist modem SMS failed", "category", "sms", "device_id", config.ID, "raw_error", saveErr)
+			continue
+		}
+		if autoClear {
+			safeToClear := archiveErr == nil && message.DecodeError == "" && strings.TrimSpace(message.Text) != ""
+			if message.Concat != nil && message.Concat.Total > 1 {
+				if _, seen := concatSafeToClear[messageID]; !seen {
+					concatSafeToClear[messageID] = true
+				}
+				concatSafeToClear[messageID] = concatSafeToClear[messageID] && safeToClear && store.SMSDecodeError(saveResult.Message.Extra) == ""
+				concatSlots[messageID] = appendModemSMSSlot(concatSlots[messageID], message)
+				concatComplete[messageID] = store.ConcatSMSReadyToNotify(saveResult.Message.MessageID, saveResult.Message.Extra)
+				// Kept across merges and rescans; unlike SCTS never missing or skewed.
+				concatFirstSeen[messageID] = saveResult.Message.CreatedAt
+			} else if safeToClear {
+				clearSlots = appendModemSMSSlot(clearSlots, message)
+			}
+		}
+		if saved := saveResult.Message; saveResult.Inserted && saved.Direction == "inbound" && smsMessageReadyToNotify(saved) {
+			s.logger.Info("cellular SMS received",
+				"category", "sms", "event", "sms.received", "sms_id", saved.ID,
+				"device_id", config.ID, "peer", saved.Peer,
+				"transport", "cellular_at", "encoding", message.Encoding,
+				"parts", saved.PartsTotal,
+			)
+		}
+	}
+	// Even a failed persistence pass retains archive-family protection. It
+	// never establishes a live baseline, but forgetting a seen old partial
+	// would allow a later storage-generation change to give it new recipients.
+	if !allSaved || ctx.Err() != nil || !trackable {
+		nextScan.ready = false
+		nextScan.rows = nil
+	}
+	s.rememberSMSForwardScan(id, nextScan)
+	completed = true
+	if autoClear {
+		for messageID, slots := range concatSlots {
+			if !concatSafeToClear[messageID] {
+				continue
+			}
+			if concatComplete[messageID] {
+				clearSlots = append(clearSlots, slots...)
+			} else if time.Since(concatFirstSeen[messageID]) > modemSMSIncompleteHoldLimit {
+				s.logger.Info("clearing incomplete multipart SMS from modem storage",
+					"category", "sms", "device_id", config.ID, "segments", len(slots),
+					"first_seen", concatFirstSeen[messageID])
+				clearSlots = append(clearSlots, slots...)
+			}
+		}
+		s.clearPersistedModemSMS(ctx, physicalID, config.ID, clearSlots)
+	}
+}
+
+const (
+	smsForwardScanScopeLimit = 512
+	smsForwardScanRowLimit   = 4096
+	smsForwardScanRowBudget  = 16384
+	smsForwardScanFamilyHold = 24 * time.Hour
+)
+
+type smsForwardScanScope struct{ physicalID, imei, iccid, imsi, mode string }
+type smsForwardScanRow struct{ archive bool }
+type smsForwardScan struct {
+	scope smsForwardScanScope
+	rows  map[string]smsForwardScanRow
+	ready bool
+	// Family keys bind the scope and a hash of sender/ref/total, never a body
+	// or PDU. A repeated old partial must not renew its first-seen deadline.
+	families   map[string]time.Time
+	guardUntil time.Time
+	blocked    bool
+}
+
+// Only hashes of bounded physical row identities survive the scan. No body or
+// raw PDU is retained in these qualifications or included in logs.
+func modemSMSScanRowKey(message device.SMSMessage) string {
+	storage := strings.ToUpper(strings.TrimSpace(message.Storage))
+	if (storage != "SM" && storage != "ME") || message.Index < 0 {
+		return ""
+	}
+	pdu := strings.TrimSpace(message.RawPDU)
+	if len(pdu) == 0 || len(pdu) > 1024 {
+		return ""
+	}
+	decoded, err := hex.DecodeString(pdu)
+	if err != nil || len(decoded) == 0 {
+		return ""
+	}
+	digest := sha256.New()
+	_, _ = digest.Write([]byte(storage + ":" + strconv.Itoa(message.Index) + ":"))
+	_, _ = digest.Write(decoded)
+	return hex.EncodeToString(digest.Sum(nil))
+}
+
+func smsForwardScanDecisions(previous smsForwardScan, scope smsForwardScanScope, messages []device.SMSMessage, concatSources map[string]string, allowLive bool) (map[string]bool, smsForwardScan, bool) {
+	return smsForwardScanDecisionsAt(previous, scope, messages, concatSources, allowLive, time.Now().UTC())
+}
+
+func smsForwardScanDecisionsAt(previous smsForwardScan, scope smsForwardScanScope, messages []device.SMSMessage, concatSources map[string]string, allowLive bool, now time.Time) (map[string]bool, smsForwardScan, bool) {
+	now = now.UTC()
+	next := smsForwardScan{scope: scope, rows: map[string]smsForwardScanRow{}, families: map[string]time.Time{}, ready: true, blocked: previous.blocked}
+	for key, expiry := range previous.families {
+		if expiry.After(now) {
+			next.families[key] = expiry
+		}
+	}
+	if previous.guardUntil.After(now) {
+		next.guardUntil = previous.guardUntil
+	}
+	identityKnown := scope.physicalID != "" && scope.imei != "" && scope.iccid != "" && scope.imsi != ""
+	trackable := identityKnown
+	if len(messages) > smsForwardScanRowLimit {
+		// Do not retain unbounded physical rows or forget an untracked partial
+		// and later treat its new storage generation as live. Local Inbox saves
+		// still run; only forwarding is conservatively disabled this process.
+		next.blocked = true
+		next.ready = false
+		return nil, next, false
+	}
+	// A missing/undecodable PDU cannot establish a physical baseline. If a
+	// later decoder resolves that same stored row, it must first be archived,
+	// not be mistaken for a newly arrived SMS solely because its hash changed.
+	for _, message := range messages {
+		if modemSMSScanRowKey(message) == "" {
+			trackable = false
+			break
+		}
+	}
+	qualified := trackable && previous.ready && previous.scope == scope && !next.blocked && !next.guardUntil.After(now)
+	if !qualified {
+		previous.rows = nil
+	}
+	groupArchive := map[string]bool{}
+	groupNew := map[string]bool{}
+	groups := make([]string, len(messages))
+	groupFamilies := map[string]string{}
+	groupTotals := map[string]int{}
+	groupSequences := map[string]map[int]bool{}
+	for index, message := range messages {
+		rowKey := modemSMSScanRowKey(message)
+		peer := firstNonEmpty(message.From, message.To, "未知发送方")
+		group := modemSMSMessageID(message, scope.imei, "", peer, concatSources[modemSMSStorageKey(message)])
+		groups[index] = group
+		old, seen := previous.rows[rowKey]
+		if !qualified || !allowLive || rowKey == "" || seen && old.archive {
+			groupArchive[group] = true
+		}
+		if !seen && rowKey != "" {
+			groupNew[group] = true
+		}
+		if message.Concat != nil && message.Concat.Total > 1 {
+			family := smsForwardScanFamilyKey(scope, message, peer)
+			groupFamilies[group] = family
+			groupTotals[group] = message.Concat.Total
+			if groupSequences[group] == nil {
+				groupSequences[group] = map[int]bool{}
+			}
+			if message.Concat.Sequence > 0 && message.Concat.Sequence <= message.Concat.Total {
+				groupSequences[group][message.Concat.Sequence] = true
+			}
+			if next.families[family].After(now) {
+				groupArchive[group] = true
+			}
+		}
+	}
+	for group, family := range groupFamilies {
+		if !groupArchive[group] || len(groupSequences[group]) == groupTotals[group] {
+			continue
+		}
+		if _, seen := next.families[family]; !seen {
+			// An unchanged, already archived physical partial does not restart
+			// its expired family window on every periodic scan.
+			if previous.ready && previous.scope == scope && !groupNew[group] {
+				continue
+			}
+			if len(next.families) >= smsForwardScanRowLimit {
+				next.blocked = true
+				continue
+			}
+			next.families[family] = now.Add(smsForwardScanFamilyHold)
+		}
+		if !identityKnown && next.families[family].After(next.guardUntil) {
+			next.guardUntil = next.families[family]
+		}
+	}
+	for group, family := range groupFamilies {
+		if next.families[family].After(now) {
+			groupArchive[group] = true
+		}
+	}
+	decision := map[string]bool{}
+	for index, message := range messages {
+		rowKey := modemSMSScanRowKey(message)
+		group := groups[index]
+		if rowKey == "" {
+			continue
+		}
+		// All parts of one newly advancing live logical message may merge as
+		// live; marking its previously seen partial as archive would itself
+		// create an empty source receipt before the new last part arrived. The
+		// same is true of repeated live partials while waiting for a last part.
+		incomplete := groupTotals[group] > 1 && len(groupSequences[group]) != groupTotals[group]
+		archive := groupArchive[group] || next.blocked || next.guardUntil.After(now)
+		decision[rowKey] = qualified && allowLive && (groupNew[group] || incomplete) && !archive
+		next.rows[rowKey] = smsForwardScanRow{archive: archive}
+	}
+	if len(next.rows)+len(next.families) > smsForwardScanRowLimit {
+		next.blocked = true
+	}
+	if next.blocked {
+		next.rows = nil
+		next.ready = false
+		return nil, next, false
+	}
+	if !trackable {
+		next.rows = nil
+		next.ready = false
+	}
+	return decision, next, trackable
+}
+
+func smsForwardScanFamilyKey(scope smsForwardScanScope, message device.SMSMessage, peer string) string {
+	encoded, _ := json.Marshal([]string{scope.physicalID, scope.imei, scope.iccid, scope.imsi, scope.mode, peer, strconv.Itoa(message.Concat.Reference), strconv.Itoa(message.Concat.Total)})
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:])
+}
+
+// These helpers require smsSyncMu. Invalidating a baseline must not discard a
+// protected partial, including across Host/defer/read-error passes or card swaps.
+func (s *Server) invalidateSMSForwardScan(id string) {
+	if previous, exists := s.smsForwardScans[id]; exists {
+		previous.ready = false
+		previous.rows = nil
+		s.smsForwardScans[id] = previous
+	}
+}
+
+func (s *Server) invalidateSMSForwardScans() {
+	for id := range s.smsForwardScans {
+		s.invalidateSMSForwardScan(id)
+	}
+}
+
+func (s *Server) forgetSMSForwardScan(id string) {
+	previous := s.smsForwardScans[id]
+	if previous.blocked || previous.guardUntil.After(time.Now().UTC()) {
+		s.blockSMSForwardScans()
+	}
+	for _, expiry := range previous.families {
+		if expiry.After(time.Now().UTC()) {
+			s.blockSMSForwardScans()
+			break
+		}
+	}
+	delete(s.smsForwardScans, id)
+}
+
+func (s *Server) blockSMSForwardScans() {
+	if !s.smsForwardScanBlocked && s.logger != nil {
+		s.logger.Warn("AT SMS forwarding is archive-only until restart after bounded source protection was discarded; local Inbox capture remains enabled", "category", "sms")
+	}
+	s.smsForwardScanBlocked = true
+}
+
+func (s *Server) rememberSMSForwardScan(id string, next smsForwardScan) {
+	if s.smsForwardScans == nil {
+		s.smsForwardScans = map[string]smsForwardScan{}
+	}
+	delete(s.smsForwardScans, id)
+	if next.blocked {
+		s.blockSMSForwardScans()
+	}
+	total := len(next.rows) + len(next.families)
+	for _, scan := range s.smsForwardScans {
+		total += len(scan.rows) + len(scan.families)
+	}
+	for len(s.smsForwardScans) >= smsForwardScanScopeLimit || total > smsForwardScanRowBudget {
+		for previous, scan := range s.smsForwardScans {
+			s.forgetSMSForwardScan(previous)
+			total -= len(scan.rows) + len(scan.families)
+			break
+		}
+	}
+	if s.smsForwardScanBlocked {
+		// A hard budget fallback affects SIP plans only, never local capture.
+		// It cannot silently recover after forgetting source protection.
+		next.ready = false
+		next.rows = nil
+		next.families = nil
+	}
+	s.smsForwardScans[id] = next
 }
 
 type modemSMSSlot struct {
@@ -1088,6 +1430,18 @@ func (s *Server) deleteModemSMS(ctx context.Context, stored store.SMSMessage) er
 		// Removed devices leave SMS history that can be deleted locally.
 		return nil
 	}
+	lock := s.imsModeLock(config.ID)
+	lock.RLock()
+	defer lock.RUnlock()
+	config, err = s.store.Device(ctx, config.ID)
+	if err != nil {
+		return err
+	}
+	if store.HostIMSConfigured(config) {
+		// History remains removable, but legacy modem storage reads/deletes may
+		// not borrow the SIM/control channel from a Host owner.
+		return nil
+	}
 	_, physicalID, present := s.physicalForConfig(config)
 	if !present {
 		return device.ErrNotFound
@@ -1175,11 +1529,11 @@ func (s *Server) StartSMSSyncLoop(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.syncModemSMS(ctx, "")
+			s.syncObservedModemSMS(ctx, "")
 		case <-arrivals:
 			// One arriving during the scan stays buffered for another pass.
 			started := time.Now()
-			s.syncModemSMS(ctx, "")
+			s.syncObservedModemSMS(ctx, "")
 			s.logger.Debug("modem SMS scan after +CMTI finished",
 				"category", "sms", "duration", time.Since(started))
 		}

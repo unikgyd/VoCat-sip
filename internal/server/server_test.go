@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -56,7 +57,9 @@ type testApplication struct {
 
 func newTestApplication(t *testing.T) testApplication {
 	t.Helper()
-	database, err := store.Open(context.Background(), ":memory:")
+	// The full application includes durable SIP settings and SMS consumers.
+	// An in-memory test store cannot satisfy that production admission contract.
+	database, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "application.db"))
 	if err != nil {
 		t.Fatalf("store.Open() error = %v", err)
 	}
@@ -87,6 +90,7 @@ func newTestApplication(t *testing.T) testApplication {
 		t.Fatal(err)
 	}
 	httpServer := httptest.NewServer(handler)
+	t.Cleanup(handler.CloseSIPGateway)
 	t.Cleanup(httpServer.Close)
 	jar, err := cookiejar.New(nil)
 	if err != nil {
