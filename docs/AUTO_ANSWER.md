@@ -1,7 +1,7 @@
 # Automatic answering and message playback
 
-Source integration checkpoint, 2026-10-26. These changes have **not** been
-tested or built. Implementation precedes the final combined verification run.
+Source integration, 2026-10-26. The combined software run is complete; see
+[verification results and remaining live-call acceptance](VERIFICATION_20261026.md).
 
 The reference is VoWin's `CallExperienceSettings`, incoming-call delay and
 `CallMessagePlayback`. Automatic answering is disabled initially. Preferences

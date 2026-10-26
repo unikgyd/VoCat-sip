@@ -1,7 +1,8 @@
 # Cellular data ownership and handover
 
-2026-10-26 source checkpoint. These changes are **not yet tested or built**.
-Historical verification snapshots do not verify this implementation.
+2026-10-26 implementation. The combined software run is complete, including
+transfer cancellation, original binding and stale public-IP results. See the
+[verification results and hardware boundaries](VERIFICATION_20261026.md).
 
 Independent access must release the previous process-owned data session before
 adopting another SIM, starting Host IMS or entering exclusive Wi-Fi access.

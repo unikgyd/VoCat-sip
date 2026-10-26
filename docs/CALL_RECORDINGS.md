@@ -1,8 +1,8 @@
 # Call recordings
 
-Implementation checkpoint, 2026-10-26. This source has **not** been tested or
-built. The final combined run follows completion of the remaining feature-union
-implementation. Existing installations have not been replaced.
+Implementation, 2026-10-26. The combined software run is complete; see
+[verification results and remaining real-PCM acceptance](VERIFICATION_20261026.md).
+Existing installations have not been replaced.
 
 ## Behavior
 

@@ -1,7 +1,8 @@
 # RTCP call control and media statistics
 
-2026-10-26 implementation checkpoint. This source has **not yet been tested or
-built**. It is included in the final combined verification after implementation.
+2026-10-26 implementation. Separate-socket, protocol, ownership and selected race
+regressions passed in the [combined software run](VERIFICATION_20261026.md).
+Real softphone/carrier interoperability remains separate acceptance.
 
 VoWin's reference is `voSharp/src/VoSharp.Telephony/Calls/RtpSession.cs`, including
 its separate control socket, receiver reports, explicit remote RTCP endpoint and

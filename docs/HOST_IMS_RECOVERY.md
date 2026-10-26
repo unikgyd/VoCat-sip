@@ -1,7 +1,8 @@
 # Host IMS restart cleanup
 
-2026-10-26 implementation checkpoint. This new source is **not yet tested or
-built**; it is part of the final combined verification.
+2026-10-26 implementation. The combined software run is complete, including
+confirmed-journal recovery and changed/unknown-owner rejection. See the
+[verification results and remaining real restart acceptance](VERIFICATION_20261026.md).
 
 A service-process restart does not prove that its IMS PDN, network objects or
 XFRM/TC resources disappeared. The application now connects the private journal

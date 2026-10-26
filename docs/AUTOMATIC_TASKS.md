@@ -1,7 +1,8 @@
 # Automatic task ownership and restoration
 
-2026-10-26 implementation checkpoint. The changes below are **not yet tested
-or built**. Final combined verification follows implementation.
+2026-10-26 implementation. The combined software run is complete, including
+task/profile restoration, durable journal and admission regressions. See the
+[verification scope and remaining hardware acceptance](VERIFICATION_20261026.md).
 
 A running task holds the selected line's lifecycle writer through preparation,
 execution and restoration. HTTP, SIP, Telegram, SMS storage scans and background

@@ -37,15 +37,17 @@ authorization checks remain in force.
 | --- | --- |
 | Calls and media | Web phone, physically paired USB PCM, SIP extension/peer bridges and negotiated RFC 4733 DTMF are wired. |
 | Multiple modems | Independent runtime ownership, Host IMS, per-SIM ePDG history and persistent IKE retry admission are present. |
-| Independent access | Per-ICCID cellular/Wi-Fi preferences, default routing, session ownership, reconnect controls and UI are being integrated. **The latest changes have not had the final combined test/build run.** |
-| Management | Existing eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained. New source adds per-SIM startup, live Host IMS identity, owned data/transfer cleanup, durable task restoration, Host IMS task handover and coexistence-aware proxy/data controls. Final combined validation is pending. |
-| Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported message playback, browser takeover, call recording and separate RTCP/statistics are wired in the latest source, awaiting final combined validation. |
-| Remaining acceptance | Complete independent-access lifecycle, real hardware, softphone and carrier acceptance. |
+| Independent access | Per-ICCID cellular/Wi-Fi preferences, default routing, session ownership, reconnect controls and UI are implemented. Combined software tests and builds passed. |
+| Management | eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained. Per-SIM startup, live Host IMS identity, owned data/transfer cleanup, durable task restoration, Host IMS handover and coexistence-aware proxy/data controls are integrated. |
+| Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported playback, browser takeover, recording and separate RTCP/statistics are integrated. See the verification record for the tested software scope. |
+| Remaining acceptance | Real modem/SIM lifecycle, USB audio, live playback/takeover, softphone/carrier interoperability, native AMR dependencies and deployment/rollback. |
 
-This is a development checkpoint, not a release or a claim of complete parity.
-Historical passing runs apply to their archived snapshots only. Implementation is
-being completed before the final combined tests and builds; no tests or builds
-were run for this README/Git cleanup. Existing installations are unchanged.
+The final combined software run passed: **2,025 native Go tests, 2,020 static Go
+tests, 79 frontend tests, 132 selected race-test executions, 41 isolated kernel
+tests, vet and four Linux builds**. Skip counts, retained failures and hardware
+limits are recorded in [the verification report](docs/VERIFICATION_20261026.md).
+Implementation preceded testing as requested. This is a software-validated
+development candidate; existing installations have not been replaced.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

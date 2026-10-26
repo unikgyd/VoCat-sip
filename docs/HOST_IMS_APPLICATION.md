@@ -6,9 +6,9 @@ firmware/carrier acceptance or a deployed service upgrade**.
 
 2026-10-26 source checkpoint: the independent per-SIM cellular/Wi-Fi policy now
 supersedes the single-mode application controls below when `telephony` is set.
-See [independent access](INDEPENDENT_ACCESS.md). Its startup/SIM reconciliation,
-metadata projection and MM radio-enable changes are **not yet tested or built**;
-the verification results below apply only to the older frozen snapshot.
+See [independent access](INDEPENDENT_ACCESS.md). The current implementation has
+completed the [2026-10-26 combined software run](VERIFICATION_20261026.md);
+firmware/carrier and deployment acceptance remain separate.
 
 ## Per-modem configuration
 
@@ -141,22 +141,11 @@ LICENSE and existing product restrictions remain unchanged.
 
 ## Verification and remaining work
 
-Artifacts and exact results live in
-[`publish/vocat-application-ims-20261024`](../../publish/vocat-application-ims-20261024).
-The final frozen candidate's
-[verification manifest](../../publish/vocat-application-ims-20261024/verified-final/verification.json)
-confirms unchanged source hashes: Windows Go 1,401 top-level tests passed
-(2 skipped), native Linux Go 1,528 passed (43 skipped), and 35 frontend tests
-passed, with no failures. Subtests are counted separately in the manifest.
-Repeated race runs, TypeScript/Vite checks, Linux amd64/arm64 builds and
-`go vet -composites=false` passed. Native service/default-route snapshots are
-byte-identical. Skips include disabled system-modem and isolated kernel/XFRM
-opt-in tests; those were not rerun and are not claimed as passing here.
-
-Tests use synthetic device inventory, fake private ModemManager, loopback SIP
-and isolated UI fixtures. Linux tests run only on `root@10.0.0.2` in a dedicated
-build directory, without starting the app service, real QMI/UICC/PDN/REGISTER,
-calls or SMS. No WSL, production Asterisk edits or Windows process replacement.
+Current results and exact source identity are in the
+[verification report](VERIFICATION_20261026.md) and its machine-readable record.
+The older application-integration archives remain local history. Current checks
+use synthetic inventory, fake private ModemManager, loopback SIP and individual
+kernel namespaces, with no application-service replacement or real calls/SMS.
 
 Remaining acceptance: real firmware setup, controlled RF-off to Host IMS
 transition, multiple live modems, operator registration/renewal, bidirectional
@@ -164,6 +153,7 @@ voice and SMS through both web phone and SIP peers, hardware removal, and
 complete cold-start ownership recovery. The new panel is not evidence that
 those real-world acceptance items have passed.
 
-Module mode reuses the existing module/AT call and SMS path. This phase does
-not add a Linux USB bidirectional audio bridge; web/SIP media bridging still
-requires a registered IMS line.
+Module mode now has its own physically paired USB media path; see
+[module voice](MODULE_VOICE.md). It requires the selected module's supported
+bidirectional PCM interface. The original signaling-only AT tools remain
+available where no such media interface exists.

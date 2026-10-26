@@ -1,0 +1,507 @@
+{
+  "date": "2026-10-26",
+  "scope": "Linux software implementation and validation; live hardware/carrier acceptance remains pending",
+  "passed": true,
+  "testedCommit": "2da4a5bc2435e020a14766fe79b640b4d46bc93f",
+  "sourceFiles": 1821,
+  "archiveSHA256": "f0c56d52325046989f1177d9d3b73abf4d9c8ee9cdb719dc42c213fdaef1999a",
+  "sourceUnchanged": true,
+  "toolchains": {
+    "go": "go1.27.3 linux/amd64",
+    "node": "v24.13.0",
+    "npm": "11.6.2"
+  },
+  "tests": [
+    {
+      "name": "regression-fixes",
+      "topLevelPassExecutions": 22,
+      "uniqueTopLevelPasses": 22,
+      "skippedTopLevel": 0,
+      "failedCases": []
+    },
+    {
+      "name": "full-native",
+      "topLevelPassExecutions": 2025,
+      "uniqueTopLevelPasses": 2025,
+      "skippedTopLevel": 46,
+      "failedCases": []
+    },
+    {
+      "name": "full-static",
+      "topLevelPassExecutions": 2020,
+      "uniqueTopLevelPasses": 2020,
+      "skippedTopLevel": 43,
+      "failedCases": []
+    },
+    {
+      "name": "critical-race",
+      "topLevelPassExecutions": 132,
+      "uniqueTopLevelPasses": 44,
+      "skippedTopLevel": 0,
+      "failedCases": []
+    }
+  ],
+  "frontend": {
+    "passed": 79,
+    "skipped": 0,
+    "failed": 0,
+    "typeScriptAndVite": true
+  },
+  "vet": true,
+  "builds": {
+    "vocat-amd64-static": {
+      "bytes": 46073516,
+      "sha256": "8ff8af240bd0c8fa573c121a3e8105f99fef5b45b029231c1781f30cbaf88460"
+    },
+    "vocat-arm64-static": {
+      "bytes": 43268559,
+      "sha256": "e2c47baf26497169bf1b85ecbdf58ab2182fa118deb354a3de009c57274977ab"
+    },
+    "vocat-arm64-native": {
+      "bytes": 43441899,
+      "sha256": "a31d78fd601690acf8d99231699f6410549597fd9e0f2d5602a4c26f958c6602"
+    },
+    "vocat-amd64-native": {
+      "bytes": 46222225,
+      "sha256": "6e64b49eff293cc31c640b8c252ee55e68bde549cc69bb4bd8d8b46c4f4c2b14"
+    }
+  },
+  "kernel": {
+    "passed": 41,
+    "skipped": 0,
+    "failed": 0,
+    "policy": "One fresh NET+MNT namespace per opt-in top-level case",
+    "cases": [
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelCleanupIdentitySurvivesDownRenameAndMTUChange",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelCleanupIdentityProvesDeletionWithoutTouchingReusedIndex",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelCleanupIdentityDoesNotGuessDeathFromBadAnchorOrNamespace",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelCleanupIdentityRejectsClosedDriver",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelCleanupIdentityDoesNotTreatNamespaceMoveAsDeletion",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkDualStackSetupBoundSocketsAndCleanup",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkReusesButNeverDeletesExistingAddress",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkMediaReferenceCountsAndSignalingPin",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkForeignRouteReplacementIsPreserved",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkLostAckNeverGuessesOwnership",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkKnownRejectionHasNoUnknownFence",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkCancellationKeepsPendingUntilObservedCleanup",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkRejectsUnmatchedRuntimeBeforeMutation",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkTwoModemsWithOverlappingDualStackAddresses",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkRejectsExistingDefaultWithoutMutation",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkPolicyOverrideFailsClosedAndRollsBack",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkDetectsRuleActionReplacement",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkRenameAndMTUChangesInvalidate",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkSocketBindingRejectsUnknownDestinationAndWrongFamily",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkRejectsMultipathSocketOutsideTCPESPContract",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkMutationExcludesSIM",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkDualStackGateways",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkSocketFromAnotherNamespaceIsRejected",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkJournalFailureBeforeIntentDoesNotMutate",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkJournalFailureAfterAckRetainsPendingFence",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkMediaLimitAndLastRelease",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkUnknownIPv6RoutePreferenceIsPreserved",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkWDSProofIsRevalidatedBeforeReuse",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelNetworkRuntimeBusyDoesNotPoisonClose",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestKernelSecurityOwnerNativeDualStackOverlappingModems",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestSecurityTCNativeOwnedCreateFingerprintAndForeignFence",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestSecurityTCNativeOverlappingModemESPDelivery",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestScopedXFRMNative",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/hostims",
+        "test": "TestSocketSecurityPolicyNative",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ike",
+        "test": "TestLinuxUserspaceInstallerLifecycle",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestCellularNativeRTPBindsBearerAndSource",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestCellularNativeBoundSignalingSockets",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestLinuxIPSecInstallerLifecycle",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestLinuxIPSecRollbackPreservesForeignKernelState",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestLinuxXFRMSharedPlanIncludesRequiredUEClientUDPInbound",
+        "passed": true
+      },
+      {
+        "package": "vocat/internal/vowifi/ims",
+        "test": "TestLinuxXFRMServerRepliesEncryptEphemeralTCPAndUDP",
+        "passed": true
+      }
+    ]
+  },
+  "remainingNativeSkips": [
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestReadOnlySystemModemManagerProbe",
+      "reason": "modemmanager_linux_test.go:385: explicit read-only system ModemManager probe"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestSystemQMIEndpointProbeIsReadOnly",
+      "reason": "qmi_endpoint_linux_test.go:177: explicit read-only system endpoint probe"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestNativeAMRAllModesAndRTPDuplex",
+      "reason": "amr_native_linux_test.go:23: install libopencore-amrnb.so.0 for native AMR test"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestNativeAMRMissingLibraryFallsBackWithoutFakeCapability",
+      "reason": "amr_native_linux_test.go:109: separate process without codec library"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestAMRReleaseDefaultHasRealCodec",
+      "reason": "amr_release_default_test.go:21: native AMR dependency not installed"
+    }
+  ],
+  "preservedFailure": {
+    "stage": "kernel-netns",
+    "reason": "The first runner incorrectly shared one namespace between cases requiring fresh XFRM state. Three top-level cases failed; all three then passed in fresh namespaces without source changes.",
+    "tests": [
+      "TestSocketSecurityPolicyNative",
+      "TestLinuxIPSecInstallerLifecycle",
+      "TestLinuxXFRMSharedPlanIncludesRequiredUEClientUDPInbound"
+    ]
+  },
+  "productionServiceChanged": false,
+  "realSIM": false,
+  "realCall": false,
+  "realSMS": false,
+  "realPCM": false,
+  "selectedRaceCases": [
+    {
+      "package": "vocat/internal/rtcpmedia",
+      "test": "TestReceptionWrapLossDuplicatesAndRestart"
+    },
+    {
+      "package": "vocat/internal/rtcpmedia",
+      "test": "TestCompoundReportsAreAtomicAndCorrelateRTT"
+    },
+    {
+      "package": "vocat/internal/rtcpmedia",
+      "test": "TestSeparateSocketPinsPeerAndSendsFinalBYE"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestPendingBearerCleanupUnknownACKRetainsOnlySelection"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestPendingBearerCleanupLateConfirmedACKAndStaleCapability"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestPendingBearerCleanupDoesNotStealLiveOwner"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestRestartNetworkCleanupRemovesOnlyJournaledObjectsBeforePDN"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestRestartNetworkCleanupRefusesChangedOrUnknownRecords"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestRecoveryCleanupAbsentJournalReleasesProbeLock"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestRecoveryCleanupOriginalPDNAndOldCapability"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestRecoveryCleanupCannotStealLiveProcessOrGuessUnknownACK"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestRecoveryCleanupChangedSIMDoesNotDeleteOriginalPDN"
+    },
+    {
+      "package": "vocat/internal/callrecord",
+      "test": "TestCallRecordingKeepsStereoIdentityAndPrivateDownload"
+    },
+    {
+      "package": "vocat/internal/callrecord",
+      "test": "TestRecordingRetentionAndDisabledCapture"
+    },
+    {
+      "package": "vocat/internal/callprompt",
+      "test": "TestPromptWAVIsBoundedPrivatePCMAndCopiesUpload"
+    },
+    {
+      "package": "vocat/internal/store",
+      "test": "TestAutomaticTasksAreClaimedInDeviceQueueOrderAndAdvanceSchedule"
+    },
+    {
+      "package": "vocat/internal/store",
+      "test": "TestCallAnsweringRevisionSIMIsolationAndPrivateAudio"
+    },
+    {
+      "package": "vocat/internal/store",
+      "test": "TestAutomaticTaskRecoverySurvivesReopenAndRequiresOriginalRestoredToken"
+    },
+    {
+      "package": "vocat/internal/store",
+      "test": "TestIMSModePersistenceAndLegacyCompatibility"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestHoldResumeReinviteCommitsOnlyMatchingDialogAndACK"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestHoldRejectedOfferPreservesExistingCallAndMedia"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestActiveMediaDrainDoesNotWaitForLiveRTCPToClose"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestCellularSessionCloseDrainsRetainedRoutesAfterCallerDeadline"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestCellularSessionCloseReportsCleanupFailureAndCanRetry"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestCellularReinviteCANCELPreservesActiveCallAndOldRoute"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestCellularReinviteCommittedMediaCannotBeCancelled"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestCellularReinviteCANCELDoesNotWaitForRTPWriter"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestAutomaticTaskRevertToInitialProfile"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestAutomaticTaskDoNotRevertWhenDisabled"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestAutomaticTaskRevertsEvenOnTaskFailure"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestAutomaticTaskSameProfileDoesNotSwitch"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestAutomaticTaskNotificationDetailTextRemovesTitle"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestAutomaticTaskAvailabilityHidesRestrictedPaths"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestAutomaticSMSRetrySafetyPreventsDuplicateSubmission"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestCallAnswerClaimSingleWinnerAndUncertainSubmissionNotReplayed"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestCallAnswerNotAttemptedReleaseCannotEraseNewOwner"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestCellularTransferRequiresAcknowledgedSessionAndOriginalBinding"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestCellularTransferCancellationRetainsSupersededSessionUntilRelease"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestIMSModeSwitchRequiresExactCleanupACK"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestIMSModeSwitchRejectsActiveCallAndMissingOwner"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestIMSModeSwitchDoesNotCrossAnInFlightSubmission"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestIMSModeModuleCallMustBeProvenIdle"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestIMSModeFailedHostCanStopButCleanupFailureRetainsOwner"
+    },
+    {
+      "package": "vocat/internal/server",
+      "test": "TestAutomaticTaskUnknownIdleCannotMutateOrCreateRecoveryJournal"
+    }
+  ],
+  "kernelVersion": "7.0.0-38-generic",
+  "nativeLibraries": {
+    "alsa": "libasound.so.2 available; synthetic null PCM fixtures",
+    "amr": "libopencore-amrnb.so.0 absent; relevant cases remain skipped"
+  },
+  "testedRuntimeUnchangedAfterDocumentation": true
+}
