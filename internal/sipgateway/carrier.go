@@ -263,7 +263,7 @@ func (c *sipCall) runCarrier() {
 			case "active":
 				c.final, c.phase = 200, "awaiting_ack"
 				c.acceptedAt = time.Now()
-				c.accepted = c.callerResponse(200, "OK", makeCallAnswer(c.description, c.media.address()))
+				c.accepted = c.callerResponse(200, "OK", makeCallAnswer(c.description, c.media.address(), c.media.controlAddress()))
 				if err := c.transaction.Respond(c.accepted); err != nil {
 					c.mu.Unlock()
 					c.stopCall("transport")

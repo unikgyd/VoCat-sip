@@ -39,7 +39,7 @@ authorization checks remain in force.
 | Multiple modems | Independent runtime ownership, Host IMS, per-SIM ePDG history and persistent IKE retry admission are present. |
 | Independent access | Per-ICCID cellular/Wi-Fi preferences, default routing, session ownership, reconnect controls and UI are being integrated. **The latest changes have not had the final combined test/build run.** |
 | Management | Existing eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained. New source adds per-SIM startup, live Host IMS identity, owned data/transfer cleanup, durable task restoration, Host IMS task handover and coexistence-aware proxy/data controls. Final combined validation is pending. |
-| Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported message playback, browser takeover and call recording are wired in the latest source, awaiting final combined validation. |
+| Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported message playback, browser takeover, call recording and separate RTCP/statistics are wired in the latest source, awaiting final combined validation. |
 | Remaining acceptance | Complete independent-access lifecycle, real hardware, softphone and carrier acceptance. |
 
 This is a development checkpoint, not a release or a claim of complete parity.
@@ -67,6 +67,7 @@ SQLite stores configuration and runtime history. See the
 - [Automatic task ownership and restoration](docs/AUTOMATIC_TASKS.md).
 - [Web phone](docs/WEB_PHONE.md), [USB module voice](docs/MODULE_VOICE.md), [AMR media](docs/AMR_MEDIA.md), and [DTMF](docs/SIP_DTMF.md).
 - [IMS hold/resume](docs/IMS_CALL_HOLD.md), including transaction and media ownership boundaries.
+- [RTCP and media statistics](docs/RTCP.md), including separate control endpoints and bearer cleanup.
 - [Automatic answering and message playback](docs/AUTO_ANSWER.md), including upload formats, timing and browser takeover.
 - [Call recordings](docs/CALL_RECORDINGS.md), including stereo PCM, retention, private storage and interrupted-file recovery.
 - [SIP gateway](docs/SIP_GATEWAY.md), [carrier calls](docs/CARRIER_OUTGOING.md), [incoming calls](docs/CARRIER_INCOMING.md), and [SMS bridge](docs/CARRIER_SMS.md).

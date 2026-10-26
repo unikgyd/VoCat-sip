@@ -83,6 +83,10 @@ func (session *Session) Calls() []vowifi.Call {
 	now := time.Now().UTC()
 	calls := make([]vowifi.Call, 0, len(session.calls))
 	for id, call := range session.calls {
+		if call.media != nil && call.media.control != nil {
+			quality := call.media.control.Statistics()
+			call.public.MediaQuality = &quality
+		}
 		call.public.AnswerConfirmed = !call.terminated && call.public.State == "active" && (!call.answerSent || call.answerAcked)
 		call.public.DTMFDigits = ""
 		call.public.CanHold = !call.terminated && call.public.State == "active" && (!call.answerSent || call.answerAcked) && call.media != nil && call.media.ready()

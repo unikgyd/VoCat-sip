@@ -9,18 +9,21 @@ import (
 	"time"
 
 	"github.com/emiago/sipgo/sip"
+	"vocat/internal/rtcpmedia"
 )
 
 type CallStatus struct {
-	ID            string    `json:"id"`
-	Caller        string    `json:"caller"`
-	Callee        string    `json:"callee"`
-	Phase         string    `json:"phase"`
-	StartedAt     time.Time `json:"started_at"`
-	CallerPackets uint64    `json:"caller_packets"`
-	CalleePackets uint64    `json:"callee_packets"`
-	DeviceID      string    `json:"device_id,omitempty"`
-	Transport     string    `json:"transport,omitempty"`
+	ID            string                `json:"id"`
+	Caller        string                `json:"caller"`
+	Callee        string                `json:"callee"`
+	Phase         string                `json:"phase"`
+	StartedAt     time.Time             `json:"started_at"`
+	CallerPackets uint64                `json:"caller_packets"`
+	CalleePackets uint64                `json:"callee_packets"`
+	CallerQuality *rtcpmedia.Statistics `json:"caller_quality,omitempty"`
+	CalleeQuality *rtcpmedia.Statistics `json:"callee_quality,omitempty"`
+	DeviceID      string                `json:"device_id,omitempty"`
+	Transport     string                `json:"transport,omitempty"`
 }
 type callLeg struct {
 	call                            *sipCall
@@ -113,6 +116,10 @@ func (c *sipCall) snapshot() CallStatus {
 	status := CallStatus{ID: c.id, Caller: c.caller.Username, Callee: c.callee.Username, Phase: c.phase, StartedAt: c.started}
 	if c.media != nil {
 		status.CallerPackets = c.media.packets.Load()
+		if c.media.control != nil {
+			quality := c.media.control.Statistics()
+			status.CallerQuality = &quality
+		}
 	}
 	if c.inbound != nil {
 		status.DeviceID, status.Transport = c.inbound.line.DeviceID, "carrier_incoming"
@@ -134,6 +141,10 @@ func (c *sipCall) snapshot() CallStatus {
 		c.winner.mu.Lock()
 		if c.winner.media != nil {
 			status.CalleePackets = c.winner.media.packets.Load()
+			if c.winner.media.control != nil {
+				quality := c.winner.media.control.Statistics()
+				status.CalleeQuality = &quality
+			}
 		}
 		c.winner.mu.Unlock()
 	}
@@ -378,7 +389,7 @@ func (c *sipCall) run() {
 					branch.stopBranch()
 				}
 			}
-			accepted = c.callerResponse(200, "OK", makeCallAnswer(c.description, c.media.address()))
+			accepted = c.callerResponse(200, "OK", makeCallAnswer(c.description, c.media.address(), c.media.controlAddress()))
 			c.acceptedAt, c.accepted = time.Now(), accepted
 			err := c.transaction.Respond(accepted)
 			c.mu.Unlock()

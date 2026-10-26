@@ -50,7 +50,7 @@ func (b *callBranch) runPeer() {
 	from := &sip.FromHeader{DisplayName: c.caller.DisplayName, Address: sip.Uri{Scheme: "sip", User: c.caller.Username, Host: r.identityDomain()}}
 	from.Params.Add("tag", randomToken())
 	to := &sip.ToHeader{Address: sip.Uri{Scheme: "sip", User: b.target.Username, Host: r.identityDomain()}}
-	initial, err := r.buildCallRequest(sip.INVITE, b.entry.contact.Address, b.entry.source, from, to, randomToken(), 1, "", makeCallOffer(media.address()))
+	initial, err := r.buildCallRequest(sip.INVITE, b.entry.contact.Address, b.entry.source, from, to, randomToken(), 1, "", makeCallOffer(media.address(), media.controlAddress()))
 	if err != nil {
 		fail(503)
 		return

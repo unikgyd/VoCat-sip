@@ -15,7 +15,7 @@ func (session *Session) DrainCellularMedia(ctx context.Context) error {
 	session.callMu.Lock()
 	var media []*rtpMedia
 	for _, call := range session.calls {
-		if call.media != nil && call.media.network != nil {
+		if call.media != nil && (call.media.network != nil || call.media.control != nil) {
 			media = append(media, call.media)
 		}
 	}
@@ -23,6 +23,9 @@ func (session *Session) DrainCellularMedia(ctx context.Context) error {
 	failed := false
 	for _, item := range media {
 		if err := item.DrainCellularRoutes(ctx); err != nil {
+			if item.control != nil {
+				item.control.Abort()
+			}
 			failed = true
 		}
 	}

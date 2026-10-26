@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"vocat/internal/callrecord"
+	"vocat/internal/rtcpmedia"
 	"vocat/internal/rtpevent"
 	"vocat/internal/vowifi"
 )
@@ -26,6 +27,9 @@ const (
 
 type rtpMedia struct {
 	conn           *net.UDPConn
+	controlConn    *net.UDPConn
+	control        *rtcpmedia.Session
+	controlRoute   vowifi.CellularMediaRoute
 	network        vowifi.CellularIMSNetwork
 	lifetime       context.Context
 	cancel         context.CancelFunc
@@ -94,19 +98,49 @@ func newAccessRTPMedia(ctx context.Context, local net.IP, network vowifi.Cellula
 	if err != nil {
 		return nil, fmt.Errorf("ims: open RTP socket: %w", err)
 	}
+	var controlConnection *net.UDPConn
+	if network == nil {
+		controlConnection, err = net.ListenUDP("udp", &net.UDPAddr{IP: local})
+	} else {
+		controlConnection, err = listenAccessUDP(ctx, local, 0, network)
+	}
+	if err != nil {
+		_ = connection.Close()
+		return nil, fmt.Errorf("ims: open RTCP socket: %w", err)
+	}
 	seed := make([]byte, 10)
 	if _, err := io.ReadFull(cryptorand.Reader, seed); err != nil {
 		_ = connection.Close()
+		_ = controlConnection.Close()
 		return nil, fmt.Errorf("ims: initialize RTP state: %w", err)
 	}
 	lifetime, cancel := context.WithCancel(context.Background())
 	media := &rtpMedia{
-		conn: connection, sequence: binary.BigEndian.Uint16(seed[:2]),
+		conn: connection, controlConn: controlConnection, sequence: binary.BigEndian.Uint16(seed[:2]),
 		timestamp: binary.BigEndian.Uint32(seed[2:6]), ssrc: binary.BigEndian.Uint32(seed[6:]),
 		downlink: make(chan []int16, 64), closed: make(chan struct{}),
 		dtmfDownlink: make(chan dtmfKey, 16),
 		amrFactory:   factory, amrRequest: 15,
 		network: network, lifetime: lifetime, cancel: cancel, configureGate: make(chan struct{}, 1),
+	}
+	media.control, err = rtcpmedia.New(controlConnection, media.ssrc, rtpClockRate, func(remote *net.UDPAddr, revision uint64, packet []byte) error {
+		media.writeMu.Lock()
+		defer media.writeMu.Unlock()
+		media.mu.RLock()
+		current := media.remoteRevision == revision
+		media.mu.RUnlock()
+		if !current {
+			return io.EOF
+		}
+		_ = controlConnection.SetWriteDeadline(time.Now().Add(time.Second))
+		_, err := controlConnection.WriteToUDP(packet, remote)
+		return err
+	})
+	if err != nil {
+		cancel()
+		_ = connection.Close()
+		_ = controlConnection.Close()
+		return nil, err
 	}
 	media.configureGate <- struct{}{}
 	go media.receive()
@@ -233,6 +267,7 @@ func (media *rtpMedia) buildSDP(local net.IP, formats string, attributes []strin
 		fmt.Sprintf("c=IN %s %s", family, local.String()),
 		"t=0 0",
 		fmt.Sprintf("m=audio %d RTP/AVP %s", port, formats),
+		fmt.Sprintf("a=rtcp:%d IN %s %s", media.controlConn.LocalAddr().(*net.UDPAddr).Port, family, local.String()),
 	}
 	if attributes == nil {
 		lines = append(lines,
@@ -263,6 +298,10 @@ func (media *rtpMedia) configureRemoteWithCommit(ctx context.Context, body []byt
 	}
 	defer release()
 	address, port, formats, mappings, err := parseAudioSDP(body)
+	if err != nil {
+		return err
+	}
+	controlRemote, err := audioControlEndpoint(body, address, port)
 	if err != nil {
 		return err
 	}
@@ -305,13 +344,26 @@ func (media *rtpMedia) configureRemoteWithCommit(ctx context.Context, body []byt
 	if err != nil {
 		return err
 	}
+	var controlRoute vowifi.CellularMediaRoute
+	if !controlRemote.IP.Equal(address) {
+		controlRoute, err = media.acquireRemoteRoute(ctx, controlRemote.IP)
+		if err != nil {
+			if route != nil {
+				media.retireCellularRoute(route)
+			}
+			return err
+		}
+	}
 	adopted := false
 	defer func() {
 		if !adopted && route != nil {
 			media.retireCellularRoute(route)
 		}
+		if !adopted && controlRoute != nil {
+			media.retireCellularRoute(controlRoute)
+		}
 	}()
-	var previous vowifi.CellularMediaRoute
+	var previous, previousControl vowifi.CellularMediaRoute
 	// A writer may be stalled in UDP send. Do not hold the transaction gate
 	// while waiting for it: CANCEL must still win and retire this staged route.
 	for !media.writeMu.TryLock() {
@@ -349,12 +401,15 @@ func (media *rtpMedia) configureRemoteWithCommit(ctx context.Context, body []byt
 			media.FlushDTMF()
 		}
 		previous = media.route
+		previousControl = media.controlRoute
 		media.route = route
+		media.controlRoute = controlRoute
 		media.remote = &net.UDPAddr{IP: address, Port: port}
 		media.codec, media.payloadType = codec, payload
 		media.peerDirection = peerDirection
 		media.dtmfPayload, media.dtmfEvents = dtmfPayload, dtmfEvents
 		media.remoteRevision++
+		media.control.SetRemote(controlRemote, media.remoteRevision)
 		media.amrParams = params
 		media.amrMode = params.highest()
 		media.amrRequest = 15
@@ -373,6 +428,9 @@ func (media *rtpMedia) configureRemoteWithCommit(ctx context.Context, body []byt
 	}
 	if previous != nil {
 		media.retireCellularRoute(previous)
+	}
+	if previousControl != nil {
+		media.retireCellularRoute(previousControl)
 	}
 	return nil
 }
@@ -557,6 +615,7 @@ func (media *rtpMedia) WritePCM(samples []int16) error {
 		if _, err := media.conn.WriteToUDP(packet, remote); err != nil {
 			return fmt.Errorf("ims: send RTP: %w", err)
 		}
+		media.control.SentRTP(packet, len(encoded))
 		if recording := media.recording.Load(); recording != nil {
 			recording.PCM(callrecord.Uplink, media.pending[:rtpPacketSamples])
 		}
@@ -578,9 +637,10 @@ func (media *rtpMedia) receive() {
 		remote, codec, payload, native, params := media.remote, media.codec, media.payloadType, media.amr, media.amrParams
 		held := media.localHeld || media.peerDirection == "recvonly" || media.peerDirection == "inactive"
 		dtmfPayload, dtmfEvents := media.dtmfPayload, media.dtmfEvents
+		revision := media.remoteRevision
 		media.mu.RUnlock()
 		isDTMF := dtmfEvents != 0 && count >= 12 && packet[1]&0x7f == dtmfPayload
-		if held || remote == nil || !supportedPCMCodec(codec) && codec != "AMR" || !remote.IP.Equal(source.IP) || count < 12 || packet[0]>>6 != 2 || packet[1]&0x7f != payload && !isDTMF {
+		if remote == nil || !supportedPCMCodec(codec) && codec != "AMR" || !remote.IP.Equal(source.IP) || count < 12 || packet[0]>>6 != 2 || packet[1]&0x7f != payload && !isDTMF {
 			continue
 		}
 		header := 12 + int(packet[0]&0x0f)*4
@@ -601,7 +661,11 @@ func (media *rtpMedia) receive() {
 			count -= padding
 		}
 		if isDTMF {
-			if source.Port == remote.Port {
+			if source.Port == remote.Port && (rtpevent.Spec{Payload: dtmfPayload, Mask: dtmfEvents}).Valid(packet[header:count]) {
+				media.control.ReceivedRTP(revision, packet[:12], count-header)
+				if held {
+					continue
+				}
 				media.receiveDTMF(packet[header:count], binary.BigEndian.Uint32(packet[8:12]), binary.BigEndian.Uint32(packet[4:8]), dtmfEvents)
 			}
 			continue
@@ -652,8 +716,16 @@ func (media *rtpMedia) receive() {
 			media.mu.Unlock()
 			continue
 		}
-		remote.Port = source.Port
+		if remote.Port != source.Port {
+			learned := *remote
+			learned.Port = source.Port
+			media.remote = &learned
+		}
 		media.mu.Unlock()
+		media.control.ReceivedRTP(revision, packet[:12], count-header)
+		if held {
+			continue
+		}
 		if recording := media.recording.Load(); recording != nil {
 			recording.PCM(callrecord.Downlink, samples)
 		}
@@ -683,14 +755,18 @@ func (media *rtpMedia) Close() error {
 		media.stopRecording("call_ended")
 		media.cancel()
 		_ = media.conn.Close()
+		media.control.Close()
 		media.mu.Lock()
 		codec := media.amr
 		media.amr = nil
-		route := media.route
-		media.route, media.remote = nil, nil
+		route, controlRoute := media.route, media.controlRoute
+		media.route, media.controlRoute, media.remote = nil, nil, nil
 		media.mu.Unlock()
 		if route != nil {
-			media.retireCellularRoute(route)
+			media.retireCellularRoute(&controlDrainRoute{route: route, done: media.control.Done()})
+		}
+		if controlRoute != nil {
+			media.retireCellularRoute(&controlDrainRoute{route: controlRoute, done: media.control.Done()})
 		}
 		if codec != nil {
 			codec.Close()

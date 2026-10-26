@@ -186,6 +186,7 @@ func (b *carrierPCMBridge) downlink() {
 				remote = &address
 			}
 			format := b.media.format
+			revision := b.media.revision
 			b.media.mu.Unlock()
 			if remote == nil {
 				b.writeMu.Unlock()
@@ -208,7 +209,7 @@ func (b *carrierPCMBridge) downlink() {
 			binary.BigEndian.PutUint32(packet[4:8], b.timestamp)
 			binary.BigEndian.PutUint32(packet[8:12], b.ssrc)
 			copy(packet[12:], payload)
-			if _, err := b.media.conn.WriteToUDP(packet, remote); err != nil {
+			if err := b.media.writeRTP(packet, remote, revision); err != nil {
 				b.writeMu.Unlock()
 				b.fail(err)
 				return

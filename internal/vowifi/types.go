@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"vocat/internal/rtcpmedia"
 )
 
 // Phase is an evidence-backed VoWiFi lifecycle phase. A requested or enabled
@@ -488,23 +490,24 @@ type USSICanceler interface {
 // Call describes one IMS call and reports whether an RTP media stream is
 // available to an authenticated extension.
 type Call struct {
-	ID               string     `json:"id"`
-	Number           string     `json:"number"`
-	Direction        string     `json:"direction"`
-	State            string     `json:"state"`
-	StartedAt        time.Time  `json:"started_at"`
-	AnsweredAt       *time.Time `json:"answered_at,omitempty"`
-	SIPCode          int        `json:"sip_code,omitempty"`
-	Reason           string     `json:"reason,omitempty"`
-	MediaReady       bool       `json:"media_ready,omitempty"`
-	AnswerConfirmed  bool       `json:"answer_confirmed,omitempty"`
-	SignalingPending bool       `json:"signaling_pending,omitempty"`
-	Codec            string     `json:"codec,omitempty"`
-	DTMFDigits       string     `json:"dtmf_digits,omitempty"`
-	CanHold          bool       `json:"can_hold,omitempty"`
-	Held             bool       `json:"held,omitempty"`
-	HoldPending      bool       `json:"hold_pending,omitempty"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
+	ID               string                `json:"id"`
+	Number           string                `json:"number"`
+	Direction        string                `json:"direction"`
+	State            string                `json:"state"`
+	StartedAt        time.Time             `json:"started_at"`
+	AnsweredAt       *time.Time            `json:"answered_at,omitempty"`
+	SIPCode          int                   `json:"sip_code,omitempty"`
+	Reason           string                `json:"reason,omitempty"`
+	MediaReady       bool                  `json:"media_ready,omitempty"`
+	MediaQuality     *rtcpmedia.Statistics `json:"media_quality,omitempty"`
+	AnswerConfirmed  bool                  `json:"answer_confirmed,omitempty"`
+	SignalingPending bool                  `json:"signaling_pending,omitempty"`
+	Codec            string                `json:"codec,omitempty"`
+	DTMFDigits       string                `json:"dtmf_digits,omitempty"`
+	CanHold          bool                  `json:"can_hold,omitempty"`
+	Held             bool                  `json:"held,omitempty"`
+	HoldPending      bool                  `json:"hold_pending,omitempty"`
+	EndedAt          *time.Time            `json:"ended_at,omitempty"`
 }
 
 // CallController is an optional capability of an IMS session. Media remains a

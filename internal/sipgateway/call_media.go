@@ -2,16 +2,20 @@ package sipgateway
 
 import (
 	"bufio"
+	cryptorand "crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
+	"vocat/internal/rtcpmedia"
 	"vocat/internal/rtpevent"
 	"vocat/internal/vowifi/ims"
 )
@@ -27,13 +31,16 @@ type sdpBlock struct {
 	connection, direction string
 	maps                  map[byte]string
 	fmtps                 map[byte][]string
+	controlAttribute      string
+	controlSeen, muxOnly  bool
 }
 type audioDescription struct {
-	blocks   []sdpBlock
-	selected int
-	format   audioFormat
-	port     int
-	events   rtpevent.Spec
+	blocks           []sdpBlock
+	selected         int
+	format           audioFormat
+	port             int
+	events           rtpevent.Spec
+	controlAttribute string
 }
 
 func parseCallSDP(body []byte) (audioDescription, error) {
@@ -83,6 +90,22 @@ func parseCallSDP(body []byte) (audioDescription, error) {
 				blocks[len(blocks)-1].connection = line[2:]
 			}
 			continue
+		}
+		if strings.HasPrefix(line, "a=rtcp:") {
+			if len(blocks) == 0 {
+				return bad()
+			}
+			block := &blocks[len(blocks)-1]
+			if block.controlSeen {
+				return bad()
+			}
+			block.controlSeen, block.controlAttribute = true, strings.TrimSpace(strings.TrimPrefix(line, "a=rtcp:"))
+			if block.controlAttribute == "" {
+				return bad()
+			}
+		}
+		if line == "a=rtcp-mux-only" && len(blocks) > 0 {
+			blocks[len(blocks)-1].muxOnly = true
 		}
 		if line == "a=sendrecv" || line == "a=sendonly" || line == "a=recvonly" || line == "a=inactive" {
 			if len(blocks) == 0 {
@@ -137,6 +160,9 @@ func parseCallSDP(body []byte) (audioDescription, error) {
 		if err != nil || ip.IsUnspecified() || ip.IsMulticast() || fields[1] != "IP4" && fields[1] != "IP6" || fields[1] == "IP4" && !ip.Is4() || fields[1] == "IP6" && !ip.Is6() {
 			return bad()
 		}
+		if _, err := rtcpmedia.Endpoint(block.controlAttribute, net.IP(ip.AsSlice()), block.port); err != nil || block.muxOnly {
+			return bad()
+		}
 		if mapping, exists := block.maps[0]; exists && mapping != "PCMU/8000" && mapping != "PCMU/8000/1" {
 			return bad()
 		}
@@ -173,7 +199,7 @@ func parseCallSDP(body []byte) (audioDescription, error) {
 				if pt != 0 && pt != 8 && pt < 96 {
 					return bad()
 				}
-				return audioDescription{blocks: blocks, selected: index, format: audioFormat{codec: codec, pt: byte(pt)}, port: block.port, events: rtpevent.Negotiate(block.formats, block.maps, block.fmtps)}, nil
+				return audioDescription{blocks: blocks, selected: index, format: audioFormat{codec: codec, pt: byte(pt)}, port: block.port, events: rtpevent.Negotiate(block.formats, block.maps, block.fmtps), controlAttribute: block.controlAttribute}, nil
 			}
 		}
 		return bad() // later audio blocks cannot override the selected one
@@ -187,10 +213,10 @@ func sdpHeader(ip net.IP) string {
 	}
 	return fmt.Sprintf("v=0\r\no=vocat 1 1 IN %s %s\r\ns=VoCat\r\nt=0 0\r\nc=IN %s %s\r\n", family, ip, family, ip)
 }
-func makeCallOffer(address *net.UDPAddr) []byte {
-	return []byte(sdpHeader(address.IP) + fmt.Sprintf("m=audio %d RTP/AVP 8 0 101\r\na=rtpmap:8 PCMA/8000\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-15\r\na=sendrecv\r\na=ptime:20\r\n", address.Port))
+func makeCallOffer(address *net.UDPAddr, control ...*net.UDPAddr) []byte {
+	return []byte(sdpHeader(address.IP) + fmt.Sprintf("m=audio %d RTP/AVP 8 0 101\r\n", address.Port) + callControlAttribute(address, control) + "a=rtpmap:8 PCMA/8000\r\na=rtpmap:0 PCMU/8000\r\na=rtpmap:101 telephone-event/8000\r\na=fmtp:101 0-15\r\na=sendrecv\r\na=ptime:20\r\n")
 }
-func makeCallAnswer(offer audioDescription, address *net.UDPAddr) []byte {
+func makeCallAnswer(offer audioDescription, address *net.UDPAddr, control ...*net.UDPAddr) []byte {
 	var result strings.Builder
 	result.WriteString(sdpHeader(address.IP))
 	for index, block := range offer.blocks {
@@ -200,6 +226,7 @@ func makeCallAnswer(offer audioDescription, address *net.UDPAddr) []byte {
 				fmt.Fprintf(&result, " %d", offer.events.Payload)
 			}
 			fmt.Fprintf(&result, "\r\na=rtpmap:%d %s/8000\r\n", offer.format.pt, offer.format.codec)
+			result.WriteString(callControlAttribute(address, control))
 			if offer.events.Mask != 0 {
 				fmt.Fprintf(&result, "a=rtpmap:%d telephone-event/8000\r\na=fmtp:%d %s\r\n", offer.events.Payload, offer.events.Payload, rtpevent.Format(offer.events.Mask))
 			}
@@ -211,8 +238,21 @@ func makeCallAnswer(offer audioDescription, address *net.UDPAddr) []byte {
 	return []byte(result.String())
 }
 
+func callControlAttribute(address *net.UDPAddr, control []*net.UDPAddr) string {
+	port, family := address.Port+1, "IP4"
+	if len(control) > 0 && control[0] != nil {
+		port = control[0].Port
+	}
+	if address.IP.To4() == nil {
+		family = "IP6"
+	}
+	return fmt.Sprintf("a=rtcp:%d IN %s %s\r\n", port, family, address.IP)
+}
+
 type callMedia struct {
 	conn         *net.UDPConn
+	controlConn  *net.UDPConn
+	control      *rtcpmedia.Session
 	mu           sync.Mutex
 	remote       *net.UDPAddr
 	format       audioFormat
@@ -252,7 +292,33 @@ func newCallMedia(peer string) (*callMedia, error) {
 	if err != nil {
 		return nil, err
 	}
-	media := &callMedia{conn: conn, done: make(chan struct{})}
+	controlConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: local})
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	var seed [4]byte
+	if _, err := io.ReadFull(cryptorand.Reader, seed[:]); err != nil {
+		_ = conn.Close()
+		_ = controlConn.Close()
+		return nil, err
+	}
+	media := &callMedia{conn: conn, controlConn: controlConn, done: make(chan struct{})}
+	media.control, err = rtcpmedia.New(controlConn, binary.BigEndian.Uint32(seed[:]), 8000, func(remote *net.UDPAddr, revision uint64, packet []byte) error {
+		media.mu.Lock()
+		defer media.mu.Unlock()
+		if media.revision != revision {
+			return io.EOF
+		}
+		_ = controlConn.SetWriteDeadline(time.Now().Add(time.Second))
+		_, err := controlConn.WriteToUDP(packet, remote)
+		return err
+	})
+	if err != nil {
+		_ = conn.Close()
+		_ = controlConn.Close()
+		return nil, err
+	}
 	go media.read()
 	return media, nil
 }
@@ -261,16 +327,29 @@ func (m *callMedia) configure(peer string, description audioDescription) error {
 	if err != nil {
 		return err
 	}
+	controlRemote, err := rtcpmedia.Endpoint(description.controlAttribute, source.IP, description.port)
+	if err != nil {
+		return err
+	}
+	if controlRemote.IP.Equal(source.IP) {
+		controlRemote.Zone = source.Zone
+	}
 	m.mu.Lock()
+	if m.stopped.Load() {
+		m.mu.Unlock()
+		return io.EOF
+	}
 	m.remote = &net.UDPAddr{IP: source.IP, Zone: source.Zone, Port: description.port}
 	m.format = description.format
 	m.events = description.events
 	m.revision++
+	m.control.SetRemote(controlRemote, m.revision)
 	m.latched = false
 	m.mu.Unlock()
 	return nil
 }
-func (m *callMedia) address() *net.UDPAddr { return m.conn.LocalAddr().(*net.UDPAddr) }
+func (m *callMedia) address() *net.UDPAddr        { return m.conn.LocalAddr().(*net.UDPAddr) }
+func (m *callMedia) controlAddress() *net.UDPAddr { return m.controlConn.LocalAddr().(*net.UDPAddr) }
 func (m *callMedia) close() {
 	m.stopped.Store(true)
 	m.closed.Do(func() {
@@ -279,7 +358,9 @@ func (m *callMedia) close() {
 			bridge.cancel()
 		}
 		m.conn.Close()
+		m.control.Close()
 		<-m.done
+		<-m.control.Done()
 	})
 }
 
@@ -342,6 +423,7 @@ func (m *callMedia) read() {
 			}
 			spec := m.events
 			pcm, other := m.pcm.Load(), m.destination.Load()
+			m.control.ReceivedRTP(m.revision, packet[:12], end-start)
 			m.mu.Unlock()
 			digit, ok := m.eventReceipt.Accept(spec, packet[start:end], binary.BigEndian.Uint32(packet[8:12]), binary.BigEndian.Uint32(packet[4:8]))
 			if pcm != nil {
@@ -358,6 +440,7 @@ func (m *callMedia) read() {
 			m.latched = true
 		}
 		from := m.format
+		m.control.ReceivedRTP(m.revision, packet[:12], end-start)
 		pcm := m.pcm.Load()
 		if pcm != nil {
 			sequence, ssrc := binary.BigEndian.Uint16(packet[2:4]), binary.BigEndian.Uint32(packet[8:12])
@@ -386,6 +469,7 @@ func (m *callMedia) read() {
 		}
 		target := *other.remote
 		to := other.format
+		revision := other.revision
 		other.mu.Unlock()
 		payload, err := ims.TranscodeG711(packet[start:end], from.codec, to.codec)
 		if err != nil {
@@ -398,8 +482,22 @@ func (m *callMedia) read() {
 		out[0] = 0x80
 		out[1] = packet[1]&128 | to.pt
 		copy(out[12:], payload)
-		if _, err := other.conn.WriteToUDP(out, &target); err == nil {
+		if err := other.writeRTP(out, &target, revision); err == nil {
 			m.packets.Add(1)
 		}
 	}
+}
+
+func (m *callMedia) writeRTP(packet []byte, target *net.UDPAddr, revision uint64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.stopped.Load() || m.revision != revision {
+		return io.EOF
+	}
+	_ = m.conn.SetWriteDeadline(time.Now().Add(time.Second))
+	_, err := m.conn.WriteToUDP(packet, target)
+	if err == nil {
+		m.control.SentRTP(packet, len(packet)-12)
+	}
+	return err
 }

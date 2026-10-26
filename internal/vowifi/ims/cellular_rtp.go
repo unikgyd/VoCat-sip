@@ -47,9 +47,9 @@ func (media *rtpMedia) acquireRemoteRoute(ctx context.Context, remote net.IP) (v
 		return nil, ErrCellularAccess
 	}
 	media.cleanupMu.Lock()
-	// Reserve space for both the currently active lease and a late new result
+	// Reserve space for both active RTP/RTCP leases and a late new pair
 	// racing Close. Never let failed retirement grow an unbounded queue.
-	full := len(media.retiredRoutes) >= maxRetiredCellularRoutes-2
+	full := len(media.retiredRoutes) >= maxRetiredCellularRoutes-4
 	media.cleanupMu.Unlock()
 	if full {
 		return nil, ErrCellularAccess
@@ -156,6 +156,13 @@ func (media *rtpMedia) cellularRouteCleanupError() error {
 }
 
 func (media *rtpMedia) hasCellularRouteCleanup() bool {
+	if media.control != nil && media.control.Closing() {
+		select {
+		case <-media.control.Done():
+		default:
+			return true
+		}
+	}
 	if media.network != nil {
 		select {
 		case <-media.configureGate:
@@ -170,8 +177,16 @@ func (media *rtpMedia) hasCellularRouteCleanup() bool {
 }
 
 // DrainCellularRoutes is for explicit session teardown, outside callMu and
-// signaling response locks. Close itself only cancels I/O and queues cleanup.
+// signaling response locks. Close itself only cancels RTP, queues the final
+// RTCP send and retains routes until both socket workers have exited.
 func (media *rtpMedia) DrainCellularRoutes(ctx context.Context) error {
+	if media.control != nil {
+		select {
+		case <-media.control.Done():
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	// Join an in-flight acquisition before inspecting retirement. Close first
 	// canceled it; a late result is queued before configureGate is released.
 	select {

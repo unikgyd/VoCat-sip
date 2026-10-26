@@ -147,6 +147,9 @@ func (media *rtpMedia) SendDTMF(ctx context.Context, digit byte) error {
 			binary.BigEndian.PutUint32(packet[8:12], media.ssrc)
 			copy(packet[12:], payloadBytes)
 			_, err = media.conn.WriteToUDP(packet, remote)
+			if err == nil {
+				media.control.SentRTP(packet, len(payloadBytes))
+			}
 			media.sequence++
 		}
 		media.writeMu.Unlock()

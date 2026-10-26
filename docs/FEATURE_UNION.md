@@ -21,8 +21,9 @@
 | 保持与恢复 | Windows `ImsCallManager.HoldAsync/ResumeAsync` 通过 re-INVITE | 已写入精确 IMS 对话的出站 re-INVITE、ACK／迟到回复处理、媒体方向与网页保持／恢复入口；新增源码尚未统一测试／构建，见[保持边界](IMS_CALL_HOLD.md) |
 | 自动接听与留言播放 | Windows `CallMessagePlayback`、`AutoAnswerMessageRequests`、来电延时设置 | 新源码已接按 ICCID 保存、5–120 秒延时、文件导入／试听、统一应答仲裁、ACK／模块确认、PCM 播放、原通话挂断和网页接管；尚未统一测试／构建，见[自动接听边界](AUTO_ANSWER.md) |
 | 通话录音 | Windows `CallExperienceSettings.SaveCallRecordings`、录音目录、最近 20 通保留与通话媒体保存 | 新源码已接 Wi-Fi／Host IMS 与原 USB 通话 PCM 旁路录音、双声道 WAV、启停／保留／容量设置、试听／下载／删除及中断恢复；尚未统一测试／构建，见[录音边界](CALL_RECORDINGS.md) |
+| RTCP 与媒体质量观察 | VoSharp `RtpSession` 的独立控制端口、接收报告与来源约束 | 新源码已接 IMS／Host IMS 和 SIP 网关的独立 RTCP、SDP 控制端口、SR／RR／SDES／BYE、丢包／抖动／RTT、本通话来源核验及原承载清理；尚未统一验证，见[RTCP 边界](RTCP.md) |
 | SIP 内线与来显 | VoSharp SIP gateway；Go 自有 B2BUA | Go 已接 Registrar、Digest、内线群振首接和双向 G.711；软电话实机与高级对话功能仍待验收 |
-| SIP 运营商入呼／外呼 | 两端已有逐线权限、选线和呼叫归属 | Go 已接 IMS、显式 USB module＋PCM 和 RFC 4733 跨腿；群振首接、双向 G.711／IMS 事件回环已有测试，SIP INFO、保持及 RTCP 仍待补齐 |
+| SIP 运营商入呼／外呼 | 两端已有逐线权限、选线和呼叫归属 | Go 已接 IMS、显式 USB module＋PCM 和 RFC 4733 跨腿；新源码已接 SIP INFO 与 RTCP，保持／恢复的 IMS 路径已实现；当前协议整合尚未统一验证，历史群振和媒体回环记录不代替本次验收 |
 | 可选 Asterisk peer | 双向独立凭据、分方向通话／短信权限 | Go 固定 peer 与本地 Registrar 共存；隔离互通已有历史证据，生产／跨网段媒体验收另列 |
 | 原卡短信与回复绑定 | Windows `SipMessages`、SQLite 准入与来源收据 | Go 已有 MO 防重、MT 队列、canonical 快照和原 SIM 回复，不能以应用提交代替运营商送达 |
 | 分段与验证码 API | Windows `SmsApiService`／`SmsVerificationCodeExtractor` | Go `smsapi`／`smsquery` 已实现；短信 MESSAGE 可见分段不同于 UDH 透明重组；真实调用端和误判反馈待验收 |

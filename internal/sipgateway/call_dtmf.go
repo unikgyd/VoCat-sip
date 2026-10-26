@@ -22,14 +22,14 @@ func (m *callMedia) forwardEvent(other *callMedia, packet []byte, start, end int
 		other.mu.Unlock()
 		return
 	}
-	target, spec := *other.remote, other.events
+	target, spec, revision := *other.remote, other.events, other.revision
 	other.mu.Unlock()
 	out := make([]byte, 16)
 	copy(out, packet[:12])
 	out[0] = 0x80
 	out[1] = packet[1]&128 | spec.Payload
 	copy(out[12:], packet[start:end])
-	if _, err := other.conn.WriteToUDP(out, &target); err == nil {
+	if err := other.writeRTP(out, &target, revision); err == nil {
 		m.packets.Add(1)
 	}
 }
@@ -167,7 +167,7 @@ func (b *carrierPCMBridge) sendDTMF(ctx context.Context, digit byte) error {
 		binary.BigEndian.PutUint32(packet[4:8], timestamp)
 		binary.BigEndian.PutUint32(packet[8:12], b.ssrc)
 		copy(packet[12:], payload)
-		_, err := b.media.conn.WriteToUDP(packet, target)
+		err := b.media.writeRTP(packet, target, revision)
 		b.sequence++
 		return err
 	})
