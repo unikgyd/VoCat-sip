@@ -137,7 +137,8 @@ func migrate(ctx context.Context, db *sql.DB) error {
 					(nextVersion == 23 && strings.Contains(statement, "ADD COLUMN")) ||
 					(nextVersion == 24 && strings.Contains(statement, "ADD COLUMN mbn_profile")) ||
 					(nextVersion == 26 && strings.Contains(statement, "ADD COLUMN revert_profile")) ||
-					(nextVersion == 28 && (strings.Contains(statement, "ADD COLUMN ims_mode") || strings.Contains(statement, "ADD COLUMN ims_enabled")))
+					(nextVersion == 28 && (strings.Contains(statement, "ADD COLUMN ims_mode") || strings.Contains(statement, "ADD COLUMN ims_enabled"))) ||
+					(nextVersion == 30 && strings.Contains(statement, "ADD COLUMN telephony_json"))
 				if duplicateAdditiveColumn && strings.Contains(strings.ToLower(err.Error()), "duplicate column name") {
 					continue
 				}

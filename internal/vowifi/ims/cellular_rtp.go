@@ -176,11 +176,11 @@ func (media *rtpMedia) hasCellularRouteCleanup() bool {
 	return len(media.retiredRoutes) != 0 || media.cleanupRunning
 }
 
-// DrainCellularRoutes is for explicit session teardown, outside callMu and
-// signaling response locks. Close itself only cancels RTP, queues the final
-// RTCP send and retains routes until both socket workers have exited.
+// DrainCellularRoutes joins retired routes outside callMu/signaling locks.
+// After Close it also joins the final RTCP send before releasing its routes.
+// An active dialog can drain a canceled SDP change without ending its RTCP.
 func (media *rtpMedia) DrainCellularRoutes(ctx context.Context) error {
-	if media.control != nil {
+	if media.control != nil && media.control.Closing() {
 		select {
 		case <-media.control.Done():
 		case <-ctx.Done():

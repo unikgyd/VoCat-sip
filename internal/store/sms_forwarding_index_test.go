@@ -113,7 +113,7 @@ func TestSMSForwardSchema29ReopenRepairsIndexesWithoutRenewingReceipts(t *testin
 		}
 		var version, initialized, indexes int
 		var actualExpires, actualGuard int64
-		if err := db.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != 29 {
+		if err := db.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != schemaVersion {
 			t.Fatalf("reopen changed schema revision: version=%d error=%v", version, err)
 		}
 		if err := db.db.QueryRowContext(ctx,

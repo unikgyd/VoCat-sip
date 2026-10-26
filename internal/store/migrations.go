@@ -559,14 +559,14 @@ func migrationStatements(version int) []string {
 			// Identity cannot be inferred during a database upgrade. Bind legacy
 			// preferences only after the application has observed the live SIM.
 			`ALTER TABLE devices ADD COLUMN telephony_json TEXT NOT NULL DEFAULT ''`,
-			`CREATE TABLE sim_telephony_policies (
+			`CREATE TABLE IF NOT EXISTS sim_telephony_policies (
 				iccid TEXT PRIMARY KEY NOT NULL,
 				policy_json TEXT NOT NULL,
 				updated_at INTEGER NOT NULL
 			)`,
 		}
 	case 31:
-		return []string{`CREATE TABLE call_answering (
+		return []string{`CREATE TABLE IF NOT EXISTS call_answering (
 			iccid TEXT PRIMARY KEY NOT NULL,
 			document_json TEXT NOT NULL,
 			pcm BLOB NOT NULL,
@@ -576,7 +576,7 @@ func migrationStatements(version int) []string {
 	case 32:
 		// Cleanup must survive deletion of the task or its execution history.
 		// Deliberately no task/device foreign key or cascading delete.
-		return []string{`CREATE TABLE automatic_task_recoveries (
+		return []string{`CREATE TABLE IF NOT EXISTS automatic_task_recoveries (
 			device_id TEXT PRIMARY KEY NOT NULL,
 			token TEXT NOT NULL UNIQUE,
 			task_id INTEGER NOT NULL,

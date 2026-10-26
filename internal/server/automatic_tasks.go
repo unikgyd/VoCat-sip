@@ -502,7 +502,7 @@ func (s *Server) prepareAutomaticTaskEnvironment(ctx context.Context, config *st
 		if task.TaskType == "public_ip" {
 			return errors.New("public IP tasks cannot run over VoWiFi")
 		}
-		desiredData := config.NetworkEnabled && !(config.VoWiFiEnabled && store.WiFiExclusive(config))
+		desiredData := config.NetworkEnabled && !(config.VoWiFiEnabled && store.WiFiExclusive(*config))
 		dataRuntime := s.cellularDataRuntime()
 		s.clearPublicIP(config.ID)
 		dataRuntime.invalidateWithMaintenancePhase(config.ID, desiredData, "recovering", "", "vowifi")
