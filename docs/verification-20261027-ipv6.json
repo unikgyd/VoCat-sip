@@ -1,0 +1,430 @@
+{
+  "date": "2026-10-27",
+  "timezone": "Asia/Taipei",
+  "sourceBaseline": "d3c7b8f18d2ca8e771d6a89fb1832f37c90c3e57",
+  "goalComplete": false,
+  "software": {
+    "started": 1793044750.8601346,
+    "sourceBaseline": "d3c7b8f18d2ca8e771d6a89fb1832f37c90c3e57",
+    "manifestSHA256": "b1d0830d77c858cc6ca2d33a65cf399ef540c86950d99074de5f2090e2306c40",
+    "contractManifestSHA256": "235f9dd816d375be23726fee26c43193d3cac6edeed804a378a8b0f44f7fddff",
+    "results": [
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 186.892,
+        "tests": {
+          "pass": 2057,
+          "fail": 0,
+          "skip": 50
+        }
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 6.503
+      },
+      {
+        "label": "race",
+        "exit": 0,
+        "seconds": 36.283,
+        "tests": {
+          "pass": 30,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "kernel",
+        "exit": 0,
+        "seconds": 1.32,
+        "tests": {
+          "pass": 3,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 8.776
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 8.946
+      }
+    ],
+    "artifacts": {
+      "amd64": "f4cf9537fd0d5500e134232922a7e860e70f0134de0479d20ff8cc839369b42a",
+      "arm64": "5a4ea95d86c488e459f012242b7a1360c1f450eebe2f5ae516d0fe636c4b2b6a"
+    },
+    "completed": 1793044999.84883
+  },
+  "deployedAMD64SHA256": "f4cf9537fd0d5500e134232922a7e860e70f0134de0479d20ff8cc839369b42a",
+  "realData": {
+    "6": {
+      "requestedIPVersion": "IPV6",
+      "acceptedTraffic": true,
+      "abortedAfterClientFailure": false,
+      "disabled": true,
+      "proxyDataOffGuard409": true,
+      "onlyOwnProxiesDisabled": true,
+      "publicIPCacheCleared": true,
+      "originalIPv4AndIPv6RulesRestored": true,
+      "originalDefaultRoutesRestored": true,
+      "originalMTURestored": true,
+      "originalLinkUpStateRestored": true,
+      "originalIPv6SettingsRestored": true,
+      "ownedGlobalAddressesAndDNSRemoved": true,
+      "patchedModemManagerSameProcess": true,
+      "headerEvidence": {
+        "started": 1793045166.4603379,
+        "completed": 1793045172.1554434,
+        "identityChanged": false,
+        "linkDownObserved": false,
+        "observedHeaders": 65,
+        "outboundTCP443": 28,
+        "inboundTCP443": 25,
+        "outboundDNS": 6,
+        "observedIPBytes": 17070,
+        "families": {
+          "4": {
+            "outboundTCP443": 0,
+            "inboundTCP443": 0,
+            "outboundDNS": 0
+          },
+          "6": {
+            "outboundTCP443": 28,
+            "inboundTCP443": 25,
+            "outboundDNS": 6
+          }
+        }
+      },
+      "noCarrierCallOrSMS": true
+    },
+    "dual": {
+      "requestedIPVersion": "IPV4V6",
+      "acceptedTraffic": true,
+      "abortedAfterClientFailure": false,
+      "disabled": true,
+      "proxyDataOffGuard409": true,
+      "onlyOwnProxiesDisabled": true,
+      "publicIPCacheCleared": true,
+      "originalIPv4AndIPv6RulesRestored": true,
+      "originalDefaultRoutesRestored": true,
+      "originalMTURestored": true,
+      "originalLinkUpStateRestored": true,
+      "originalIPv6SettingsRestored": true,
+      "ownedGlobalAddressesAndDNSRemoved": true,
+      "patchedModemManagerSameProcess": true,
+      "headerEvidence": {
+        "started": 1793045309.9263136,
+        "completed": 1793045315.6742768,
+        "identityChanged": false,
+        "linkDownObserved": false,
+        "observedHeaders": 100,
+        "outboundTCP443": 50,
+        "inboundTCP443": 46,
+        "outboundDNS": 2,
+        "observedIPBytes": 28185,
+        "families": {
+          "4": {
+            "outboundTCP443": 35,
+            "inboundTCP443": 34,
+            "outboundDNS": 0
+          },
+          "6": {
+            "outboundTCP443": 15,
+            "inboundTCP443": 12,
+            "outboundDNS": 2
+          }
+        }
+      },
+      "noCarrierCallOrSMS": true
+    },
+    "4": {
+      "requestedIPVersion": "IP",
+      "acceptedTraffic": true,
+      "abortedAfterClientFailure": false,
+      "disabled": true,
+      "proxyDataOffGuard409": true,
+      "onlyOwnProxiesDisabled": true,
+      "publicIPCacheCleared": true,
+      "originalIPv4AndIPv6RulesRestored": true,
+      "originalDefaultRoutesRestored": true,
+      "originalMTURestored": true,
+      "originalLinkUpStateRestored": true,
+      "originalIPv6SettingsRestored": true,
+      "ownedGlobalAddressesAndDNSRemoved": true,
+      "patchedModemManagerSameProcess": true,
+      "headerEvidence": {
+        "started": 1793045568.3184757,
+        "completed": 1793045571.9542236,
+        "identityChanged": false,
+        "linkDownObserved": false,
+        "observedHeaders": 84,
+        "outboundTCP443": 40,
+        "inboundTCP443": 36,
+        "outboundDNS": 4,
+        "observedIPBytes": 23370,
+        "families": {
+          "4": {
+            "outboundTCP443": 40,
+            "inboundTCP443": 36,
+            "outboundDNS": 4
+          },
+          "6": {
+            "outboundTCP443": 0,
+            "inboundTCP443": 0,
+            "outboundDNS": 0
+          }
+        }
+      },
+      "noCarrierCallOrSMS": true
+    }
+  },
+  "patchedManager": {
+    "sameProcessThroughDataAndInhibitorRelease": true,
+    "automaticRestartDelta": 0,
+    "bothOriginalModemAndSIMPairsRegisteredRFOn": true,
+    "patchedBinarySHA256": "6b319c980e33256162ba68a4505807255eebe0f81dadde84f5b75979f61e41ac"
+  },
+  "restoration": {
+    "completed": 1793045652.8750155,
+    "applicationExitCode": 0,
+    "originalPrivateDeviceAndCardPreferencesRestored": true,
+    "originalProxyConfigurationRestored": true,
+    "incomingMessagesAndSIPLedgersPreserved": true,
+    "onlyVerifiedOriginalInhibitorsReleased": true,
+    "patchedManagerAutomaticRestartDelta": 0,
+    "patchedManagerSameProcessThroughDataAndPortRelease": true,
+    "originalManagerAndBinaryRestored": true,
+    "onlyOwnedRuntimeDropinAndBinaryRemoved": true,
+    "bothOriginalModemAndSIMPairsVerified": true,
+    "bothRegisteredRFOn": true,
+    "originalRunningDockerContainerIDsPreserved": true,
+    "zeroHostIMSClaimsAndTaskRecoveryJournals": true,
+    "zeroXFRMStatesAndPolicies": true,
+    "baselineAutomaticRestartHistoryRetained": true,
+    "noCarrierCallOrSMS": true,
+    "allRequestedRunsPassed": true
+  },
+  "shippingChecks": {
+    "started": 1793046638.0735126,
+    "results": [
+      {
+        "label": "installer-syntax",
+        "exit": 0
+      },
+      {
+        "label": "unit-syntax",
+        "exit": 0
+      },
+      {
+        "label": "compose-config",
+        "exit": 0
+      },
+      {
+        "label": "native-service-permissions",
+        "exit": 0
+      },
+      {
+        "label": "compose-mount-permissions",
+        "exit": 0
+      }
+    ],
+    "nativeServiceProbe": {
+      "selectedOriginalInterfaceAndUSBGenerationVerified": true,
+      "rawIPAndIPv6WriteDescriptorsOpened": true,
+      "noHardwareOrSysctlValuesWritten": true,
+      "originalValuesUnchanged": true,
+      "unrelatedKernelTunablesStillReadOnly": true,
+      "sharedReservationDirectoryWritable": true,
+      "privateRuntimeDirectoryMode0700": true
+    },
+    "containerProbe": {
+      "selectedOriginalInterfaceAndUSBGenerationVerified": true,
+      "rawIPAndIPv6WriteDescriptorsOpened": true,
+      "noHardwareOrSysctlValuesWritten": true,
+      "originalValuesUnchanged": true
+    },
+    "completed": 1793046639.1282754,
+    "shippingConfigSHA256": {
+      "vocat.service": "11cd075ef5949a5027eac3f41d31bf09add812247702e169be5aa36194245207",
+      "install.sh": "4d18fe75127c7c01d2204ab1152f7f6bd075d6f4c5dc36cbe13babd88bc16ad3",
+      "docker-compose.yml": "4c417c4fd6e50143d6252c2ca681da45b1e633b1e98f33771e84a6c7682566bc"
+    }
+  },
+  "matchingManagerBuild": {
+    "completed": 1793043665.1623156,
+    "exit": 0,
+    "temporaryBinarySHA256": "6b319c980e33256162ba68a4505807255eebe0f81dadde84f5b75979f61e41ac",
+    "originalBinarySHA256": "e1c6e899c75385544423cf96d5a67e37d516038e16c01680e3ccb5c59941a5e6",
+    "patchedNetlinkSourceSHA256": "2c2cf38f3cfd5ae7185dfeada02c3eabff44687cf93c4adfba0693470e582a07",
+    "matchingDistributionVersion": "1.25.95",
+    "distributionBinaryModified": false
+  },
+  "retainedUnsuccessfulRun": {
+    "binarySHA256": "cb4911b09b97cd119d16221be7763bd0391ef92016ad8c4a3988aef30d66c129",
+    "domainProxyConnectTimedOut": true,
+    "literalIPv6ConnectStatus": 200,
+    "literalConnectSeconds": 0.36,
+    "acceptedTraffic": false,
+    "originalDataCleanup": {
+      "requestedIPVersion": "IPV6",
+      "acceptedTraffic": false,
+      "abortedAfterClientFailure": true,
+      "disabled": true,
+      "proxyDataOffGuard409": true,
+      "onlyOwnProxiesDisabled": true,
+      "publicIPCacheCleared": true,
+      "originalIPv4AndIPv6RulesRestored": true,
+      "originalDefaultRoutesRestored": true,
+      "originalMTURestored": true,
+      "originalLinkUpStateRestored": true,
+      "originalIPv6SettingsRestored": true,
+      "ownedGlobalAddressesAndDNSRemoved": true,
+      "patchedModemManagerSameProcess": true,
+      "headerEvidence": {
+        "started": 1793044401.104358,
+        "completed": 1793044595.9933152,
+        "identityChanged": false,
+        "linkDownObserved": false,
+        "observedHeaders": 19,
+        "outboundTCP443": 10,
+        "inboundTCP443": 9,
+        "outboundDNS": 0,
+        "observedIPBytes": 4975,
+        "families": {
+          "4": {
+            "outboundTCP443": 0,
+            "inboundTCP443": 0,
+            "outboundDNS": 0
+          },
+          "6": {
+            "outboundTCP443": 10,
+            "inboundTCP443": 9,
+            "outboundDNS": 0
+          }
+        }
+      },
+      "noCarrierCallOrSMS": true
+    }
+  },
+  "noCarrierCallOrSMSSubmitted": true,
+  "publicSubscriberAndIPAddressValuesIncluded": false,
+  "finalOriginalManagerActive": true,
+  "applicationGoSourcesMatchFrozenInput": true,
+  "independentWindowsClients": {
+    "6": {
+      "started": 1793045168.2491124,
+      "completed": 1793045172.9588366,
+      "client": "Windows Python 3.10",
+      "requested": "6",
+      "bodyReadLimit": 16384,
+      "wrongHTTPAuthenticationRejected": true,
+      "wrongSOCKSAuthenticationRejected": true,
+      "samePublicIPWithinFamily": true,
+      "heldTunnelsClosed": [
+        true,
+        true
+      ],
+      "tests": {
+        "httpHTTPS": {
+          "httpStatus": 200,
+          "bodyBytes": 252,
+          "tlsVerified": true,
+          "egressFamily": 6
+        },
+        "socksHTTPS6": {
+          "httpStatus": 200,
+          "bodyBytes": 256,
+          "tlsVerified": true,
+          "egressFamily": 6
+        }
+      }
+    },
+    "dual": {
+      "started": 1793045311.6847267,
+      "completed": 1793045316.4056265,
+      "client": "Windows Python 3.10",
+      "requested": "dual",
+      "bodyReadLimit": 16384,
+      "wrongHTTPAuthenticationRejected": true,
+      "wrongSOCKSAuthenticationRejected": true,
+      "samePublicIPWithinFamily": true,
+      "heldTunnelsClosed": [
+        true,
+        true
+      ],
+      "tests": {
+        "httpHTTPS": {
+          "httpStatus": 200,
+          "bodyBytes": 230,
+          "tlsVerified": true,
+          "egressFamily": 4
+        },
+        "socksHTTPS4": {
+          "httpStatus": 200,
+          "bodyBytes": 226,
+          "tlsVerified": true,
+          "egressFamily": 4
+        },
+        "socksHTTPS6": {
+          "httpStatus": 200,
+          "bodyBytes": 256,
+          "tlsVerified": true,
+          "egressFamily": 6
+        }
+      }
+    },
+    "4": {
+      "started": 1793045568.5433934,
+      "completed": 1793045572.6478229,
+      "client": "Windows Python 3.10",
+      "requested": "4",
+      "bodyReadLimit": 16384,
+      "wrongHTTPAuthenticationRejected": true,
+      "wrongSOCKSAuthenticationRejected": true,
+      "samePublicIPWithinFamily": true,
+      "heldTunnelsClosed": [
+        true,
+        true
+      ],
+      "tests": {
+        "httpHTTPS": {
+          "httpStatus": 200,
+          "bodyBytes": 225,
+          "tlsVerified": true,
+          "egressFamily": 4
+        },
+        "socksHTTPS4": {
+          "httpStatus": 200,
+          "bodyBytes": 225,
+          "tlsVerified": true,
+          "egressFamily": 4
+        }
+      }
+    }
+  },
+  "shippingConfigurationCheckedSeparately": true,
+  "remainingAcceptance": [
+    "Answered and incoming carrier voice and advanced carrier media.",
+    "Mobile SMS delivery with an authorized controlled recipient.",
+    "Physical hotplug and abrupt process/machine crash recovery.",
+    "Successful task execution, rather than only dispatch/admission.",
+    "Browser work beyond the first-use agreement.",
+    "External notification-provider delivery.",
+    "Disposable eSIM provisioning, download and delete.",
+    "Full native installer/service lifecycle.",
+    "Positive IPv6 public-IP API result with sufficient active-session time."
+  ],
+  "shippingConfigurationUsesRepositoryLF": true,
+  "publicIPObservations": {
+    "IPv6AutomaticLookupCancelledAtDataStop": true,
+    "IPv6PositiveAPIResultEstablished": false,
+    "dualStackAndIPv4AutomaticSuccessEvents": true,
+    "allModesCacheClearedAfterStop": true
+  }
+}

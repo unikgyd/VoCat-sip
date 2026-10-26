@@ -59,6 +59,20 @@ Two registrations sharing a P-CSCF must have distinct outbound SPIs. An outbound
 SPI collision stops the new activation and preserves the original owner.
 Required socket ESP policies continue to prevent plaintext fallback.
 
+## Data runtime permissions and shutdown
+
+IPv6 data export writes the selected interface's IPv6 settings; native QMI
+format setup writes its `qmi/raw_ip` sysfs attribute. The systemd unit retains
+`ProtectKernelTunables=true` with writable exceptions for
+`/proc/sys/net/ipv6/conf`, `/sys/devices` and shared `/run/lock` reservations.
+`/run/vocat` is a private runtime directory. The compose file keeps `/sys`
+read-only and overlays `/sys/devices` writable for owned device setup.
+
+Both shipping service definitions and compose allow 120 seconds for graceful
+exit. HTTP, data transfers/WDS, carrier signaling and media/device owners have
+separate bounded cleanup stages; a short supervisor grace period can otherwise
+kill the process before those owners acknowledge release.
+
 ## ModemManager 1.25.95 dependency
 
 The lab's Ubuntu `1.25.95-1ubuntu1` package crashed during netlink transaction
@@ -74,3 +88,9 @@ binary with a runtime systemd drop-in, and remove that exact drop-in when
 rolling back. Stop and clean up VoCat's owned bearers before restarting
 ModemManager. Preserve unresolved ownership journals until hardware and kernel
 cleanup have been independently proven; do not delete them to force a retry.
+
+Place the verified temporary executable under `/usr/local/libexec` for this
+evaluation. The distribution service's `ProtectHome=yes` hides build artifacts
+under `/root`; pointing ExecStart there fails with systemd status 203. Preserve
+the service hardening and distribution binary, and remove only the owned
+temporary executable/drop-in after restoring the original service.

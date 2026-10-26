@@ -60,10 +60,17 @@ invalidation and original host-routing restoration. It also adds actual manual
 and clock task dispatch with a correctly rejected non-idle modem. That refusal
 does not establish successful task business execution.
 
+The [IPv6/dual-stack run](VERIFICATION_20261027_IPV6.md) adds real IPv6-only,
+simultaneous IPv4/IPv6 and IPv4 regression HTTPS transfers, complete per-run
+cleanup, family-fallback repair, isolated kernel ownership cases and native
+service/container permission probes. The matching patched ModemManager retained
+its original process through data tests and inhibitor release; the distribution
+binary's earlier crash remains a separate dependency limitation.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
-hotplug, abrupt crash recovery, IPv6/dual-stack data export, successful scheduled
-work and external provider delivery still need their live scenarios. Existing
+hotplug, abrupt crash recovery, successful scheduled work and external provider
+delivery still need their live scenarios. Existing
 profile management does not establish provisioning/download/delete of a
 disposable profile.
 

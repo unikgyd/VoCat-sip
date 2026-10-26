@@ -4,6 +4,7 @@ package device
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -157,6 +158,10 @@ func (session *productionQMIDataSession) Start(ctx context.Context, apn, usernam
 	return session.wds.StartNetworkInterface(ctx, apn, username, password, authType, ipFamily)
 }
 
+func (session *productionQMIDataSession) PrepareFamily(ctx context.Context, family uint8) error {
+	return session.wds.SetIPFamilyPreference(ctx, family)
+}
+
 func (session *productionQMIDataSession) Stop(ctx context.Context, handle uint32) error {
 	return session.wds.StopNetworkInterface(ctx, handle)
 }
@@ -251,6 +256,30 @@ func (session *productionQMIDataSession) RuntimeIPv4(ctx context.Context) (qmiIP
 	return result, nil
 }
 
+func (session *productionQMIDataSession) RuntimeIPv6(ctx context.Context) (qmiIPv6Settings, error) {
+	settings, err := session.wds.GetRuntimeSettings(ctx, 6)
+	if err != nil {
+		return qmiIPv6Settings{}, err
+	}
+	address := settings.IPv6Address
+	if address == nil || address.To4() != nil || !address.IsGlobalUnicast() || address.IsLinkLocalUnicast() || settings.IPv6Prefix < 1 || settings.IPv6Prefix > 128 {
+		return qmiIPv6Settings{}, errors.New("QMI WDS returned no valid global IPv6 address/prefix")
+	}
+	result := qmiIPv6Settings{Address: address.String(), Prefix: settings.IPv6Prefix, MTU: settings.MTU}
+	if gateway := settings.IPv6Gateway; gateway != nil && !gateway.IsUnspecified() {
+		if gateway.To4() != nil || gateway.IsMulticast() {
+			return qmiIPv6Settings{}, errors.New("QMI WDS returned an invalid IPv6 gateway")
+		}
+		result.Gateway = gateway.String()
+	}
+	for _, server := range []net.IP{settings.IPv6DNS1, settings.IPv6DNS2} {
+		if server != nil && server.To4() == nil && !server.IsUnspecified() && !server.IsMulticast() {
+			result.DNS = append(result.DNS, server.String())
+		}
+	}
+	return result, nil
+}
+
 // IMSRuntime is a read-only capability for the forthcoming Host IMS owner.
 // It must be called under the same lifecycle gate as this session's WDS CID.
 // A decoded address is not proof that host routes, SIM or bearer are ready.
@@ -316,6 +345,14 @@ func (manager *Manager) NetworkStatus(ctx context.Context, id string) (NetworkSt
 		status.Detail = "QMI packet data session is disconnected"
 		return status, nil
 	}
+	if complete, ok := state.dataSession.(interface{ AllConnected(context.Context) error }); ok {
+		check, cancel := context.WithTimeout(ctx, qmiDataStatusTimeout)
+		err := complete.AllConnected(check)
+		cancel()
+		if err != nil {
+			return status, fmt.Errorf("dual-stack packet service is incomplete: %w", err)
+		}
+	}
 	rawContext, cancelRaw := context.WithTimeout(ctx, qmiDataStatusTimeout)
 	modemRaw, rawErr := state.dataSession.RawIP(rawContext)
 	cancelRaw()
@@ -326,7 +363,11 @@ func (manager *Manager) NetworkStatus(ctx context.Context, id string) (NetworkSt
 		status.Detail = err.Error()
 		return status, nil
 	}
-	if err := qmiDataHostReady(ctx, candidate.NetworkInterface); err != nil {
+	family := uint8(4)
+	if state.dataOwner != nil && state.dataOwner.ipFamily != 0 {
+		family = state.dataOwner.ipFamily
+	}
+	if err := qmiDataHostReadyForFamily(ctx, candidate.NetworkInterface, family); err != nil {
 		status.Detail = err.Error()
 		return status, nil
 	}
@@ -447,6 +488,10 @@ func prepareQMIDataFormat(
 }
 
 func qmiDataHostReady(ctx context.Context, networkInterface string) error {
+	return qmiDataHostReadyForFamily(ctx, networkInterface, 4)
+}
+
+func qmiDataHostReadyForFamily(ctx context.Context, networkInterface string, family uint8) error {
 	interfaceInfo, err := net.InterfaceByName(networkInterface)
 	if err != nil {
 		return fmt.Errorf("cellular interface is unavailable: %w", err)
@@ -455,28 +500,32 @@ func qmiDataHostReady(ctx context.Context, networkInterface string) error {
 	if err != nil {
 		return fmt.Errorf("read cellular interface addresses: %w", err)
 	}
-	hasIPv4 := false
+	hasIPv4, hasIPv6 := false, false
 	for _, value := range addresses {
 		address, _, parseErr := net.ParseCIDR(value.String())
 		if parseErr == nil && address.To4() != nil && !address.IsUnspecified() {
 			hasIPv4 = true
-			break
+		}
+		if parseErr == nil && address.To4() == nil && address.IsGlobalUnicast() && !address.IsLinkLocalUnicast() {
+			hasIPv6 = true
 		}
 	}
-	if !hasIPv4 {
-		return errors.New("cellular interface has no IPv4 address")
+	if family != 6 && !hasIPv4 || family != 4 && !hasIPv6 {
+		return errors.New("cellular interface lacks a requested IP-family address")
 	}
 	ipCommand, err := exec.LookPath("ip")
 	if err != nil {
 		return fmt.Errorf("check cellular policy route: %w", err)
 	}
 	_, table, _ := exportProxyRouteIdentity(networkInterface)
-	output, err := exec.CommandContext(ctx, ipCommand, "-4", "route", "show", "table", strconv.Itoa(table), "default", "dev", networkInterface).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("check cellular policy route: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	if strings.TrimSpace(string(output)) == "" {
-		return errors.New("cellular policy route is missing")
+	for _, flag := range dataFamilyFlags(family) {
+		output, err := exec.CommandContext(ctx, ipCommand, flag, "route", "show", "table", strconv.Itoa(table), "default", "dev", networkInterface).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("check cellular policy route: %w: %s", err, strings.TrimSpace(string(output)))
+		}
+		if strings.TrimSpace(string(output)) == "" {
+			return errors.New("cellular policy route is missing")
+		}
 	}
 	return nil
 }
@@ -537,9 +586,14 @@ func qmiDataIPFamily(ipVersion string) uint8 {
 	if ipVersion == "IPV6" {
 		return 6
 	}
-	// Preserve the existing IPV4V6 behaviour: VoCat currently configures and
-	// policy-routes an IPv4 DHCP lease for the Export Proxy.
+	if ipVersion == "IPV4V6" {
+		return qmiDataDualFamily
+	}
 	return 4
+}
+
+func qmiDataRequestKey(apn, ipVersion, user, password, auth string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%q|%q|%q|%q|%q", apn, ipVersion, user, password, auth))))
 }
 
 func closeQMIDataSession(state *managedDevice) {
@@ -555,7 +609,7 @@ func closeQMIDataSession(state *managedDevice) {
 func rollbackQMIDataHost(state *managedDevice, candidate modem.Candidate, ipCommand string) {
 	rollbackContext, cancel := context.WithTimeout(context.Background(), managerCommandCleanupTimeout)
 	defer cancel()
-	if owner := state.dataOwner; owner != nil && owner.guard != nil && owner.guard.binding.iccid != "" {
+	if owner := state.dataOwner; owner != nil && (owner.guard != nil && owner.guard.binding.iccid != "" || owner.ipFamily != 0 && owner.ipFamily != 4) {
 		// Keep an uncertain original WDS capability for coordinated cleanup.
 		current := owner.guard.manager.ownedNetworkPhysicalCurrent(state, owner)
 		cleanupErr := clearOwnedQMIHost(rollbackContext, owner, current)
@@ -564,8 +618,17 @@ func rollbackQMIDataHost(state *managedDevice, candidate modem.Candidate, ipComm
 			state.dataOwner = nil
 			return
 		}
-		if state.dataSession != nil && owner.handleKnown {
-			if err := state.dataSession.Stop(rollbackContext, state.dataSessionHandle); stoppedQMIDataError(err) && cleanupErr == nil {
+		if state.dataSession != nil {
+			stop := func() error {
+				if owned, ok := state.dataSession.(qmiOwnedDataStopper); ok {
+					return owned.StopOwned(rollbackContext)
+				}
+				if owner.handleKnown {
+					return state.dataSession.Stop(rollbackContext, state.dataSessionHandle)
+				}
+				return ErrDataCleanupPending
+			}
+			if err := stop(); stoppedQMIDataError(err) && cleanupErr == nil {
 				closeQMIDataSession(state)
 				state.dataOwner = nil
 			}
@@ -626,7 +689,7 @@ func (manager *Manager) setQMINetwork(
 		return NetworkResult{}, err
 	}
 	scoped := guard != nil && guard.binding.iccid != ""
-	if !enabled && scoped {
+	if !enabled && (scoped || state.dataOwner != nil && state.dataOwner.ipFamily != 0 && state.dataOwner.ipFamily != 4) {
 		if state.dataOwner == nil {
 			if state.dataSession != nil {
 				return NetworkResult{}, ErrDataCleanupPending
@@ -669,6 +732,12 @@ func (manager *Manager) setQMINetwork(
 			return NetworkResult{}, err
 		}
 	}
+	requestKey := qmiDataRequestKey(apn, ipVersion, username, password, authentication)
+	if owner := state.dataOwner; owner != nil && owner.requestKey != "" && owner.requestKey != requestKey {
+		if err := manager.stopOwnedQMINetwork(ctx, state, owner); err != nil {
+			return NetworkResult{}, err
+		}
+	}
 	if state.dataOwner != nil && state.dataSession == nil {
 		return NetworkResult{}, ErrDataCleanupPending
 	}
@@ -697,14 +766,20 @@ func (manager *Manager) setQMINetwork(
 		statusContext, cancel := context.WithTimeout(ctx, qmiDataStatusTimeout)
 		connected, statusErr := state.dataSession.Connected(statusContext)
 		cancel()
-		if statusErr != nil && scoped {
+		if statusErr != nil && (scoped || state.dataOwner != nil && state.dataOwner.ipFamily != 0 && state.dataOwner.ipFamily != 4) {
 			return NetworkResult{}, errors.Join(ErrDataCleanupPending, statusErr)
 		}
 		if statusErr == nil && connected {
 			return configureQMIDataHost(ctx, state, candidate, ipCommand, apn, ipVersion, "packet data session already connected")
 		}
-		closeQMIDataSession(state)
-		state.dataOwner = nil // this original WDS client confirmed disconnection
+		if owner := state.dataOwner; owner != nil && (scoped || owner.ipFamily != 0 && owner.ipFamily != 4) {
+			if err := manager.stopOwnedQMINetwork(ctx, state, owner); err != nil {
+				return NetworkResult{}, err
+			}
+		} else {
+			closeQMIDataSession(state)
+			state.dataOwner = nil
+		}
 	}
 
 	// A process restart loses the old WDS handle. StopAnyNetworkInterface is a
@@ -720,9 +795,46 @@ func (manager *Manager) setQMINetwork(
 		_ = session.Close()
 		return NetworkResult{}, err
 	}
+	family := qmiDataIPFamily(ipVersion)
+	retained := scoped || family != 4
+	if family != 4 {
+		if err := validateIPv6DataHostClaim(candidate.NetworkInterface, nil); err != nil {
+			_ = session.Close()
+			return NetworkResult{}, err
+		}
+	}
+	if prepare, ok := session.(qmiDataFamilyPreparer); ok {
+		firstFamily := family
+		if firstFamily == qmiDataDualFamily {
+			firstFamily = 4
+		}
+		if err := prepare.PrepareFamily(ctx, firstFamily); err != nil {
+			_ = session.Close()
+			return NetworkResult{}, err
+		}
+	}
+	if family == qmiDataDualFamily {
+		second, err := manager.qmiDataOpener(ctx, candidate.QMIControl)
+		if err != nil {
+			_ = session.Close()
+			return NetworkResult{}, err
+		}
+		if prepare, ok := second.(qmiDataFamilyPreparer); ok {
+			err = prepare.PrepareFamily(ctx, 6)
+		}
+		if err == nil {
+			err = guard.verify(ctx, second, true)
+		}
+		if err != nil {
+			_ = second.Close()
+			_ = session.Close()
+			return NetworkResult{}, err
+		}
+		session = &dualQMIDataSession{parts: [2]qmiDataSession{session, second}, verify: func(ctx context.Context, part qmiDataSession) error { return guard.verify(ctx, part, true) }}
+	}
 	manager.enableQMIDataEvents(ctx, state, candidate.ID, session)
 	var stopErr error
-	if scoped {
+	if retained {
 		// A fresh CID does not prove ownership of a modem-wide packet call.
 		connected, observeErr := session.Connected(ctx)
 		if observeErr != nil || connected {
@@ -738,35 +850,35 @@ func (manager *Manager) setQMINetwork(
 		_ = session.Close()
 		return NetworkResult{}, fmt.Errorf("reclaim stale QMI data session: %w", stopErr)
 	}
-	if scoped {
-		state.dataOwner = newOwnedQMINetwork(&ownedNetwork{candidate: copyCandidate(candidate), backend: "qmi", guard: guard, hostTouched: true})
+	if retained {
+		state.dataOwner = newOwnedQMINetwork(&ownedNetwork{candidate: copyCandidate(candidate), backend: "qmi", guard: guard, hostTouched: true, ipFamily: family, requestKey: requestKey})
 		state.dataSession, state.dataSessionControl = session, candidate.QMIControl
 		state.dataSessionHandle = 0
 	}
 	rawIPPath, pathErr := qmiRawIPSysfsPath(candidate.NetworkInterface)
 	if pathErr != nil {
 		disableQMIDataEvents(state)
-		if !scoped {
+		if !retained {
 			_ = session.Close()
 		}
 		return NetworkResult{}, pathErr
 	}
 	if formatErr := prepareQMIDataFormat(ctx, session, ipCommand, candidate.NetworkInterface, rawIPPath); formatErr != nil {
 		disableQMIDataEvents(state)
-		if !scoped {
+		if !retained {
 			_ = session.Close()
 		}
 		return NetworkResult{}, fmt.Errorf("prepare QMI data format: %w", formatErr)
 	}
 	if err := guard.verify(ctx, session, true); err != nil {
 		disableQMIDataEvents(state)
-		if !scoped {
+		if !retained {
 			_ = session.Close()
 		}
 		return NetworkResult{}, err
 	}
-	if !scoped {
-		state.dataOwner = newOwnedQMINetwork(&ownedNetwork{candidate: copyCandidate(candidate), backend: "qmi", guard: guard, hostTouched: true})
+	if !retained {
+		state.dataOwner = newOwnedQMINetwork(&ownedNetwork{candidate: copyCandidate(candidate), backend: "qmi", guard: guard, hostTouched: true, ipFamily: family, requestKey: requestKey})
 	}
 	state.dataSession, state.dataSessionControl = session, candidate.QMIControl
 	state.dataSessionHandle = 0
@@ -776,7 +888,7 @@ func (manager *Manager) setQMINetwork(
 	cancelStart()
 	if err != nil {
 		disableQMIDataEvents(state)
-		if !scoped {
+		if !retained {
 			closeQMIDataSession(state)
 			state.dataOwner = nil
 		}
@@ -786,7 +898,7 @@ func (manager *Manager) setQMINetwork(
 	state.dataSessionHandle = handle
 	state.dataSessionControl = candidate.QMIControl
 	state.dataOwner.handleKnown = handle != 0 && handle != ^uint32(0)
-	if scoped {
+	if retained {
 		if !state.dataOwner.handleKnown {
 			return NetworkResult{}, ErrDataCleanupPending
 		}
@@ -798,6 +910,9 @@ func (manager *Manager) setQMINetwork(
 }
 
 func configureQMIDataHost(ctx context.Context, state *managedDevice, candidate modem.Candidate, ipCommand, apn, ipVersion, detail string) (NetworkResult, error) {
+	if ipVersion == "IPV6" || ipVersion == "IPV4V6" {
+		return configureQMIIPv6Host(ctx, state, candidate, ipCommand, apn, ipVersion, detail)
+	}
 	// The modem-side call and the host-side lease have independent lifetimes.
 	// A daemon/modem restart can leave an address from the previous packet call
 	// on the interface, so DHCP must always begin from a clean host generation.
@@ -1042,7 +1157,7 @@ func clearExportProxyRoute(ctx context.Context, networkInterface string) {
 	}
 	mark, table, priority := exportProxyRouteIdentity(networkInterface)
 	_, _ = exec.CommandContext(ctx, ipCommand, "rule", "del", "priority", strconv.Itoa(priority), "fwmark", fmt.Sprintf("0x%x", mark), "lookup", strconv.Itoa(table)).CombinedOutput()
-	_, _ = exec.CommandContext(ctx, ipCommand, "-4", "route", "flush", "table", strconv.Itoa(table)).CombinedOutput()
+	_, _ = exec.CommandContext(ctx, ipCommand, "-4", "route", "flush", "table", strconv.Itoa(table), "dev", networkInterface).CombinedOutput()
 }
 
 const managerCommandCleanupTimeout = 15 * time.Second

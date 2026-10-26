@@ -12,7 +12,10 @@ ExecStart=/opt/vocat/bin/vocat
 Restart=on-failure
 RestartSec=3s
 TimeoutStartSec=30s
-TimeoutStopSec=20s
+# HTTP, data, carrier, media and device owners drain with separate budgets.
+TimeoutStopSec=120s
+RuntimeDirectory=vocat
+RuntimeDirectoryMode=0700
 Environment=VOCAT_DATABASE_PATH=/opt/vocat/data/vocat.db
 EnvironmentFile=/etc/vocat/vocat.env
 
@@ -27,7 +30,9 @@ ProtectKernelLogs=true
 ProtectKernelModules=true
 ProtectKernelTunables=true
 ProtectControlGroups=true
-ReadWritePaths=/opt/vocat/data
+# Keep kernel protection, with the data/USB and IPv6 settings needed by the
+# selected original modem and the shared Host IMS reservation directory.
+ReadWritePaths=/opt/vocat/data /run/lock -/proc/sys/net/ipv6/conf /sys/devices
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
 RestrictRealtime=true
 LockPersonality=true

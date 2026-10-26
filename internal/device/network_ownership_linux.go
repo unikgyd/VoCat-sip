@@ -11,11 +11,15 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/vishvananda/netlink"
 )
 
 func newOwnedQMINetwork(candidateOwner *ownedNetwork) *ownedNetwork {
 	if info, err := net.InterfaceByName(candidateOwner.candidate.NetworkInterface); err == nil {
 		candidateOwner.interfaceID = info.Index
+		candidateOwner.hostMTU = info.MTU
+		candidateOwner.hostLinkUp = info.Flags&net.FlagUp != 0
 	}
 	return candidateOwner
 }
@@ -44,7 +48,9 @@ func (m *Manager) stopOwnedQMINetwork(ctx context.Context, state *managedDevice,
 		return ErrDataCleanupPending
 	}
 	var err error
-	if owner.handleKnown {
+	if owned, ok := state.dataSession.(qmiOwnedDataStopper); ok {
+		err = owned.StopOwned(ctx)
+	} else if owner.handleKnown {
 		err = state.dataSession.Stop(ctx, state.dataSessionHandle)
 		if stoppedQMIDataError(err) {
 			err = nil
@@ -76,10 +82,19 @@ func clearOwnedQMIHost(ctx context.Context, owner *ownedNetwork, physicalCurrent
 		return err
 	}
 	mark, table, priority := exportProxyRouteIdentity(name)
-	_, _ = exec.CommandContext(ctx, ip, "rule", "del", "priority", strconv.Itoa(priority), "fwmark", fmt.Sprintf("0x%x", mark), "lookup", strconv.Itoa(table)).CombinedOutput()
-	rules, err := exec.CommandContext(ctx, ip, "rule", "show", "priority", strconv.Itoa(priority)).CombinedOutput()
-	if err != nil || strings.Contains(string(rules), fmt.Sprintf("fwmark 0x%x", mark)) {
-		return errors.New("original cellular routing rule cleanup is not confirmed")
+	if owner.ipv6Routes {
+		_, _ = exec.CommandContext(ctx, ip, "-6", "rule", "del", "priority", strconv.Itoa(priority), "fwmark", fmt.Sprintf("0x%x", mark), "lookup", strconv.Itoa(table)).CombinedOutput()
+		rules, err := exec.CommandContext(ctx, ip, "-6", "rule", "show", "priority", strconv.Itoa(priority)).CombinedOutput()
+		if err != nil || strings.Contains(string(rules), fmt.Sprintf("fwmark 0x%x", mark)) {
+			return errors.New("original IPv6 cellular routing rule cleanup is not confirmed")
+		}
+	}
+	if owner.ipFamily == 0 || owner.ipFamily == 4 || owner.ipv4Routes {
+		_, _ = exec.CommandContext(ctx, ip, "rule", "del", "priority", strconv.Itoa(priority), "fwmark", fmt.Sprintf("0x%x", mark), "lookup", strconv.Itoa(table)).CombinedOutput()
+		rules, err := exec.CommandContext(ctx, ip, "rule", "show", "priority", strconv.Itoa(priority)).CombinedOutput()
+		if err != nil || strings.Contains(string(rules), fmt.Sprintf("fwmark 0x%x", mark)) {
+			return errors.New("original cellular routing rule cleanup is not confirmed")
+		}
 	}
 	_ = os.Remove(exportProxyDNSPath(name))
 	if !physicalCurrent {
@@ -92,13 +107,50 @@ func clearOwnedQMIHost(ctx context.Context, owner *ownedNetwork, physicalCurrent
 	if owner.interfaceID == 0 || info.Index != owner.interfaceID {
 		return errors.New("cellular netdev ownership changed during cleanup")
 	}
-	for _, args := range [][]string{
-		{"-4", "route", "flush", "table", strconv.Itoa(table), "dev", name},
-		{"-4", "addr", "flush", "dev", name, "scope", "global"},
-		{"link", "set", "dev", name, "down"},
-	} {
+	if owner.ipFamily != 0 && owner.ipFamily != 4 {
+		if err := validateIPv6DataHostClaim(name, owner); err != nil {
+			return err
+		}
+		if owner.ipv6Routes {
+			if err := clearOwnedDataRoutes(ctx, owner, netlink.FAMILY_V6, table); err != nil {
+				return err
+			}
+		}
+		if err := clearOwnedDataIPv6Address(ctx, ip, name, owner.ipv6Address); err != nil {
+			return err
+		}
+	}
+	commands := [][]string{{"link", "set", "dev", name, "down"}}
+	if owner.ipFamily == 0 || owner.ipFamily == 4 {
+		commands = append([][]string{{"-4", "route", "flush", "table", strconv.Itoa(table), "dev", name}, {"-4", "addr", "flush", "dev", name, "scope", "global"}}, commands...)
+	} else {
+		if owner.ipv4Routes {
+			if err := clearOwnedDataRoutes(ctx, owner, netlink.FAMILY_V4, table); err != nil {
+				return err
+			}
+		}
+		if err := clearOwnedDataAddress(ctx, ip, name, "-4", owner.ipv4Address); err != nil {
+			return err
+		}
+	}
+	for _, args := range commands {
 		if _, err := exec.CommandContext(ctx, ip, args...).CombinedOutput(); err != nil {
 			return errors.New("original cellular host configuration cleanup failed")
+		}
+	}
+	if err := restoreDataIPv6Settings(owner); err != nil {
+		return err
+	}
+	if owner.ipFamily != 0 && owner.ipFamily != 4 {
+		if owner.hostMTU > 0 {
+			if _, err := exec.CommandContext(ctx, ip, "link", "set", "dev", name, "mtu", strconv.Itoa(owner.hostMTU)).CombinedOutput(); err != nil {
+				return err
+			}
+		}
+		if owner.hostLinkUp {
+			if _, err := exec.CommandContext(ctx, ip, "link", "set", "dev", name, "up").CombinedOutput(); err != nil {
+				return err
+			}
 		}
 	}
 	owner.hostTouched = false

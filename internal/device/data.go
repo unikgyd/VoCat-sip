@@ -106,6 +106,18 @@ type qmiIPv4Settings struct {
 	MTU     int
 }
 
+type qmiIPv6Settings struct {
+	Address string
+	Prefix  int
+	Gateway string
+	DNS     []string
+	MTU     int
+}
+
+type qmiIPv6RuntimeSource interface {
+	RuntimeIPv6(context.Context) (qmiIPv6Settings, error)
+}
+
 // SubscribeNetworkStatusEvents subscribes to modem-side packet-service
 // indications. The channel carries the physical device ID and is only a
 // wake-up signal; callers must query NetworkStatus before changing state.

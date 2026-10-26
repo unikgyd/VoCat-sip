@@ -9,6 +9,18 @@ adopting another SIM, starting Host IMS or entering exclusive Wi-Fi access.
 Changing `NetworkEnabled`, replacing a runtime status or canceling a request is
 not a cleanup acknowledgement.
 
+The native QMI export path now implements IPv6 and dual-stack requests. IPv6
+uses the modem's actual runtime address, prefix, gateway and DNS; it does not
+try IPv4 DHCP for an IPv6-only connection. `IPV4V6` uses separate IPv4/IPv6 WDS
+clients and retains both original handles. Both families must be ready before
+dual-stack traffic is admitted; partial service is not silently downgraded.
+An uncertain start or failed stop retains the relevant original client and
+blocks replacement. Host cleanup preserves other interfaces' routes, removes
+only the installed data addresses, and restores the original IPv6 settings,
+MTU and link state for the IPv6/dual-stack owner. The
+[combined software and real-carrier acceptance](VERIFICATION_20261027_IPV6.md)
+records IPv6, dual-stack and IPv4 regression evidence and its remaining limits.
+
 The runtime tracks all live workers, including workers whose status entry was
 superseded. Handover fences new data requests, cancels and joins those workers,
 then invokes `StopOwnedNetwork` directly under the line lifecycle fence. A worker

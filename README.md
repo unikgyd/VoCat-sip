@@ -42,9 +42,10 @@ authorization checks remain in force.
 | Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported playback, browser takeover, recording and separate RTCP/statistics are integrated. See the verification record for the tested software scope. |
 | Live Linux acceptance | QDC507/China Telecom Host IMS and EC20/DITO VoWiFi registered simultaneously on the NAS. The authorized Host IMS call reached ringing and negotiated AMR; no answer was received. |
 | Further live acceptance | Real Baresip extension media/transcoding, RTCP and DTMF, LAN MESSAGE confirmation/deduplication, physical USB PCM I/O, an existing eSIM profile round trip and four prompt import formats passed their scoped checks. |
+| Cellular data export | Real CTNET IPv6, simultaneous IPv4/IPv6 and IPv4 HTTPS through authenticated HTTP/SOCKS5, original data cleanup and scoped deployment-permission checks passed. |
 | Remaining acceptance | Answered carrier audio, USB call media, live playback/takeover, carrier softphone bridging and other hardware/installation combinations. |
 
-The final combined software run passed: **2,025 native Go tests, 2,020 static Go
+The initial combined software run passed: **2,025 native Go tests, 2,020 static Go
 tests, 79 frontend tests, 132 selected race-test executions, 41 isolated kernel
 tests, vet and four Linux builds**. Skip counts, retained failures and hardware
 limits are recorded in [the verification report](docs/VERIFICATION_20261026.md).
@@ -53,6 +54,9 @@ fixes, call result, cleanup and rollback are recorded in the
 [live Linux verification report](docs/VERIFICATION_20261027_LIVE.md).
 The [deployed-service follow-up](docs/VERIFICATION_20261027_FOLLOWUP.md) records
 the next acceptance scenarios, observed failures and remaining hardware work.
+The [IPv6 and dual-stack follow-up](docs/VERIFICATION_20261027_IPV6.md) records
+the latest candidate's 2,057 Go checks, race/kernel checks, amd64/arm64 builds,
+real data transfers, dependency requirements and shipping-permission evidence.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

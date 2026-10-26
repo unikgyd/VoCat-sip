@@ -20,6 +20,15 @@ type ownedNetwork struct {
 	hostTouched  bool
 	handleKnown  bool
 	radioStopped bool // confirmed RF-off ended this generation's packet calls
+	ipFamily     uint8
+	requestKey   string
+	ipv6Address  string // exact installed address; never flush foreign IPv6 addresses
+	ipv4Address  string
+	ipv6Settings map[string]string
+	ipv4Routes   bool
+	ipv6Routes   bool
+	hostMTU      int
+	hostLinkUp   bool
 }
 
 func (m *Manager) SetNetworkForSIM(ctx context.Context, id, iccid, imsi string, request NetworkRequest) (NetworkResult, error) {

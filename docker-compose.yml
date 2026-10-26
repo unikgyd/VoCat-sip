@@ -28,6 +28,7 @@ services:
       dockerfile: Dockerfile
     container_name: vocat
     restart: unless-stopped
+    stop_grace_period: 120s
 
     # Host network mode: the export-proxy plugin uses SO_BINDTODEVICE to pin
     # outbound proxy traffic to the modem interface (wwan0) so roaming data
@@ -63,6 +64,9 @@ services:
       # devices added after the container starts.
       - /dev:/dev
       - /sys:/sys:ro
+      # QMI raw-IP setup follows /sys/class/net symlinks into /sys/devices.
+      # Keep the rest of sysfs read-only while allowing owned device setup.
+      - /sys/devices:/sys/devices:rw
       # Host IMS uses the host ModemManager and its QMI proxy. Shared lock
       # directories prevent a second container/process from owning the modem.
       - /run/dbus:/run/dbus:ro

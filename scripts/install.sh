@@ -476,11 +476,10 @@ ExecStart=${BINARY_PATH}
 Restart=on-failure
 RestartSec=3s
 TimeoutStartSec=30s
-# HTTP, VoWiFi, and modem cleanup have bounded shutdown contexts totalling up
-# to 30 seconds. Leave a small margin before systemd resorts to SIGKILL.
-TimeoutStopSec=40s
+# HTTP, data, carrier, media and device owners drain with separate budgets.
+TimeoutStopSec=120s
 RuntimeDirectory=vocat
-RuntimeDirectoryMode=0755
+RuntimeDirectoryMode=0700
 
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
@@ -495,7 +494,7 @@ ProtectKernelTunables=true
 ProtectControlGroups=true
 # The web/CLI self-updater verifies a release in this directory and atomically
 # renames it over the running binary. Keep the rest of the host read-only.
-ReadWritePaths=/opt/vocat/data /opt/vocat/bin
+ReadWritePaths=/opt/vocat/data /opt/vocat/bin /run/lock -/proc/sys/net/ipv6/conf /sys/devices
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
 RestrictRealtime=true
 LockPersonality=true

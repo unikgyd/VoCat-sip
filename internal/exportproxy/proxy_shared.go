@@ -2,8 +2,6 @@ package exportproxy
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
 	"net"
 	"time"
@@ -12,29 +10,17 @@ import (
 const proxyTimeout = 30 * time.Second
 
 func dialTarget(ctx context.Context, address string, dialer *net.Dialer, resolver *net.Resolver) (net.Conn, error) {
-	host, port, err := net.SplitHostPort(address)
+	_, _, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, err
 	}
-	if ip := net.ParseIP(host); ip != nil {
-		return dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.String(), port))
-	}
-	ips, err := resolver.LookupIPAddr(ctx, host)
-	if err != nil {
-		return nil, err
-	}
-	var lastErr error
-	for _, ip := range ips {
-		connection, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(ip.IP.String(), port))
-		if err == nil {
-			return connection, nil
-		}
-		lastErr = err
-	}
-	if lastErr == nil {
-		lastErr = fmt.Errorf("%w: no addresses for %s", errors.ErrUnsupported, host)
-	}
-	return nil, lastErr
+	// Address preference is computed from the host's unmarked routes. That
+	// ordering can prefer unreachable IPv4 on an IPv6-only modem. Preserve the
+	// bound socket controls and DNS resolver while letting net.Dialer race the
+	// other family instead of exhausting the whole lease on the first address.
+	bound := *dialer
+	bound.Resolver = resolver
+	return bound.DialContext(ctx, "tcp", address)
 }
 
 func pipe(left, right net.Conn) {
