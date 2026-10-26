@@ -276,9 +276,12 @@ func (s *Server) handleDevices(w http.ResponseWriter, r *http.Request) bool {
 			config.NetworkEnabled = false
 		}
 		fillConfigFromPhysical(&config, *selected)
-		lock := s.imsModeLock(config.ID)
-		lock.RLock()
-		defer lock.RUnlock()
+		unlock, gateErr := s.acquireLineRead(r.Context(), config.ID)
+		if gateErr != nil {
+			writeError(w, 409, "line_busy", gateErr.Error())
+			return true
+		}
+		defer unlock()
 		if err := s.saveDeviceWithPhysicalGuard(r.Context(), config, true); err != nil {
 			if errors.Is(err, errPhysicalDeviceAlias) || errors.Is(err, errDeviceAlreadyConfigured) {
 				writeError(w, http.StatusConflict, "physical_device_already_configured", err.Error())
@@ -494,9 +497,12 @@ func (s *Server) handleDevicePath(
 	// Mode writers use TryLock, so nested service RLocks never wait behind a
 	// queued writer. Keep the selected policy stable throughout legacy I/O.
 	if len(tail) > 0 && tail[0] != "ims" && tail[0] != "telephony" && tail[0] != "overview" && tail[0] != "esim" {
-		lock := s.imsModeLock(id)
-		lock.RLock()
-		defer lock.RUnlock()
+		unlock, gateErr := s.acquireLineRead(r.Context(), id)
+		if gateErr != nil {
+			writeError(w, 409, "line_busy", gateErr.Error())
+			return true
+		}
+		defer unlock()
 	}
 	config, err := s.store.Device(r.Context(), id)
 	if err != nil {
@@ -1207,6 +1213,8 @@ func (s *Server) writeVoWiFiError(w http.ResponseWriter, err error) {
 		"raw_error", err,
 	)
 	switch {
+	case errors.Is(err, errLineBusy), errors.Is(err, errTaskLeaseExpired):
+		writeError(w, http.StatusConflict, "line_busy", err.Error())
 	case errors.Is(err, vowifiruntime.ErrNotRegistered):
 		writeError(w, http.StatusServiceUnavailable, "vowifi_device_unavailable", "the configured device has no VoWiFi runtime")
 	case errors.Is(err, vowifiruntime.ErrOperationInProgress):
@@ -1929,6 +1937,8 @@ func (s *Server) writeDeviceError(w http.ResponseWriter, err error) {
 		"raw_error", device.HardwareErrorDetail(err),
 	)
 	switch {
+	case errors.Is(err, errLineBusy), errors.Is(err, errTaskLeaseExpired):
+		writeError(w, http.StatusConflict, "line_busy", err.Error())
 	case errors.Is(err, modulecall.ErrBusy):
 		writeError(w, http.StatusConflict, "module_call_busy", "the module has an owned call; finish its cleanup before maintenance")
 	case errors.Is(err, modulecall.ErrChanged):

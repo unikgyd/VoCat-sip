@@ -38,7 +38,7 @@ authorization checks remain in force.
 | Calls and media | Web phone, physically paired USB PCM, SIP extension/peer bridges and negotiated RFC 4733 DTMF are wired. |
 | Multiple modems | Independent runtime ownership, Host IMS, per-SIM ePDG history and persistent IKE retry admission are present. |
 | Independent access | Per-ICCID cellular/Wi-Fi preferences, default routing, session ownership, reconnect controls and UI are being integrated. **The latest changes have not had the final combined test/build run.** |
-| Management | Existing eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained. New source adds per-SIM startup, live Host IMS identity and original data-session cleanup for SIM/access transitions; complete task recovery and unified testing are pending. |
+| Management | Existing eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained. New source adds per-SIM startup, live Host IMS identity, original data-session cleanup, exclusive task ownership and call-lifetime restoration; persistent task recovery and unified testing are pending. |
 | Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported message playback, browser takeover and call recording are wired in the latest source, awaiting final combined validation. |
 | Remaining acceptance | Complete independent-access lifecycle, real hardware, softphone and carrier acceptance. |
 
@@ -64,6 +64,7 @@ SQLite stores configuration and runtime history. See the
 
 - [Host IMS application](docs/HOST_IMS_APPLICATION.md) and [ownership boundaries](docs/HOST_IMS.md).
 - [Cellular data ownership and handover](docs/CELLULAR_DATA_HANDOVER.md).
+- [Automatic task ownership and restoration](docs/AUTOMATIC_TASKS.md).
 - [Web phone](docs/WEB_PHONE.md), [USB module voice](docs/MODULE_VOICE.md), [AMR media](docs/AMR_MEDIA.md), and [DTMF](docs/SIP_DTMF.md).
 - [IMS hold/resume](docs/IMS_CALL_HOLD.md), including transaction and media ownership boundaries.
 - [Automatic answering and message playback](docs/AUTO_ANSWER.md), including upload formats, timing and browser takeover.

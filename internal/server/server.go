@@ -107,6 +107,7 @@ type Server struct {
 	publicIPs                 map[string]cachedPublicIP
 	lookupPublicIP            func(context.Context, string) (exportproxy.PublicIPInfo, error)
 	automaticTasks            *automaticTaskScheduler
+	automaticTaskOwners       sync.Map // device -> exact live task writer capability
 	smsSyncMu                 sync.Mutex
 	smsForwardScans           map[string]smsForwardScan // Only smsSyncMu may access observation qualifications.
 	smsForwardScanBlocked     bool                      // Lost bounded protection evidence: AT forwarding stays archive-only for this process.
@@ -196,7 +197,9 @@ func New(options Options) (*Server, error) {
 	if options.VoWiFi != nil || options.HostIMS != nil {
 		server.vowifi = &imsServiceDispatch{server: server}
 	}
-	if _, ok := options.Devices.(moduleVoiceController); ok {
+	_, voiceCapable := options.Devices.(moduleVoiceController)
+	_, signalingCapable := options.Devices.(moduleSignalingController)
+	if voiceCapable || signalingCapable {
 		var factory callrecord.Factory
 		if server.recordings != nil {
 			factory = server.recordings.Start

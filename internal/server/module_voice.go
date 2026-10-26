@@ -15,6 +15,10 @@ type moduleVoiceController interface {
 	ModuleVoiceAvailable(context.Context, string) error
 	AcquireModuleVoice(context.Context, string) (modulecall.Lease, error)
 }
+
+type moduleSignalingController interface {
+	AcquireModuleSignaling(context.Context, string, string, string) (modulecall.Lease, error)
+}
 type moduleVoiceBackend struct{ s *Server }
 
 func (b moduleVoiceBackend) config(ctx context.Context, id string) (store.Device, string, error) {
@@ -61,6 +65,42 @@ func (b moduleVoiceBackend) Acquire(ctx context.Context, id string) (modulecall.
 		return nil, modulecall.ErrUnavailable
 	}
 	line, err := controller.AcquireModuleVoice(ctx, physical)
+	if err != nil {
+		return nil, err
+	}
+	lease := &serverModuleLease{Lease: line, backend: b, config: config, physical: physical}
+	lease.valid.Store(true)
+	if err := lease.check(ctx); err != nil {
+		line.Close()
+		return nil, err
+	}
+	return lease, nil
+}
+
+func (b moduleVoiceBackend) AvailableSignaling(ctx context.Context, id string) error {
+	if _, _, err := b.config(ctx, id); err != nil {
+		return err
+	}
+	if _, ok := b.s.devices.(moduleSignalingController); !ok {
+		return modulecall.ErrUnavailable
+	}
+	return nil
+}
+
+func (b moduleVoiceBackend) AcquireSignaling(ctx context.Context, id string) (modulecall.Lease, error) {
+	config, physical, err := b.config(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	controller, ok := b.s.devices.(moduleSignalingController)
+	if !ok {
+		return nil, modulecall.ErrUnavailable
+	}
+	identity, err := b.s.observedTelephonySubscription(ctx, config)
+	if err != nil {
+		return nil, err
+	}
+	line, err := controller.AcquireModuleSignaling(ctx, physical, identity.ICCID, identity.IMSI)
 	if err != nil {
 		return nil, err
 	}

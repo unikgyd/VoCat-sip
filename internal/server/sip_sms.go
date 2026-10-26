@@ -39,6 +39,11 @@ func (b sipSMSBackend) SMSReady(ctx context.Context, id string) (string, error) 
 }
 func (b sipSMSBackend) SendCarrierSMS(ctx context.Context, id, number, text, operation, subscription string) (vowifi.SMSSubmitResult, error) {
 	s := b.server
+	unlock, gateErr := s.acquireLineRead(ctx, id)
+	if gateErr != nil {
+		return vowifi.SMSSubmitResult{}, gateErr
+	}
+	defer unlock()
 	token, err := b.SMSReady(ctx, id)
 	if err != nil {
 		return vowifi.SMSSubmitResult{}, err

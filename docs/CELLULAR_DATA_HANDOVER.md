@@ -44,7 +44,9 @@ eSIM switching, task preparation and task restoration use this boundary.
 Cold startup also detects a temporary telephony projection that differs from
 the durable per-SIM preferences and reapplies the actual card's saved policy.
 
-Remaining integration includes the complete task reservation/revert lifecycle,
-all management and export-proxy paths, and final cancellation, failure, hotplug,
+Task writer capabilities and original-call lifetime handling are now implemented
+in [automatic tasks](AUTOMATIC_TASKS.md), with the same unverified status.
+Remaining integration includes persistent task/revert recovery, complete Host
+IMS task handover, management and export-proxy paths, and final cancellation, failure, hotplug,
 frontend and multi-architecture verification. Real firmware/carrier acceptance
 remains separate from software verification.

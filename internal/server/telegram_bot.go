@@ -1425,9 +1425,11 @@ func (bot *telegramBot) executeESIMSwitch(ctx context.Context, action telegramPe
 }
 
 func (bot *telegramBot) executeTimedCall(ctx context.Context, config telegramRuntimeConfig, action telegramPendingAction) (string, error) {
-	lock := bot.server.imsModeLock(action.DeviceID)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, gateErr := bot.server.acquireLineRead(ctx, action.DeviceID)
+	if gateErr != nil {
+		return "", gateErr
+	}
+	defer unlock()
 	stored, entry, physicalID, err := bot.device(action.DeviceID)
 	if err != nil {
 		return "", err
@@ -1448,9 +1450,12 @@ func (bot *telegramBot) executeTimedCall(ctx context.Context, config telegramRun
 }
 
 func (bot *telegramBot) executeSimpleCallAction(ctx context.Context, config telegramRuntimeConfig, chatID, adminID int64, deviceID, action string) {
-	lock := bot.server.imsModeLock(deviceID)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, gateErr := bot.server.acquireLineRead(ctx, deviceID)
+	if gateErr != nil {
+		bot.sendText(ctx, config, chatID, "通话操作失败："+gateErr.Error(), bot.homeKeyboard())
+		return
+	}
+	defer unlock()
 	if deviceID == "" {
 		bot.sendText(ctx, config, chatID, fmt.Sprintf("用法：/%s <设备ID>", map[string]string{"status": "calls", "answer": "answer", "hangup": "hangup"}[action]), nil)
 		return
@@ -2044,9 +2049,11 @@ func (bot *telegramBot) handleATCommand(ctx context.Context, config telegramRunt
 }
 
 func (bot *telegramBot) executeATCommand(ctx context.Context, deviceID, command string) (string, error) {
-	lock := bot.server.imsModeLock(deviceID)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, gateErr := bot.server.acquireLineRead(ctx, deviceID)
+	if gateErr != nil {
+		return "", gateErr
+	}
+	defer unlock()
 	command = strings.TrimSpace(command)
 	if err := validateATCommand(command, false); err != nil {
 		return "", err
@@ -2192,12 +2199,15 @@ func formatTelegramUSSD(deviceID string, result device.USSDResult) string {
 }
 
 func (bot *telegramBot) handleVoWiFi(ctx context.Context, config telegramRuntimeConfig, chatID, adminID int64, deviceID, operation string) {
-	lock := bot.server.imsModeLock(deviceID)
-	lock.RLock()
+	unlock, gateErr := bot.server.acquireLineRead(ctx, deviceID)
+	if gateErr != nil {
+		bot.sendText(ctx, config, chatID, "VoWiFi 操作失败："+gateErr.Error(), bot.homeKeyboard())
+		return
+	}
 	locked := true
 	defer func() {
 		if locked {
-			lock.RUnlock()
+			unlock()
 		}
 	}()
 	stored, entry, physicalID, err := bot.device(deviceID)
@@ -2211,7 +2221,7 @@ func (bot *telegramBot) handleVoWiFi(ctx context.Context, config telegramRuntime
 	}
 	operation = strings.ToLower(strings.TrimSpace(operation))
 	if stored.Telephony != nil {
-		lock.RUnlock()
+		unlock()
 		locked = false
 		bot.handleIndependentVoWiFi(ctx, config, chatID, adminID, stored, operation)
 		return

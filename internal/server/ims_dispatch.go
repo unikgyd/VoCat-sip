@@ -251,9 +251,11 @@ func (d *imsServiceDispatch) Calls(id string) ([]vowifi.Call, error) {
 	return calls, err
 }
 func (d *imsServiceDispatch) DialCall(ctx context.Context, id, number string) (vowifi.Call, error) {
-	lock := d.server.imsModeLock(id)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, err := d.server.acquireLineRead(ctx, id)
+	if err != nil {
+		return vowifi.Call{}, err
+	}
+	defer unlock()
 	c, err := d.outboundIMS(id)
 	controller, ok := c.(VoWiFiCallController)
 	if err != nil || !ok {
@@ -268,9 +270,11 @@ func (d *imsServiceDispatch) DialCall(ctx context.Context, id, number string) (v
 	return call, err
 }
 func (d *imsServiceDispatch) AnswerCall(ctx context.Context, id, callID string) (vowifi.Call, error) {
-	lock := d.server.imsModeLock(id)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, err := d.server.acquireLineRead(ctx, id)
+	if err != nil {
+		return vowifi.Call{}, err
+	}
+	defer unlock()
 	c := d.server.ownerIMSCall(id, callID)
 	controller, ok := c.(VoWiFiCallController)
 	if !ok {
@@ -304,9 +308,11 @@ func (d *imsServiceDispatch) SendDTMF(ctx context.Context, id, callID string, di
 }
 
 func (d *imsServiceDispatch) SetCallHold(ctx context.Context, id, callID string, held bool) (vowifi.Call, error) {
-	gate := d.server.imsModeLock(id)
-	gate.RLock()
-	defer gate.RUnlock()
+	unlock, err := d.server.acquireLineRead(ctx, id)
+	if err != nil {
+		return vowifi.Call{}, err
+	}
+	defer unlock()
 	owner := d.server.ownerIMSCall(id, callID)
 	controller, ok := owner.(VoWiFiCallHoldController)
 	if !ok {
@@ -317,9 +323,11 @@ func (d *imsServiceDispatch) SetCallHold(ctx context.Context, id, callID string,
 	return call, err
 }
 func (d *imsServiceDispatch) SendSMS(ctx context.Context, id string, request vowifi.SMSSubmitRequest) (vowifi.SMSSubmitResult, error) {
-	lock := d.server.imsModeLock(id)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, err := d.server.acquireLineRead(ctx, id)
+	if err != nil {
+		return vowifi.SMSSubmitResult{}, err
+	}
+	defer unlock()
 	c, err := d.outboundIMS(id)
 	controller, ok := c.(imsSMSController)
 	if err != nil || !ok {
@@ -328,9 +336,11 @@ func (d *imsServiceDispatch) SendSMS(ctx context.Context, id string, request vow
 	return controller.SendSMS(ctx, id, request)
 }
 func (d *imsServiceDispatch) SendSMSForSubscription(ctx context.Context, id, imsi, iccid string, request vowifi.SMSSubmitRequest) (vowifi.SMSSubmitResult, error) {
-	lock := d.server.imsModeLock(id)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, err := d.server.acquireLineRead(ctx, id)
+	if err != nil {
+		return vowifi.SMSSubmitResult{}, err
+	}
+	defer unlock()
 	c, err := d.outboundIMS(id)
 	controller, ok := c.(boundIMSSMSController)
 	if err != nil || !ok {
@@ -339,9 +349,11 @@ func (d *imsServiceDispatch) SendSMSForSubscription(ctx context.Context, id, ims
 	return controller.SendSMSForSubscription(ctx, id, imsi, iccid, request)
 }
 func (d *imsServiceDispatch) SendUSSI(ctx context.Context, id string, request vowifi.USSISubmitRequest) (vowifi.USSISubmitResult, error) {
-	lock := d.server.imsModeLock(id)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, err := d.server.acquireLineRead(ctx, id)
+	if err != nil {
+		return vowifi.USSISubmitResult{}, err
+	}
+	defer unlock()
 	c, err := d.outboundIMS(id)
 	if request.SessionID != "" {
 		c, err = d.server.ownerIMSDialog(id, request.SessionID)
@@ -362,9 +374,11 @@ func (d *imsServiceDispatch) SendUSSI(ctx context.Context, id string, request vo
 	return result, err
 }
 func (d *imsServiceDispatch) CancelUSSI(ctx context.Context, id, session string) error {
-	lock := d.server.imsModeLock(id)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, err := d.server.acquireLineRead(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	c, err := d.server.ownerIMSDialog(id, session)
 	controller, ok := c.(imsUSSICanceler)
 	if err != nil || !ok {

@@ -376,6 +376,9 @@ func (s *Server) pollCellularCallsForDevice(ctx context.Context, id string) {
 	}
 }
 func (s *Server) collectCellularCalls(ctx context.Context, id string) (notifications []IncomingCallNotification) {
+	if _, owned := s.automaticTaskOwners.Load(id); owned {
+		return
+	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	lock := s.imsModeLock(id)

@@ -36,6 +36,23 @@ type moduleVoiceLease struct {
 func (l *moduleVoiceLease) RecordingICCID() string { return l.iccid }
 
 func (m *Manager) ModuleVoiceAvailable(ctx context.Context, id string) error {
+	if err := m.moduleSignalingAvailable(ctx, id); err != nil {
+		return err
+	}
+	if _, ok := m.audioInspector.(moduleAudioOpener); !ok {
+		return modulecall.ErrUnavailable
+	}
+	info, err := m.USBAudioBinding(ctx, id)
+	if err != nil {
+		return err
+	}
+	if info.Pairing != "bound" || !info.BackendAvailable {
+		return modulecall.ErrUnavailable
+	}
+	return nil
+}
+
+func (m *Manager) moduleSignalingAvailable(ctx context.Context, id string) error {
 	state, err := m.lookup(id)
 	if err != nil {
 		return err
@@ -54,22 +71,30 @@ func (m *Manager) ModuleVoiceAvailable(ctx context.Context, id string) error {
 	if RegionBlockReason(imsi) != "" {
 		return ErrRegionBlocked
 	}
-	if _, ok := m.audioInspector.(moduleAudioOpener); !ok {
-		return modulecall.ErrUnavailable
-	}
-	info, err := m.USBAudioBinding(ctx, id)
-	if err != nil {
-		return err
-	}
-	if info.Pairing != "bound" || !info.BackendAvailable {
-		return modulecall.ErrUnavailable
-	}
 	return nil
 }
 func (m *Manager) AcquireModuleVoice(ctx context.Context, id string) (modulecall.Lease, error) {
 	if err := m.ModuleVoiceAvailable(ctx, id); err != nil {
 		return nil, err
 	}
+	return m.acquireModuleCallLease(ctx, id)
+}
+
+// Keep signaling-only maintenance calls on modems without USB audio, using the
+// same original SIM, serial terminal-revision and exact CLCC reservation. This
+// does not advertise media capability to the web phone or SIP bridge.
+func (m *Manager) AcquireModuleSignaling(ctx context.Context, id, iccid, imsi string) (modulecall.Lease, error) {
+	bound, err := contextForSIMWrite(ctx, iccid, imsi)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.moduleSignalingAvailable(bound, id); err != nil {
+		return nil, err
+	}
+	return m.acquireModuleCallLease(bound, id)
+}
+
+func (m *Manager) acquireModuleCallLease(ctx context.Context, id string) (modulecall.Lease, error) {
 	state, err := m.lookup(id)
 	if err != nil {
 		return nil, err
@@ -101,6 +126,14 @@ func (m *Manager) AcquireModuleVoice(ctx context.Context, id string) (modulecall
 	lease := &moduleVoiceLease{manager: m, state: state, id: id, iccid: state.snapshot.ICCID, imsi: state.snapshot.IMSI, candidate: copyCandidate(state.candidate), client: guarded, revision: guarded.CallEndRevision()}
 	state.voiceLease = lease
 	m.mu.Unlock()
+	guard, err := m.newSIMWriteGuard(ctx, lease.candidate)
+	if err == nil {
+		err = guard.verify(ctx, atSIMWriteReader{guarded}, true)
+	}
+	if err != nil {
+		lease.Close()
+		return nil, err
+	}
 	if err = lease.verifySIM(ctx); err != nil {
 		lease.Close()
 		return nil, err
@@ -192,6 +225,7 @@ func (l *moduleVoiceLease) Read(ctx context.Context) ([]modulecall.Record, error
 	}
 	return l.readLocked(ctx)
 }
+
 func (l *moduleVoiceLease) OpenAudio(ctx context.Context, current func() bool) (modulecall.Audio, error) {
 	if !l.Current() || current == nil || !current() {
 		return nil, modulecall.ErrChanged

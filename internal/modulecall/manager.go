@@ -40,6 +40,7 @@ type call struct {
 	queryFailures            int
 	observed                 bool
 	recordingAttempted       bool
+	signalingOnly            bool
 }
 
 func New(parent context.Context, backend Backend, recordings ...callrecord.Factory) *Manager {
@@ -175,6 +176,14 @@ func (m *Manager) prepare(ctx context.Context, e *entry, c *call) error {
 }
 
 func (m *Manager) DialCall(ctx context.Context, id, number string) (vowifi.Call, error) {
+	return m.dialCall(ctx, id, number, false)
+}
+
+func (m *Manager) DialSignalingCall(ctx context.Context, id, number string) (vowifi.Call, error) {
+	return m.dialCall(ctx, id, number, true)
+}
+
+func (m *Manager) dialCall(ctx context.Context, id, number string, signalingOnly bool) (vowifi.Call, error) {
 	if !ValidNumber(number) {
 		return vowifi.Call{}, ErrState
 	}
@@ -189,10 +198,23 @@ func (m *Manager) DialCall(ctx context.Context, id, number string) (vowifi.Call,
 	if m.Busy(id) {
 		return vowifi.Call{}, ErrBusy
 	}
-	if err := m.backend.Available(ctx, id); err != nil {
-		return vowifi.Call{}, err
+	var line Lease
+	var err error
+	if signalingOnly {
+		backend, ok := m.backend.(SignalingBackend)
+		if !ok {
+			return vowifi.Call{}, ErrUnavailable
+		}
+		if err := backend.AvailableSignaling(ctx, id); err != nil {
+			return vowifi.Call{}, err
+		}
+		line, err = backend.AcquireSignaling(ctx, id)
+	} else {
+		if err := m.backend.Available(ctx, id); err != nil {
+			return vowifi.Call{}, err
+		}
+		line, err = m.backend.Acquire(ctx, id)
 	}
-	line, err := m.backend.Acquire(ctx, id)
 	if err != nil {
 		return vowifi.Call{}, err
 	}
@@ -208,9 +230,12 @@ func (m *Manager) DialCall(ctx context.Context, id, number string) (vowifi.Call,
 	if err != nil {
 		return vowifi.Call{}, err
 	}
-	if err = m.prepare(ctx, e, c); err != nil {
-		m.finish(c, "failed")
-		return vowifi.Call{}, err
+	c.signalingOnly = signalingOnly
+	if !signalingOnly {
+		if err = m.prepare(ctx, e, c); err != nil {
+			m.finish(c, "failed")
+			return vowifi.Call{}, err
+		}
 	}
 	m.mu.Lock()
 	c.public.SignalingPending = true
@@ -544,6 +569,19 @@ func (m *Manager) watch(e *entry, c *call) {
 				unlock(e)
 				cancel()
 				return
+			}
+			if c.signalingOnly {
+				m.mu.Lock()
+				c.public.State = "active"
+				c.public.SignalingPending = false
+				if c.public.AnsweredAt == nil {
+					now := time.Now().UTC()
+					c.public.AnsweredAt = &now
+				}
+				m.mu.Unlock()
+				unlock(e)
+				cancel()
+				continue
 			}
 			if !c.started {
 				m.beginRecording(c)

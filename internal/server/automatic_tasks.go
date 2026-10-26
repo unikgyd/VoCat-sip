@@ -16,6 +16,7 @@ import (
 	"vocat/internal/device"
 	"vocat/internal/exportproxy"
 	"vocat/internal/store"
+	"vocat/internal/vowifi"
 )
 
 const (
@@ -141,7 +142,12 @@ func (scheduler *automaticTaskScheduler) execute(run store.AutomaticTaskRun) {
 	run.Status, run.StartedAt = "running", time.Now().UTC()
 	_ = scheduler.server.store.UpdateAutomaticTaskRun(context.Background(), run)
 	var output string
+attempts:
 	for attempt := 1; attempt <= task.RetryCount+1; attempt++ {
+		if scheduler.ctx.Err() != nil {
+			err = scheduler.ctx.Err()
+			break
+		}
 		run.Attempts = attempt
 		run.Output = fmt.Sprintf("第 %d 次尝试：正在检查设备和 eSIM Profile", attempt)
 		_ = scheduler.server.store.UpdateAutomaticTaskRun(context.Background(), run)
@@ -149,7 +155,14 @@ func (scheduler *automaticTaskScheduler) execute(run store.AutomaticTaskRun) {
 			run.Output = fmt.Sprintf("第 %d 次尝试：%s", attempt, message)
 			_ = scheduler.server.store.UpdateAutomaticTaskRun(context.Background(), run)
 		}
-		operationContext, cancel := context.WithTimeout(scheduler.ctx, automaticTaskMaxRuntime)
+		runtimeLimit := automaticTaskMaxRuntime
+		if task.TaskType == "call" {
+			var payload automaticTaskPayload
+			if json.Unmarshal(task.Payload, &payload) == nil && payload.DurationSeconds > 0 && payload.DurationSeconds <= 600 {
+				runtimeLimit += time.Duration(payload.DurationSeconds) * time.Second
+			}
+		}
+		operationContext, cancel := context.WithTimeout(scheduler.ctx, runtimeLimit)
 		output, err = scheduler.server.executeAutomaticTask(operationContext, task, progress)
 		cancel()
 		if err == nil {
@@ -166,7 +179,8 @@ func (scheduler *automaticTaskScheduler) execute(run store.AutomaticTaskRun) {
 			scheduler.server.logger.Warn("automatic task attempt failed", "task_id", task.ID, "device_id", task.DeviceID, "attempt", attempt)
 			select {
 			case <-scheduler.ctx.Done():
-				break
+				err = scheduler.ctx.Err()
+				break attempts
 			case <-time.After(time.Duration(attempt*5) * time.Second):
 			}
 		}
@@ -186,54 +200,81 @@ func (scheduler *automaticTaskScheduler) execute(run store.AutomaticTaskRun) {
 }
 
 func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticTask, progress automaticTaskProgress) (output string, err error) {
-	lock := s.imsModeLock(task.DeviceID)
-	lock.RLock()
-	defer lock.RUnlock()
+	ctx, release, err := s.beginAutomaticTask(ctx, task.DeviceID)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if releaseErr := release(); releaseErr != nil {
+			output = ""
+			err = automaticTaskExecutionError{err: errors.Join(err, releaseErr), retryable: false}
+		}
+	}()
 	if err := validateAutomaticTaskAvailability(s.developerActive(ctx), task.TaskType, task.Environment); err != nil {
 		return "", automaticTaskExecutionError{err: err, retryable: false}
 	}
-	progress("正在检查设备和 eSIM Profile")
-	config, entry, physicalID, revertState, err := s.ensureAutomaticTaskProfile(ctx, task, progress)
+	current, err := s.store.Device(ctx, task.DeviceID)
 	if err != nil {
 		return "", err
+	}
+	if err := s.requireAutomaticTaskCallsIdle(ctx, current); err != nil {
+		return "", err
+	}
+	progress("正在检查设备和 eSIM Profile")
+	config, entry, physicalID, revertState, prepareErr := s.ensureAutomaticTaskProfile(ctx, task, progress)
+	if prepareErr != nil {
+		if restoreErr := s.restoreFailedAutomaticTaskPreparation(ctx, task, revertState); restoreErr != nil {
+			return "", automaticTaskExecutionError{err: errors.Join(prepareErr, restoreErr), retryable: false}
+		}
+		return "", prepareErr
 	}
 	iccid := strings.TrimSpace(task.ProfileICCID)
 	policy, policyErr := s.store.CardPolicy(ctx, iccid)
 	if errors.Is(policyErr, store.ErrNotFound) {
 		policy = defaultCardPolicy(iccid)
 	} else if policyErr != nil {
-		return "", fmt.Errorf("read saved card policy: %w", policyErr)
+		restoreErr := s.restoreFailedAutomaticTaskPreparation(ctx, task, revertState)
+		return "", automaticTaskExecutionError{err: errors.Join(fmt.Errorf("read saved card policy: %w", policyErr), restoreErr), retryable: false}
 	}
 	snapshot := automaticTaskEnvironmentSnapshot{config: config, policy: policy}
 	actionCompleted := false
 	defer func() {
-		cleanupContext, cancelCleanup := context.WithTimeout(context.WithoutCancel(context.Background()), 90*time.Second)
+		cleanupContext, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
 		defer cancelCleanup()
 
 		// Always ensure target profile's persistent policy in store is restored.
-		if upsertErr := s.store.UpsertCardPolicy(cleanupContext, snapshot.policy); upsertErr != nil {
-			s.logger.Warn("persist target card policy", "error", upsertErr)
+		if snapshot.config.Telephony == nil {
+			if upsertErr := s.store.UpsertCardPolicy(cleanupContext, snapshot.policy); upsertErr != nil {
+				err = errors.Join(err, upsertErr)
+			}
 		}
 
 		if task.RevertProfile && revertState.needed {
 			progress("正在切回执行前的 eSIM Profile")
 			if stopErr := s.quiesceVoWiFiForProfileSwitch(cleanupContext, task.DeviceID); stopErr != nil {
-				err = errors.Join(err, fmt.Errorf("stop access before restoring profile: %w", stopErr))
+				err = automaticTaskExecutionError{err: errors.Join(err, fmt.Errorf("stop access before restoring profile: %w", stopErr)), retryable: false}
 				return
 			}
 			if current, readErr := s.store.Device(cleanupContext, task.DeviceID); readErr != nil {
-				err = errors.Join(err, readErr)
+				err = automaticTaskExecutionError{err: errors.Join(err, readErr), retryable: false}
 				return
 			} else if current.Telephony != nil {
 				if stopErr := s.quiesceOwnedData(cleanupContext, current); stopErr != nil {
-					err = errors.Join(err, fmt.Errorf("stop task data before restoring profile: %w", stopErr))
+					err = automaticTaskExecutionError{err: errors.Join(err, fmt.Errorf("stop task data before restoring profile: %w", stopErr)), retryable: false}
 					return
 				}
 			}
-			_, _ = s.devices.SetFlight(cleanupContext, physicalID, true)
+			if _, flightErr := s.devices.SetFlight(cleanupContext, physicalID, true); flightErr != nil {
+				err = automaticTaskExecutionError{err: errors.Join(err, fmt.Errorf("enter airplane mode before restoring profile: %w", flightErr)), retryable: false}
+				return
+			}
 			if switchBackErr := s.devices.ESIMSwitchProfile(cleanupContext, physicalID, revertState.initialICCID, revertState.initialAID); switchBackErr != nil {
 				s.logger.Warn("automatic task failed to revert to initial profile", "device_id", task.DeviceID, "initial_iccid", revertState.initialICCID, "error", switchBackErr)
-				_ = s.restoreAutomaticTaskEnvironment(physicalID, snapshot)
+				if actual, restoreErr := s.restoreObservedAutomaticTaskEnvironment(cleanupContext, physicalID, revertState.snapshot, snapshot); restoreErr != nil {
+					switchBackErr = errors.Join(switchBackErr, restoreErr)
+				} else if actual == revertState.initialICCID {
+					return // committed despite the uncertain switch response
+				}
 				if err == nil {
 					output = ""
 					err = automaticTaskExecutionError{
@@ -241,15 +282,16 @@ func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticT
 						retryable: false,
 					}
 				} else {
-					err = fmt.Errorf("%w; additionally failed to revert to previous profile %s: %v", err, revertState.initialICCID, switchBackErr)
+					err = automaticTaskExecutionError{err: fmt.Errorf("%w; additionally failed to revert to previous profile %s: %v", err, revertState.initialICCID, switchBackErr), retryable: false}
 				}
 				return
 			}
-			if refreshSnap, verifyErr := s.devices.Refresh(cleanupContext, physicalID); verifyErr == nil && !strings.EqualFold(strings.TrimSpace(refreshSnap.ICCID), revertState.initialICCID) {
-				s.logger.Warn("revert verification failed", "expected", revertState.initialICCID, "actual", refreshSnap.ICCID)
+			if refreshSnap, verifyErr := s.devices.Refresh(cleanupContext, physicalID); verifyErr != nil || !strings.EqualFold(strings.TrimSpace(refreshSnap.ICCID), revertState.initialICCID) {
+				err = automaticTaskExecutionError{err: errors.Join(err, verifyErr, errors.New("the original profile could not be verified after reverting")), retryable: false}
+				return
 			}
 			progress("正在恢复原卡环境与网络策略")
-			if restoreErr := s.restoreAutomaticTaskEnvironment(physicalID, revertState.snapshot); restoreErr != nil {
+			if restoreErr := s.restoreAutomaticTaskEnvironment(physicalID, revertState.snapshot, cleanupContext); restoreErr != nil {
 				s.logger.Warn("automatic task failed to restore initial profile environment", "device_id", task.DeviceID, "initial_iccid", revertState.initialICCID, "error", restoreErr)
 				if err == nil {
 					output = ""
@@ -258,7 +300,7 @@ func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticT
 						retryable: false,
 					}
 				} else {
-					err = fmt.Errorf("%w; reverted to profile %s but policy restoration failed: %v", err, revertState.initialICCID, restoreErr)
+					err = automaticTaskExecutionError{err: fmt.Errorf("%w; reverted to profile %s but policy restoration failed: %v", err, revertState.initialICCID, restoreErr), retryable: false}
 				}
 				return
 			}
@@ -266,14 +308,14 @@ func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticT
 		}
 
 		progress("正在恢复该 Profile 原先保存的卡策略")
-		if restoreErr := s.restoreAutomaticTaskEnvironment(physicalID, snapshot); restoreErr != nil {
+		if restoreErr := s.restoreAutomaticTaskEnvironment(physicalID, snapshot, cleanupContext); restoreErr != nil {
 			if err == nil && actionCompleted {
 				output = ""
 				err = automaticTaskExecutionError{err: fmt.Errorf("task completed but card policy restoration failed: %w", restoreErr), retryable: false}
 			} else if err == nil {
-				err = fmt.Errorf("restore card policy: %w", restoreErr)
+				err = automaticTaskExecutionError{err: fmt.Errorf("restore card policy: %w", restoreErr), retryable: false}
 			} else {
-				err = fmt.Errorf("%w; card policy restoration also failed: %v", err, restoreErr)
+				err = automaticTaskExecutionError{err: fmt.Errorf("%w; card policy restoration also failed: %v", err, restoreErr), retryable: false}
 			}
 		}
 	}()
@@ -304,15 +346,23 @@ func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticT
 }
 
 type automaticTaskRevertState struct {
-	needed       bool
-	physicalID   string
-	initialICCID string
-	initialAID   string
-	snapshot     automaticTaskEnvironmentSnapshot
+	needed          bool
+	modified        bool
+	switchAttempted bool
+	physicalID      string
+	initialICCID    string
+	initialAID      string
+	snapshot        automaticTaskEnvironmentSnapshot
 }
 
-func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.AutomaticTask, progress automaticTaskProgress) (store.Device, device.Device, string, automaticTaskRevertState, error) {
-	config, err := s.store.Device(ctx, task.DeviceID)
+func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.AutomaticTask, progress automaticTaskProgress) (config store.Device, entry device.Device, physicalID string, revertState automaticTaskRevertState, err error) {
+	var recovery automaticTaskRevertState
+	defer func() {
+		if err != nil && recovery.modified {
+			config, physicalID, revertState = recovery.snapshot.config, recovery.physicalID, recovery
+		}
+	}()
+	config, err = s.store.Device(ctx, task.DeviceID)
 	if err != nil {
 		return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, fmt.Errorf("read device: %w", err)
 	}
@@ -340,7 +390,9 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 		return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, fmt.Errorf("read initial card policy: %w", policyErr)
 	}
 	initialSnapshot := automaticTaskEnvironmentSnapshot{config: config, policy: initialPolicy}
+	recovery = automaticTaskRevertState{physicalID: physicalID, initialICCID: initialICCID, snapshot: initialSnapshot}
 	if config.Telephony != nil {
+		recovery.modified = true
 		if err := s.stopTelephonyAccess(ctx, config); err != nil {
 			return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, err
 		}
@@ -362,14 +414,10 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 		}
 	}
 
-	revertState := automaticTaskRevertState{
-		needed:       true,
-		physicalID:   physicalID,
-		initialICCID: initialICCID,
-		initialAID:   initialAID,
-		snapshot:     initialSnapshot,
-	}
+	recovery.initialAID = initialAID
+	revertState = recovery
 	originalNetworkEnabled := config.NetworkEnabled
+	recovery.modified = true
 	if task.TaskType == "cellular_attach" {
 		// Persist the disabled intent before switching: device reappearance can
 		// otherwise make the lifecycle reconciler restore the previous data state.
@@ -389,9 +437,10 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 	s.clearPublicIP(config.ID)
 	dataRuntime.invalidateWithMaintenancePhase(config.ID, desiredData, "recovering", "", "profile_switching")
 	switchCompleted := false
+	switchDeviceID := config.ID
 	defer func() {
 		if !switchCompleted {
-			dataRuntime.invalidate(config.ID, desiredData, "failed", "automatic eSIM profile switch did not complete")
+			dataRuntime.invalidate(switchDeviceID, desiredData, "failed", "automatic eSIM profile switch did not complete")
 		}
 	}()
 	if _, err := s.devices.SetFlight(ctx, physicalID, true); err != nil {
@@ -409,6 +458,8 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 		}
 		return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, fmt.Errorf("enter airplane mode before profile switch: %w", err)
 	}
+	recovery.needed, recovery.switchAttempted = true, true
+	revertState = recovery
 	if err := s.devices.ESIMSwitchProfile(ctx, physicalID, task.ProfileICCID, task.ProfileAID); err != nil {
 		return store.Device{}, device.Device{}, "", automaticTaskRevertState{}, fmt.Errorf("switch eSIM profile: %w", err)
 	}
@@ -516,6 +567,7 @@ func (s *Server) prepareAutomaticTaskEnvironment(ctx context.Context, config *st
 	}
 	progress("正在开启蜂窝无线并启用自动选网")
 	config.VoWiFiEnabled = false
+	config.IMSMode, config.IMSEnabled = store.IMSModeModule, false
 	config.NetworkEnabled = task.TaskType == "public_ip"
 	if err := s.store.UpsertDevice(ctx, *config); err != nil {
 		return err
@@ -670,15 +722,7 @@ func (s *Server) executeAutomaticCall(ctx context.Context, task store.AutomaticT
 	if !present {
 		return "", errors.New("configured device is offline")
 	}
-	body, _ := json.Marshal(map[string]any{"number": payload.Phone, "duration_seconds": payload.DurationSeconds})
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/devices/calls/dial", bytes.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	s.handleCallAction(recorder, request, config, physicalID, "dial")
-	if recorder.Code < 200 || recorder.Code >= 300 {
-		return "", fmt.Errorf("dial failed (HTTP %d): %s", recorder.Code, compactAutomaticResponse(recorder.Body.Bytes()))
-	}
-	return fmt.Sprintf("已拨打 %s，将在 %d 秒后自动挂断", payload.Phone, payload.DurationSeconds), nil
+	return s.executeOwnedAutomaticCall(ctx, config, physicalID, task, payload)
 }
 
 func (s *Server) executeAutomaticPublicIP(ctx context.Context, config store.Device, iccid string) (string, error) {
@@ -693,13 +737,29 @@ func (s *Server) executeAutomaticPublicIP(ctx context.Context, config store.Devi
 	return strings.TrimSpace(fmt.Sprintf("公网 IP %s · %s %s", info.IP, info.CountryCode, info.Region)), nil
 }
 
-func (s *Server) restoreAutomaticTaskEnvironment(physicalID string, snapshot automaticTaskEnvironmentSnapshot) error {
-	cleanupContext, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+func (s *Server) restoreAutomaticTaskEnvironment(physicalID string, snapshot automaticTaskEnvironmentSnapshot, origins ...context.Context) error {
+	origin := context.Background()
+	if len(origins) != 0 && origins[0] != nil {
+		origin = context.WithoutCancel(origins[0])
+	}
+	cleanupContext, cancel := context.WithTimeout(origin, 60*time.Second)
 	defer cancel()
 	config, policy := snapshot.config, snapshot.policy
 	if config.Telephony != nil {
 		return s.restoreIndependentTaskEnvironment(cleanupContext, physicalID, snapshot)
 	}
+	current, readErr := s.store.Device(cleanupContext, config.ID)
+	if readErr != nil {
+		return readErr
+	}
+	if err := s.requireAutomaticTaskCallsIdle(cleanupContext, current); err != nil {
+		return err
+	}
+	live, liveErr := s.devices.Refresh(cleanupContext, physicalID)
+	if liveErr != nil || strings.TrimSpace(live.ICCID) != strings.TrimSpace(policy.ICCID) {
+		return errors.Join(liveErr, errors.New("the saved task environment does not match the current SIM"))
+	}
+	identity := vowifi.SIMIdentity{ICCID: strings.TrimSpace(live.ICCID), IMSI: strings.TrimSpace(live.IMSI)}
 	desiredNetwork := policy.NetworkEnabled && !policy.VoWiFiEnabled && !policy.AirplaneEnabled
 	config.APN = policy.APN
 	config.NetworkEnabled = desiredNetwork
@@ -735,7 +795,7 @@ func (s *Server) restoreAutomaticTaskEnvironment(physicalID string, snapshot aut
 		if _, err := s.applyCellularData(cleanupContext, config.ID, physicalID, s.cardNetworkRequest(cleanupContext, physicalID, config, policy, false)); err != nil {
 			restoreErrors = append(restoreErrors, fmt.Errorf("stop cellular data: %w", err))
 		}
-		if _, err := s.devices.SetFlight(cleanupContext, physicalID, true); err != nil {
+		if _, err := s.setSubscriptionFlight(cleanupContext, physicalID, identity, true); err != nil {
 			restoreErrors = append(restoreErrors, fmt.Errorf("restore airplane mode: %w", err))
 		}
 		if s.vowifi == nil {
@@ -760,7 +820,7 @@ func (s *Server) restoreAutomaticTaskEnvironment(physicalID string, snapshot aut
 		if _, err := s.applyCellularData(cleanupContext, config.ID, physicalID, s.cardNetworkRequest(cleanupContext, physicalID, config, policy, false)); err != nil {
 			restoreErrors = append(restoreErrors, fmt.Errorf("stop cellular data: %w", err))
 		}
-		if _, err := s.devices.SetFlight(cleanupContext, physicalID, true); err != nil {
+		if _, err := s.setSubscriptionFlight(cleanupContext, physicalID, identity, true); err != nil {
 			restoreErrors = append(restoreErrors, fmt.Errorf("restore airplane mode: %w", err))
 		}
 		return errors.Join(restoreErrors...)
@@ -770,7 +830,7 @@ func (s *Server) restoreAutomaticTaskEnvironment(physicalID string, snapshot aut
 			restoreErrors = append(restoreErrors, fmt.Errorf("stop cellular data: %w", err))
 		}
 	}
-	if _, err := s.devices.SetFlight(cleanupContext, physicalID, false); err != nil {
+	if _, err := s.setSubscriptionFlight(cleanupContext, physicalID, identity, false); err != nil {
 		restoreErrors = append(restoreErrors, fmt.Errorf("restore cellular radio: %w", err))
 	}
 	if desiredNetwork {

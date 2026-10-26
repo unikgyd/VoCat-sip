@@ -1632,9 +1632,11 @@ func (s *Server) applyLiveCardMBN(iccid string) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
-		lock := s.imsModeLock(configuredID)
-		lock.RLock()
-		defer lock.RUnlock()
+		unlock, gateErr := s.acquireLineRead(ctx, configuredID)
+		if gateErr != nil {
+			return
+		}
+		defer unlock()
 		current, err := s.store.Device(ctx, configuredID)
 		if err != nil || store.HostIMSConfigured(current) {
 			return

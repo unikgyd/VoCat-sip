@@ -142,6 +142,7 @@ type cellularDataRuntimeEntry struct {
 	cancel        context.CancelFunc
 	changed       chan struct{}
 	probeFailures int
+	taskLease     *automaticTaskLease
 }
 
 type cellularDataWorker struct {
@@ -216,11 +217,11 @@ func (setter imsAwareNetworkSetter) SetNetwork(ctx context.Context, physicalID s
 		if !present || resolved != physicalID {
 			continue
 		}
-		lock := s.imsModeLock(candidate.ID)
-		if err := lockDataLineRead(ctx, lock); err != nil {
+		unlock, err := s.acquireLineRead(ctx, candidate.ID)
+		if err != nil {
 			return device.NetworkResult{}, err
 		}
-		defer lock.RUnlock()
+		defer unlock()
 		current, err := s.store.Device(ctx, candidate.ID)
 		if err != nil {
 			return device.NetworkResult{}, err
@@ -367,9 +368,11 @@ func (s *Server) reconcileCellularDataForPhysical(ctx context.Context, physicalI
 }
 
 func (s *Server) restoreLegacyCellularDataForDevice(ctx context.Context, id, physicalFilter string, onlyEnabled bool) {
-	lock := s.imsModeLock(id)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, err := s.acquireLineRead(ctx, id)
+	if err != nil {
+		return
+	}
+	defer unlock()
 	config, err := s.store.Device(ctx, id)
 	if err != nil || (config.VoWiFiEnabled && store.WiFiExclusive(config)) || store.HostIMSConfigured(config) || onlyEnabled && !config.NetworkEnabled {
 		return
@@ -470,9 +473,11 @@ func (s *Server) monitorCellularData(ctx context.Context, physicalID string, imm
 }
 func (s *Server) monitorCellularDataForDevice(ctx context.Context, observer cellularNetworkStatusController, id, physicalID string, immediateFailure bool) {
 	runtime := s.cellularDataRuntime()
-	lock := s.imsModeLock(id)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, err := s.acquireLineRead(ctx, id)
+	if err != nil {
+		return
+	}
+	defer unlock()
 	config, err := s.store.Device(ctx, id)
 	if err != nil {
 		return
@@ -581,8 +586,15 @@ func (runtime *cellularDataRuntime) requestWithIdentity(
 	request device.NetworkRequest,
 	identity string,
 ) cellularDataRuntimeStatus {
+	return runtime.requestWithIdentityContext(context.Background(), configID, physicalID, request, identity)
+}
+
+func (runtime *cellularDataRuntime) requestWithIdentityContext(ctx context.Context, configID, physicalID string, request device.NetworkRequest, identity string) cellularDataRuntimeStatus {
 	runtime.mu.Lock()
 	status := runtime.requestLocked(configID, physicalID, request, strings.TrimSpace(identity))
+	if !runtime.quiescing[configID] {
+		runtime.entries[configID].taskLease, _ = ctx.Value(automaticTaskLeaseKey{}).(*automaticTaskLease)
+	}
 	runtime.mu.Unlock()
 	return status
 }
@@ -1083,6 +1095,9 @@ func (runtime *cellularDataRuntime) run(configID string, entry *cellularDataRunt
 		}
 		operationContext, cancel := context.WithTimeout(root, operationTimeout)
 		operationContext = context.WithValue(operationContext, cellularDataIdentityKey{}, cellularDataIdentity{config: configID, physical: physicalID, iccid: entry.identity})
+		if entry.taskLease != nil {
+			operationContext = context.WithValue(operationContext, automaticTaskLeaseKey{}, entry.taskLease)
+		}
 		worker.cancel = cancel
 		entry.cancel = cancel
 		runtime.mu.Unlock()
@@ -1290,7 +1305,7 @@ func (s *Server) applyCellularData(
 			identity = strings.TrimSpace(entry.Snapshot.ICCID)
 		}
 	}
-	requested := runtime.requestWithIdentity(configID, physicalID, request, identity)
+	requested := runtime.requestWithIdentityContext(ctx, configID, physicalID, request, identity)
 	status, err := runtime.wait(ctx, configID, requested.Revision)
 	return device.NetworkResult{Enabled: status.Connected}, err
 }

@@ -55,6 +55,13 @@ type Backend interface {
 	Acquire(context.Context, string) (Lease, error)
 }
 
+// SignalingBackend is optional. Maintenance calls can retain the same exact
+// physical/call ownership on an AT modem that has no USB audio endpoint.
+type SignalingBackend interface {
+	AvailableSignaling(context.Context, string) error
+	AcquireSignaling(context.Context, string) (Lease, error)
+}
+
 func ParseRecords(response modem.Response) ([]Record, error) {
 	if !response.OK() {
 		return nil, ErrUncertain

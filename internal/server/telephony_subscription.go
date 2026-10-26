@@ -155,9 +155,12 @@ func (s *Server) reconcileTelephonyLine(ctx context.Context, id, previous string
 	needsBinding = needsBinding || data.quiescing[id]
 	data.mu.Unlock()
 	needsBinding = needsBinding || store.HostIMSConfigured(current) && current.NetworkEnabled
-	if previous == "" && identity.ICCID != "" {
-		if saved, err := s.store.SIMTelephonyPolicy(operation, identity.ICCID); err == nil && saved != *current.Telephony {
-			needsBinding = true // interrupted temporary task projection
+	if identity.ICCID != "" {
+		if saved, err := s.store.SIMTelephonyPolicy(operation, identity.ICCID); err == nil {
+			needsBinding = needsBinding || saved != *current.Telephony // interrupted temporary task projection
+		} else if !errors.Is(err, store.ErrNotFound) {
+			s.telephonyReconcileError(id, err)
+			return "", false
 		}
 	}
 	if needsBinding {

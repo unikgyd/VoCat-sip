@@ -52,6 +52,7 @@ func (s *Server) prepareIndependentTaskEnvironment(ctx context.Context, config *
 		progress("正在准备独立 Wi-Fi 通话执行环境")
 		policy.AutoConnectWiFi = true
 		policy.AutoConnectCellular = false
+		policy.WiFiRadioPolicy = "exclusive"
 		policy.DefaultRoute = store.IMSModeVoWiFi
 	} else {
 		progress("正在准备蜂窝执行环境")
@@ -113,6 +114,13 @@ func (s *Server) restoreIndependentTaskEnvironment(ctx context.Context, physical
 	if err != nil || identity.ICCID != config.Telephony.ICCID {
 		return errors.New("task restoration subscription could not be verified")
 	}
+	// Independent tasks edit only the active projection. Reload durable card
+	// settings so a concurrent APN/settings edit is not overwritten by a snapshot.
+	fresh, err := s.taskCardSnapshot(ctx, config, identity)
+	if err != nil {
+		return err
+	}
+	config, card = fresh.config, fresh.policy
 	card.VoWiFiEnabled = false
 	if err := s.store.SaveTelephonyPolicy(ctx, config, *config.Telephony, card); err != nil {
 		return err

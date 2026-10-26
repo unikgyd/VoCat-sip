@@ -226,9 +226,12 @@ func (s *Server) handleTelephonyReconnect(w http.ResponseWriter, r *http.Request
 		writeError(w, 400, "invalid_access", "access must be module, host_ims or vowifi")
 		return true
 	}
-	gate := s.imsModeLock(config.ID)
-	gate.RLock()
-	defer gate.RUnlock()
+	unlock, gateErr := s.acquireLineRead(r.Context(), config.ID)
+	if gateErr != nil {
+		writeError(w, 409, "line_busy", gateErr.Error())
+		return true
+	}
+	defer unlock()
 	current, err := s.store.Device(r.Context(), config.ID)
 	if err != nil {
 		s.writeStoreError(w, err)

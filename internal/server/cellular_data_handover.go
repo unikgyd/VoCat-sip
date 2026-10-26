@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"sync"
 	"time"
 
 	"vocat/internal/device"
@@ -16,26 +15,6 @@ type cellularDataIdentity struct{ config, physical, iccid string }
 
 type ownedNetworkController interface {
 	StopOwnedNetwork(context.Context, string) error
-}
-
-// A lifecycle writer can cancel and join a worker waiting for this read gate.
-// A blocking RLock would ignore that cancellation and deadlock the handover.
-func lockDataLineRead(ctx context.Context, lock *sync.RWMutex) error {
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if lock.TryRLock() {
-			return nil
-		}
-		timer := time.NewTimer(20 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
 }
 
 // Keep every live worker, including workers whose entry was superseded by
@@ -182,7 +161,7 @@ func (s *Server) startTelephonyData(ctx context.Context, config store.Device, ph
 	if !alreadyQueued {
 		request := s.cellularNetworkRequest(ctx, config, entry.Snapshot)
 		request.Enabled = true
-		runtime.requestWithIdentity(config.ID, physical, request, identity.ICCID)
+		runtime.requestWithIdentityContext(ctx, config.ID, physical, request, identity.ICCID)
 	}
 	return nil
 }

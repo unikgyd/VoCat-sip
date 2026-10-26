@@ -127,7 +127,9 @@ const hostIMSShutdownTimeout = 20 * time.Second
 // mode-changing API. A stale ListDevices row is never authority for RF/I/O.
 func lockIMSLineRead(ctx context.Context, database *store.Store, id string) (store.Device, func(), error) {
 	gate := linelock.For(id)
-	gate.RLock()
+	if !gate.TryRLock() {
+		return store.Device{}, nil, errors.New("a line operation is in progress")
+	}
 	config, err := database.Device(ctx, id)
 	if err != nil {
 		gate.RUnlock()
@@ -199,8 +201,13 @@ func lockLegacyPhysicalRead(ctx context.Context, database *store.Store, inventor
 	if !ok {
 		return nil, false
 	}
-	for _, id := range ids {
-		linelock.For(id).RLock()
+	for i, id := range ids {
+		if !linelock.For(id).TryRLock() {
+			for j := i - 1; j >= 0; j-- {
+				linelock.For(ids[j]).RUnlock()
+			}
+			return nil, false
+		}
 	}
 	unlock := func() {
 		for i := len(ids) - 1; i >= 0; i-- {

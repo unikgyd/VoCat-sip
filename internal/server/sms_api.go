@@ -265,9 +265,12 @@ func (s *Server) handleSMSSend(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "device_required", "a sending device is required")
 		return
 	}
-	lock := s.imsModeLock(request.DeviceID)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, gateErr := s.acquireLineRead(r.Context(), request.DeviceID)
+	if gateErr != nil {
+		writeError(w, 409, "line_busy", gateErr.Error())
+		return
+	}
+	defer unlock()
 	if blocked, reason := blockedSMSDestination(request.Phone); blocked {
 		writeError(w, http.StatusBadRequest, "blocked_destination", reason)
 		return
@@ -710,9 +713,11 @@ func (s *Server) syncOneModemSMSObservedLocked(ctx context.Context, id string, a
 			s.invalidateSMSForwardScan(id)
 		}
 	}()
-	lock := s.imsModeLock(id)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, gateErr := s.acquireLineRead(ctx, id)
+	if gateErr != nil {
+		return
+	}
+	defer unlock()
 	config, err := s.store.Device(ctx, id)
 	if err != nil {
 		return
@@ -1434,9 +1439,11 @@ func (s *Server) deleteModemSMS(ctx context.Context, stored store.SMSMessage) er
 		// Removed devices leave SMS history that can be deleted locally.
 		return nil
 	}
-	lock := s.imsModeLock(config.ID)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, gateErr := s.acquireLineRead(ctx, config.ID)
+	if gateErr != nil {
+		return gateErr
+	}
+	defer unlock()
 	config, err = s.store.Device(ctx, config.ID)
 	if err != nil {
 		return err

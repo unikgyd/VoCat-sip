@@ -18,6 +18,11 @@ import (
 type sipCarrierBackend struct{ server *Server }
 
 func (b sipCarrierBackend) Ready(ctx context.Context, id string) error {
+	unlock, gateErr := b.server.acquireLineRead(ctx, id)
+	if gateErr != nil {
+		return errors.Join(sipgateway.ErrCarrierBusy, gateErr)
+	}
+	defer unlock()
 	if err := b.registered(ctx, id); err != nil {
 		return err
 	}
@@ -136,6 +141,11 @@ func (b sipCarrierBackend) Incoming(ctx context.Context, id, callID string) (vow
 }
 
 func (b sipCarrierBackend) Answer(ctx context.Context, id, callID string) (vowifi.Call, error) {
+	unlock, gateErr := b.server.acquireLineRead(ctx, id)
+	if gateErr != nil {
+		return vowifi.Call{}, errors.Join(sipgateway.ErrCarrierAnswerNotAttempted, gateErr)
+	}
+	defer unlock()
 	if _, err := b.Incoming(ctx, id, callID); err != nil {
 		return vowifi.Call{}, errors.Join(sipgateway.ErrCarrierAnswerNotAttempted, err)
 	}
@@ -147,9 +157,12 @@ func (b sipCarrierBackend) Answer(ctx context.Context, id, callID string) (vowif
 	var err error
 	defer func() { release(errors.Is(err, sipgateway.ErrCarrierAnswerNotAttempted)) }()
 	if b.server.moduleVoiceCall(id, callID) {
-		lock := b.server.imsModeLock(id)
-		lock.RLock()
-		defer lock.RUnlock()
+		unlock, gateErr := b.server.acquireLineRead(ctx, id)
+		if gateErr != nil {
+			err = errors.Join(sipgateway.ErrCarrierAnswerNotAttempted, gateErr)
+			return vowifi.Call{}, err
+		}
+		defer unlock()
 		call, err = b.server.moduleCalls.AnswerCall(ctx, id, callID)
 		if errors.Is(err, modulecall.ErrNotAttempted) {
 			err = errors.Join(sipgateway.ErrCarrierAnswerNotAttempted, err)
@@ -212,15 +225,22 @@ func (b sipCarrierBackend) Calls(ctx context.Context, id string) ([]vowifi.Call,
 	return controller.Calls(id)
 }
 func (b sipCarrierBackend) Dial(ctx context.Context, id, number string) (vowifi.Call, error) {
+	unlock, gateErr := b.server.acquireLineRead(ctx, id)
+	if gateErr != nil {
+		return vowifi.Call{}, errors.Join(sipgateway.ErrCarrierBusy, gateErr)
+	}
+	defer unlock()
 	if err := b.Ready(ctx, id); err != nil {
 		return vowifi.Call{}, err
 	}
 	var call vowifi.Call
 	var err error
 	if b.server.moduleVoiceSelected(ctx, id) {
-		lock := b.server.imsModeLock(id)
-		lock.RLock()
-		defer lock.RUnlock()
+		unlock, gateErr := b.server.acquireLineRead(ctx, id)
+		if gateErr != nil {
+			return vowifi.Call{}, gateErr
+		}
+		defer unlock()
 		call, err = b.server.moduleCalls.DialCall(ctx, id, number)
 	} else {
 		call, err = b.server.vowifi.(VoWiFiCallController).DialCall(ctx, id, number)

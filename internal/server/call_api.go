@@ -338,9 +338,11 @@ func (s *Server) hangupAfter(deviceID string, scope *moduleCallScope, duration t
 	s.hangupModuleScope(ctx, deviceID, scope)
 }
 func (s *Server) hangupModuleScope(ctx context.Context, deviceID string, scope *moduleCallScope) {
-	lock := s.imsModeLock(deviceID)
-	lock.RLock()
-	defer lock.RUnlock()
+	unlock, gateErr := s.acquireLineRead(ctx, deviceID)
+	if gateErr != nil {
+		return
+	}
+	defer unlock()
 	current, ok := s.moduleCallScopes.Load(deviceID)
 	if !ok || current != scope || scope == nil || s.store == nil {
 		return
