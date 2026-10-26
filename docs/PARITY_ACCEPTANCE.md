@@ -91,6 +91,15 @@ The proxy's versioned source retains unreleased client records after application
 disconnect. No data crash was injected or counted as recovered; durable bearer
 and host-resource recovery remains required. Only a stale source comment changed.
 
+The [ordinary-data fence acceptance](VERIFICATION_20261027_DATA_FENCE.md) then
+adds a durable original-owner admission/release fence: 2,066 Linux Go passes,
+30 selected race executions, three isolated kernel cases, vet and two builds.
+The checked candidate created and released its private record during real CTNET
+IPv4, IPv6 and dual-stack connections, with public-IP queries and full original
+environment restoration. Process-exit fencing is tested without a live packet
+call. Lost-transport automatic cleanup is still open; this is not data-crash
+recovery acceptance.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
 hotplug, Host IMS/module-data crash recovery, successful scheduled work and external provider

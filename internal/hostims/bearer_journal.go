@@ -33,6 +33,13 @@ func (j SQLiteClaimJournal) Read(ctx context.Context, key string) ([]byte, error
 	if j.Database == nil {
 		return nil, ErrJournal
 	}
+	pending, err := j.Database.HasDataBearerClaim(ctx, key, "")
+	if err != nil {
+		return nil, ErrJournal
+	}
+	if pending {
+		return nil, ErrConflict
+	}
 	value, err := j.Database.AppSetting(ctx, "host.ims.claim.private.v1."+key)
 	if errors.Is(err, store.ErrNotFound) {
 		return nil, nil

@@ -36,13 +36,12 @@ func (m *Manager) stopOwnedQMINetwork(ctx context.Context, state *managedDevice,
 		// Discovery proved the old generation disappeared. Never send the old
 		// PDH through a newly opened client at the recycled control pathname.
 		closeQMIDataSession(state)
-		state.dataOwner = nil
-		return nil
+		owner.packetStopped = true
+		return m.releaseDataOwner(ctx, state)
 	}
-	if owner.radioStopped {
+	if owner.radioStopped || owner.packetStopped {
 		closeQMIDataSession(state)
-		state.dataOwner = nil
-		return nil
+		return m.releaseDataOwner(ctx, state)
 	}
 	if state.dataSession == nil {
 		return ErrDataCleanupPending
@@ -65,8 +64,8 @@ func (m *Manager) stopOwnedQMINetwork(ctx context.Context, state *managedDevice,
 		}
 	}
 	closeQMIDataSession(state)
-	state.dataOwner = nil
-	return nil
+	owner.packetStopped = true
+	return m.releaseDataOwner(ctx, state)
 }
 
 // The lifecycle fence prevents a new VoCat data owner during this operation.

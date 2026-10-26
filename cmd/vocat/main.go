@@ -517,13 +517,28 @@ func run(logger *slog.Logger, logs *loghub.Hub) (runErr error) {
 
 	cardReaders := pcsc.New()
 	deviceLogger := logger.With("category", "hardware")
-	deviceManager, err := device.NewManager(device.Options{
+	dataClaimJournal := newDataClaimJournal(database)
+	var deviceManager *device.Manager
+	deviceManager, err = device.NewManager(device.Options{
+		DataClaims:  dataClaimJournal,
 		CardReaders: cardReaders,
 		Logger:      deviceLogger,
 		AllowAutomaticSIMRecovery: func(ctx context.Context, candidate modem.Candidate) bool {
+			if dataClaimJournal != nil {
+				pending, err := dataClaimJournal.Pending(ctx, candidate)
+				if err != nil || pending {
+					return false
+				}
+			}
 			return allowAutomaticSIMRecovery(ctx, database, candidate)
 		},
 		LegacyWriteICCID: func(ctx context.Context, candidate modem.Candidate) (string, error) {
+			if dataClaimJournal != nil {
+				pending, err := dataClaimJournal.Pending(ctx, candidate)
+				if err != nil || pending && (deviceManager == nil || !deviceManager.OwnsDataClaim(candidate)) {
+					return "", device.ErrDataCleanupPending
+				}
+			}
 			return legacyWriteICCID(ctx, database, candidate)
 		},
 		MBNProfileForICCID: func(ctx context.Context, iccid string) (string, error) {

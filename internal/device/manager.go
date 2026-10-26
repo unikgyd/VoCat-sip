@@ -17,6 +17,7 @@ import (
 )
 
 type Options struct {
+	DataClaims     DataClaimJournal
 	AudioInspector modemaudio.Inspector
 	Discoverer     modem.Discoverer
 	Opener         modem.Opener
@@ -39,6 +40,8 @@ type Options struct {
 }
 
 type Manager struct {
+	dataClaimJournal          DataClaimJournal
+	dataClaims                dataClaims
 	audioInspector            modemaudio.Inspector
 	mu                        sync.RWMutex
 	uiccMu                    sync.Mutex // serializes all multi-command UICC/APDU transactions
@@ -192,6 +195,7 @@ func NewManager(options Options) (*Manager, error) {
 		options.AudioInspector = modemaudio.NewService(modemaudio.Resolver{})
 	}
 	return &Manager{
+		dataClaimJournal:   options.DataClaims,
 		audioInspector:     options.AudioInspector,
 		discoverer:         options.Discoverer,
 		opener:             options.Opener,

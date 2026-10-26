@@ -13,22 +13,24 @@ var ErrDataCleanupPending = errors.New("original cellular data cleanup has not b
 // dataMu owns this capability. It is not reconstructed from a reused control
 // basename, current SIM, APN, or the current desired device configuration.
 type ownedNetwork struct {
-	candidate    modem.Candidate
-	backend      string
-	guard        *simWriteGuard
-	interfaceID  int
-	hostTouched  bool
-	handleKnown  bool
-	radioStopped bool // confirmed RF-off ended this generation's packet calls
-	ipFamily     uint8
-	requestKey   string
-	ipv6Address  string // exact installed address; never flush foreign IPv6 addresses
-	ipv4Address  string
-	ipv6Settings map[string]string
-	ipv4Routes   bool
-	ipv6Routes   bool
-	hostMTU      int
-	hostLinkUp   bool
+	claim         DataClaim
+	candidate     modem.Candidate
+	backend       string
+	guard         *simWriteGuard
+	interfaceID   int
+	hostTouched   bool
+	handleKnown   bool
+	radioStopped  bool // confirmed RF-off ended this generation's packet calls
+	packetStopped bool // original WDS stop ACK; journal deletion may still need retry
+	ipFamily      uint8
+	requestKey    string
+	ipv6Address   string // exact installed address; never flush foreign IPv6 addresses
+	ipv4Address   string
+	ipv6Settings  map[string]string
+	ipv4Routes    bool
+	ipv6Routes    bool
+	hostMTU       int
+	hostLinkUp    bool
 }
 
 func (m *Manager) SetNetworkForSIM(ctx context.Context, id, iccid, imsi string, request NetworkRequest) (NetworkResult, error) {
@@ -59,7 +61,7 @@ func (m *Manager) StopOwnedNetwork(ctx context.Context, id string) error {
 	state := m.devices[id] // retained inventory also holds disconnected owners
 	m.mu.RUnlock()
 	if state == nil {
-		return nil
+		return m.requireNoPendingDataClaim(ctx, modem.Candidate{ID: id})
 	}
 	if err := lockMutexContext(ctx, &state.opMu); err != nil {
 		return err
@@ -74,7 +76,7 @@ func (m *Manager) StopOwnedNetwork(ctx context.Context, id string) error {
 		if state.dataSession != nil {
 			return ErrDataCleanupPending
 		}
-		return nil
+		return m.requireNoPendingDataClaim(ctx, m.candidateFor(state))
 	}
 	if owner.backend == "qmi" {
 		return m.stopOwnedQMINetwork(ctx, state, owner)

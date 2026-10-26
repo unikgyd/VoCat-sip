@@ -39,6 +39,18 @@ type productionQMIDataSession struct {
 	packetStatusEventOnce sync.Once
 }
 
+func (s *productionQMIDataSession) GetIMEI(ctx context.Context) (string, error) {
+	dms, err := qmi.NewDMSServiceWithContext(ctx, s.client)
+	if err != nil {
+		return "", err
+	}
+	info, err := dms.GetDeviceSerialNumbers(ctx)
+	if err != nil {
+		return "", err
+	}
+	return info.IMEI, nil
+}
+
 func (s *productionQMIDataSession) GetICCID(ctx context.Context) (string, error) {
 	if s.uim == nil {
 		var err error
@@ -615,7 +627,8 @@ func rollbackQMIDataHost(state *managedDevice, candidate modem.Candidate, ipComm
 		cleanupErr := clearOwnedQMIHost(rollbackContext, owner, current)
 		if !current && cleanupErr == nil {
 			closeQMIDataSession(state)
-			state.dataOwner = nil
+			owner.packetStopped = true
+			_ = owner.guard.manager.releaseDataOwner(rollbackContext, state)
 			return
 		}
 		if state.dataSession != nil {
@@ -630,7 +643,8 @@ func rollbackQMIDataHost(state *managedDevice, candidate modem.Candidate, ipComm
 			}
 			if err := stop(); stoppedQMIDataError(err) && cleanupErr == nil {
 				closeQMIDataSession(state)
-				state.dataOwner = nil
+				owner.packetStopped = true
+				_ = owner.guard.manager.releaseDataOwner(rollbackContext, state)
 			}
 		}
 		return
@@ -689,10 +703,18 @@ func (manager *Manager) setQMINetwork(
 		return NetworkResult{}, err
 	}
 	scoped := guard != nil && guard.binding.iccid != ""
+	if state.dataOwner == nil {
+		if err := manager.requireNoPendingDataClaim(ctx, candidate); err != nil {
+			return NetworkResult{}, err
+		}
+	}
 	if !enabled && (scoped || state.dataOwner != nil && state.dataOwner.ipFamily != 0 && state.dataOwner.ipFamily != 4) {
 		if state.dataOwner == nil {
 			if state.dataSession != nil {
 				return NetworkResult{}, ErrDataCleanupPending
+			}
+			if err := manager.requireNoPendingDataClaim(ctx, candidate); err != nil {
+				return NetworkResult{}, err
 			}
 			return NetworkResult{Backend: "qmi", Interface: candidate.NetworkInterface, Detail: "no process-owned packet data session"}, nil
 		}
@@ -734,6 +756,11 @@ func (manager *Manager) setQMINetwork(
 	}
 	requestKey := qmiDataRequestKey(apn, ipVersion, username, password, authentication)
 	if owner := state.dataOwner; owner != nil && owner.requestKey != "" && owner.requestKey != requestKey {
+		if err := manager.stopOwnedQMINetwork(ctx, state, owner); err != nil {
+			return NetworkResult{}, err
+		}
+	}
+	if owner := state.dataOwner; owner != nil && owner.packetStopped {
 		if err := manager.stopOwnedQMINetwork(ctx, state, owner); err != nil {
 			return NetworkResult{}, err
 		}
@@ -796,6 +823,21 @@ func (manager *Manager) setQMINetwork(
 		_ = session.Close()
 		return NetworkResult{}, err
 	}
+	var equipment string
+	if scoped && manager.dataClaimJournal != nil {
+		reader, ok := session.(interface {
+			GetIMEI(context.Context) (string, error)
+		})
+		if !ok {
+			_ = session.Close()
+			return NetworkResult{}, ErrDataCleanupPending
+		}
+		equipment, err = reader.GetIMEI(ctx)
+		if err != nil {
+			_ = session.Close()
+			return NetworkResult{}, ErrDataCleanupPending
+		}
+	}
 	family := qmiDataIPFamily(ipVersion)
 	retained := scoped || family != 4
 	if family != 4 {
@@ -853,6 +895,17 @@ func (manager *Manager) setQMINetwork(
 	}
 	if retained {
 		state.dataOwner = newOwnedQMINetwork(&ownedNetwork{candidate: copyCandidate(candidate), backend: "qmi", guard: guard, hostTouched: true, ipFamily: family, requestKey: requestKey})
+		if scoped && manager.dataClaimJournal != nil {
+			claim, err := manager.dataClaimJournal.Acquire(ctx, candidate, equipment, guard.binding.iccid, guard.binding.imsi)
+			if err != nil {
+				state.dataOwner = nil
+				disableQMIDataEvents(state)
+				_ = session.Close()
+				return NetworkResult{}, ErrDataCleanupPending
+			}
+			state.dataOwner.claim = claim
+			manager.retainDataClaim(candidate, claim)
+		}
 		state.dataSession, state.dataSessionControl = session, candidate.QMIControl
 		state.dataSessionHandle = 0
 	}

@@ -109,3 +109,12 @@ ownership. Cold recovery still needs a durable original bearer/host journal and
 an acknowledged cleanup capability; it must not adopt a cached CID/PDH or send
 modem-wide StopAny through a fresh client. Active ordinary-data crash recovery
 has not yet been implemented and accepted as an automatic restoration path.
+
+The application now persists a private, FULL-synchronous ownership fence before
+SIM-bound QMI format/packet mutations. The original live capability retains the
+same equipment lock used by Host IMS. A cold process cannot acknowledge a pending
+record merely because its in-memory inventory has no data owner. Unknown starts,
+failed original stops and failed journal deletion retain the fence; a confirmed
+original stop can retry journal deletion without issuing another modem stop.
+See [the exact scope and verification](DATA_OWNERSHIP_FENCE.md). This is a crash
+fence, not reconstruction of the lost WDS capability or host-resource recovery.

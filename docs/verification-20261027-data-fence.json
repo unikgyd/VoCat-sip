@@ -1,0 +1,116 @@
+{
+  "date": "2026-10-27",
+  "scope": "SIM-bound ordinary-data durable ownership fence",
+  "sourceBaseline": "cba79783b82b312e317798844fe73e80cc4df56a",
+  "sourceManifestSHA256": "2e4b8cb8926998dcdfa9370d5aad4eb10cc75b85059d3c0493d30cd5e50cf9eb",
+  "artifacts": {
+    "amd64": "ef7c558dac2053318cff30daad981f23fc73d0296960271c88987d0aebd8e519",
+    "arm64": "d24bc42aaeb661f580f36ab8a6707114d2685b6d24fdc4558c075915cd096eaf"
+  },
+  "software": [
+    {
+      "label": "go",
+      "exit": 0,
+      "seconds": 188.169,
+      "tests": {
+        "pass": 2066,
+        "fail": 0,
+        "skip": 50
+      }
+    },
+    {
+      "label": "data-kernel",
+      "exit": 0,
+      "seconds": 1.269,
+      "tests": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    {
+      "label": "vet",
+      "exit": 0,
+      "seconds": 6.546
+    },
+    {
+      "label": "race",
+      "exit": 0,
+      "seconds": 51.348,
+      "tests": {
+        "pass": 30,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    {
+      "label": "amd64",
+      "exit": 0,
+      "seconds": 15.877
+    },
+    {
+      "label": "arm64",
+      "exit": 0,
+      "seconds": 17.142
+    }
+  ],
+  "softwareProcessExitFence": true,
+  "windowsTargeted": {
+    "device": "pass",
+    "hostIMS": "pass",
+    "application": "pass",
+    "store": "failed",
+    "retainedFailure": "TestStoreConnectionsReapplySafetyAfterPhysicalDiscard/uri=true",
+    "failure": "Windows file URI SQLite ping error",
+    "runtimeSourceChangedForThisFailure": false
+  },
+  "additionalEnvironmentSkips": [
+    "TestAMRReleaseDefaultHasRealCodec",
+    "TestNativeAMRAllModesAndRTPDuplex"
+  ],
+  "liveCases": [
+    {
+      "ipMode": "4",
+      "privateRecordDuringConnection": 1,
+      "recordsAfterOriginalCleanup": 0,
+      "hostStateRestored": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "publicIPCacheClearedAfterStop": true
+    },
+    {
+      "ipMode": "6",
+      "privateRecordDuringConnection": 1,
+      "recordsAfterOriginalCleanup": 0,
+      "hostStateRestored": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 6,
+      "publicIPCacheClearedAfterStop": true
+    },
+    {
+      "ipMode": "dual",
+      "privateRecordDuringConnection": 1,
+      "recordsAfterOriginalCleanup": 0,
+      "hostStateRestored": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "publicIPCacheClearedAfterStop": true
+    }
+  ],
+  "firmwareChanges": false,
+  "modemResets": false,
+  "carrierCallsOrMobileSMS": false,
+  "activeCarrierDataCrashInjected": false,
+  "automaticLostTransportRecoveryProven": false,
+  "restoration": {
+    "originalManager": true,
+    "managerAutomaticRestarts": 0,
+    "bothOriginalRegisteredSIMs": true,
+    "originalDatabaseUnchanged": true,
+    "originalRunningContainersUnchanged": true,
+    "noRemainingTestClaims": true,
+    "noHostXFRM": true,
+    "applicationExitCode": 0,
+    "originalServerLockInodePreserved": true
+  }
+}

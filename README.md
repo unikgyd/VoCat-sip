@@ -66,6 +66,9 @@ SIM, with host-network crash recovery still listed separately.
 The [QMI ownership inquiry](docs/VERIFICATION_20261027_QMI_OWNERSHIP.md) records
 the fresh-client status observations that constrain ordinary-data recovery;
 automatic recovery of an active host data process remains open.
+The [ordinary-data ownership fence](docs/DATA_OWNERSHIP_FENCE.md) records ownership
+before a SIM-bound QMI start and prevents a new process from acknowledging or
+replacing an unresolved owner. Automatic cleanup after a lost transport remains open.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the
