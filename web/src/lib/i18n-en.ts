@@ -1796,7 +1796,6 @@ export const EN_DICT: Record<string, string> = {
   "录音已关闭": "Recording disabled",
   "正在录音": "Recording",
   "筛选录音设备": "Filter recordings by device",
-  "全部设备": "All devices",
   "设备未知": "Unknown device",
   "呼出": "Outgoing",
   "录音已保存": "Recording saved",

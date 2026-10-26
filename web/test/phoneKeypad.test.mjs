@@ -9,7 +9,8 @@ let source = await readFile(new URL("../src/phone/PhoneView.tsx", import.meta.ur
 source = source.replace(/import \{ Bell[^\n]+\n/, "const Bell=()=>null,BellOff=Bell,Mic=Bell,MicOff=Bell,Phone=Bell,PhoneIncoming=Bell,PhoneOff=Bell;\n")
   .replace(/import \{ Button, PageHeader \}[^\n]+\n/, 'const Button=({children,disabled}:any)=><button disabled={disabled}>{children}</button>, PageHeader=()=>null;\n')
   .replace(/import \{ useI18n \}[^\n]+\n/, 'const useI18n=()=>({t:(text:string)=>text});\n')
-  .replace(/import \{ usePhone[^\n]+\n/, 'const usePhone=()=>globalThis.__phoneKeypadFixture; type PhoneLine=any; type PhoneCall=any;\n');
+  .replace(/import \{ usePhone[^\n]+\n/, 'const usePhone=()=>globalThis.__phoneKeypadFixture; type PhoneLine=any; type PhoneCall=any;\n')
+  .replace(/import \{ CallRecordingsPanel \}[^\n]+\n/, 'const CallRecordingsPanel=()=>null;\n');
 let compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ES2022, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 for (const dependency of ["react", "react/jsx-runtime", "react-router-dom"]) compiled = compiled.replaceAll(`from "${dependency}"`, `from "${import.meta.resolve(dependency)}"`);
 const { CallCard } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);

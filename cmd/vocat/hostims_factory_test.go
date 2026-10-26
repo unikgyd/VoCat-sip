@@ -25,6 +25,27 @@ func hostIMSMappingFixture() (store.Device, device.Device, func(string) (string,
 	return config, entry, canonical
 }
 
+func TestHostIMSMetadataProjectionKeepsInventoryAndHardwareAnchors(t *testing.T) {
+	config, entry, canonical := hostIMSMappingFixture()
+	entry.Snapshot.SIMReady = false
+	entries := []device.Device{entry}
+	projected := hostIMSMetadataInventory(config, entries)
+	if projected[0].Snapshot != nil || entries[0].Snapshot != entry.Snapshot || entry.Snapshot.SIMReady {
+		t.Fatal("metadata projection mutated discovery inventory")
+	}
+	if _, _, err := resolveHostIMSInventory(config, projected, canonical); err != nil {
+		t.Fatal(err)
+	}
+	projected[0].Candidate.QMIControl = "/dev/cdc-wdm1"
+	if _, _, err := resolveHostIMSInventory(config, projected, canonical); err == nil {
+		t.Fatal("metadata projection bypassed endpoint anchor")
+	}
+	config.ModemIMEI = ""
+	if hostIMSMetadataInventory(config, entries)[0].Snapshot == nil {
+		t.Fatal("incomplete hardware anchors discarded SIM proof")
+	}
+}
+
 func TestHostIMSMappingUsesUniquePhysicalIdentityNotLogicalID(t *testing.T) {
 	config, wanted, canonical := hostIMSMappingFixture()
 	other := wanted
