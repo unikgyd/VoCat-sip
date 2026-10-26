@@ -38,6 +38,27 @@ Asterisk, or send real calls/SMS to an arbitrary recipient. Tests needing actual
 carrier actions require an authorized destination and a controlled window.
 Hardware-only skips remain visible; an environment-limited skip is not a pass.
 
+## Live additions — 2026-10-27
+
+The [first NAS run](VERIFICATION_20261027_LIVE.md) proved simultaneous physical
+Host IMS/VoWiFi registration, one authorized ringing call, acknowledged shutdown
+and controlled environment rollback. It did not prove answered voice or SMS.
+
+The [deployed-service follow-up](VERIFICATION_20261027_FOLLOWUP.md) adds real
+Baresip PCMU/PCMA bidirectional decoded audio, RFC 4733 and RTCP, LAN MESSAGE
+confirmation/deduplication, original QDC507 USB PCM I/O and WAV/MP3/WMA/AAC
+import/preview. Each result is bounded by its actual endpoint and media evidence.
+The eSIM run also exposed post-commit metadata lag. After the fix, the final
+candidate completed an actual existing-profile round trip with verified HTTP
+200 results in both directions. The initial failure and restoration remain in
+the record rather than being counted as passes.
+
+The full objective remains open. Answered and incoming carrier calls, carrier
+hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
+hotplug, crash recovery, data/export transfers, scheduled work and external
+provider delivery still need their live scenarios. Existing profile management
+does not establish provisioning/download/delete of a disposable profile.
+
 Protocol and ownership details remain in [the feature matrix](FEATURE_UNION.md),
 [independent access](INDEPENDENT_ACCESS.md), [task restoration](AUTOMATIC_TASKS.md),
 [data handover](CELLULAR_DATA_HANDOVER.md), [Host IMS restart cleanup](HOST_IMS_RECOVERY.md),

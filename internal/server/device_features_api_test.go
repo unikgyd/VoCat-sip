@@ -152,6 +152,16 @@ func TestCellularIMSPatchRejectsUnknownMode(t *testing.T) {
 	}
 }
 
+func TestCellularIMSReadTimeoutIsNotReportedAsUnsupportedHardware(t *testing.T) {
+	test := newSettingsAPITest(t)
+	test.server.devices = &fakeCellularIMSController{setErr: context.DeadlineExceeded}
+	recorder := httptest.NewRecorder()
+	test.server.handleCellularIMS(recorder, httptest.NewRequest(http.MethodGet, "/api/devices/configured-1/cellular-ims", nil), store.Device{ID: "configured-1"}, "physical-1")
+	if recorder.Code != http.StatusGatewayTimeout || !strings.Contains(recorder.Body.String(), `"modem_timeout"`) {
+		t.Fatalf("timeout became an unsupported-device response: %d %s", recorder.Code, recorder.Body)
+	}
+}
+
 func TestManualModemRebootInvalidatesConnectedDataRuntime(t *testing.T) {
 	test := newSettingsAPITest(t)
 	const iccid = "8944305293607130156"

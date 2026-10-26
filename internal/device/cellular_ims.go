@@ -106,7 +106,9 @@ func (manager *Manager) CellularIMS(ctx context.Context, id string) (CellularIMS
 	if err != nil {
 		return CellularIMSStatus{}, err
 	}
-	state.opMu.Lock()
+	if err := lockMutexContext(ctx, &state.opMu); err != nil {
+		return CellularIMSStatus{}, err
+	}
 	defer state.opMu.Unlock()
 	if err := manager.validateActive(id, state); err != nil {
 		return CellularIMSStatus{}, err

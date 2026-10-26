@@ -40,7 +40,7 @@ FROM debian:bookworm-slim AS runtime
 # separate instead of shipping a binary that cannot start in Alpine.
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates iproute2 libccid libopencore-amrnb0 libpcsclite1 \
+      ca-certificates iproute2 libasound2 libccid libopencore-amrnb0 libpcsclite1 \
       libqmi-utils passwd pcscd tzdata && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --gid 1000 vocat && \

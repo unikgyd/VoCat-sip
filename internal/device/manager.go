@@ -690,7 +690,9 @@ func (manager *Manager) Refresh(ctx context.Context, id string) (Snapshot, error
 	if err != nil {
 		return Snapshot{}, err
 	}
-	state.opMu.Lock()
+	if err := lockMutexContext(ctx, &state.opMu); err != nil {
+		return Snapshot{}, err
+	}
 	defer state.opMu.Unlock()
 	if err := manager.validateActive(id, state); err != nil {
 		return Snapshot{}, err
@@ -830,7 +832,9 @@ func (manager *Manager) ExecuteAT(
 	if err != nil {
 		return modem.Response{}, err
 	}
-	state.opMu.Lock()
+	if err := lockMutexContext(ctx, &state.opMu); err != nil {
+		return modem.Response{}, err
+	}
 	defer state.opMu.Unlock()
 	if err := manager.validateActive(id, state); err != nil {
 		return modem.Response{}, err

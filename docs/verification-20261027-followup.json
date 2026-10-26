@@ -1,0 +1,437 @@
+{
+  "date": "2026-10-27",
+  "timezone": "Asia/Taipei",
+  "sourceBaseline": "2340226",
+  "goalComplete": false,
+  "software": {
+    "started": 1793038527.8663418,
+    "results": [
+      {
+        "label": "followup-go",
+        "exit": 0,
+        "seconds": 183.5905921459198,
+        "tests": {
+          "pass": 2047,
+          "fail": 0,
+          "skip": 47
+        }
+      },
+      {
+        "label": "followup-vet",
+        "exit": 0,
+        "seconds": 3.4755070209503174
+      },
+      {
+        "label": "followup-race",
+        "exit": 0,
+        "seconds": 30.807891845703125,
+        "tests": {
+          "pass": 12,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "followup-amd64",
+        "exit": 0,
+        "seconds": 12.367103815078735
+      },
+      {
+        "label": "followup-arm64",
+        "exit": 0,
+        "seconds": 12.061432600021362
+      }
+    ],
+    "artifacts": {
+      "amd64": "af97e7ec81f00dde9a0e373241ff592899914810fed5944fd49645d6786e2896",
+      "arm64": "482d0b53277994c48ce2d0bbcc21846d5d2daec4410831686cdbc2bb8ee5935a"
+    },
+    "completed": 1793038770.4512138
+  },
+  "artifacts": {
+    "applicationAMD64": "af97e7ec81f00dde9a0e373241ff592899914810fed5944fd49645d6786e2896",
+    "applicationARM64": "482d0b53277994c48ce2d0bbcc21846d5d2daec4410831686cdbc2bb8ee5935a",
+    "physicalPCMProbe": "c502d496a540bcffb9dfa86e7be409b8ef6cd0d7d6c618a7f4580bfbace577c3"
+  },
+  "management": {
+    "time": 1793039180.7748685,
+    "requests": [
+      {
+        "path": "/api/health",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/system/info",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/discovered",
+        "status": 200,
+        "seconds": 0.01,
+        "error": null
+      },
+      {
+        "path": "/api/dashboard/devices",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/settings/sip",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/settings/preferences",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/ct-host/config",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/ct-host/status",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/ct-host/overview",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/ct-host/telephony",
+        "status": 200,
+        "seconds": 0.01,
+        "error": null
+      },
+      {
+        "path": "/api/devices/ct-host/usb-audio",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/ct-host/calls",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/ct-host/network",
+        "status": 409,
+        "seconds": 0.0,
+        "error": "host_ims_maintenance_required"
+      },
+      {
+        "path": "/api/devices/ct-host/network/apns",
+        "status": 409,
+        "seconds": 0.0,
+        "error": "host_ims_maintenance_required"
+      },
+      {
+        "path": "/api/devices/ct-host/cellular-ims",
+        "status": 409,
+        "seconds": 0.0,
+        "error": "host_ims_maintenance_required"
+      },
+      {
+        "path": "/api/devices/ct-host/operator_selection",
+        "status": 409,
+        "seconds": 0.0,
+        "error": "host_ims_maintenance_required"
+      },
+      {
+        "path": "/api/devices/ct-host/usbnet-mode",
+        "status": 409,
+        "seconds": 0.0,
+        "error": "host_ims_maintenance_required"
+      },
+      {
+        "path": "/api/devices/dito-wifi/config",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/status",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/overview",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/telephony",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/usb-audio",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/calls",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/network",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/network/apns",
+        "status": 200,
+        "seconds": 0.01,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/cellular-ims",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/operator_selection",
+        "status": 200,
+        "seconds": 0.0,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/usbnet-mode",
+        "status": 200,
+        "seconds": 0.03,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/esim",
+        "status": 200,
+        "seconds": 0.19,
+        "error": null
+      },
+      {
+        "path": "/api/devices/dito-wifi/esim/profiles",
+        "status": 200,
+        "seconds": 0.2,
+        "error": null
+      }
+    ],
+    "languageRoundTrip": true,
+    "missingCSRFRejected": true
+  },
+  "physicalPCM": {
+    "captureSamplesRead": 3200,
+    "carrierCallPlaced": false,
+    "channels": 1,
+    "onlySilenceWritten": true,
+    "originalEndpointsClosed": true,
+    "physicalPair": "PCM",
+    "rate": 8000,
+    "statistics": {
+      "Captured": 30,
+      "Played": 30,
+      "DroppedCapture": 0,
+      "DroppedPlayback": 0
+    }
+  },
+  "softphone": {
+    "client": "Baresip 1.1.0-3build3",
+    "clientLibrary": "libre 2.0.1-3build1",
+    "legacyAlgorithm": "MD5 explicitly selected",
+    "callerCodec": "PCMU",
+    "calleeCodec": "PCMA",
+    "callerPackets": 403,
+    "calleePackets": 405,
+    "callerRTCP": {
+      "local_ssrc": 1493646668,
+      "remote_ssrc": 2212045835,
+      "packets_sent": 405,
+      "packets_received": 403,
+      "octets_sent": 62928,
+      "packets_lost": 0,
+      "jitter": 10,
+      "reports_sent": 2,
+      "reports_received": 1,
+      "invalid_reports": 0,
+      "send_errors": 0,
+      "round_trip_ms": 0,
+      "peer_left": false
+    },
+    "calleeRTCP": {
+      "local_ssrc": 2212045835,
+      "remote_ssrc": 1493646668,
+      "packets_sent": 403,
+      "packets_received": 405,
+      "octets_sent": 62608,
+      "packets_lost": 0,
+      "jitter": 10,
+      "reports_sent": 3,
+      "reports_received": 1,
+      "invalid_reports": 0,
+      "send_errors": 0,
+      "round_trip_ms": 0.41868,
+      "peer_left": false
+    },
+    "decodedAudio": [
+      {
+        "client": 1,
+        "decodedRemoteToneHz": 880,
+        "rate": 8000,
+        "channels": 1,
+        "decodedSeconds": 8.02,
+        "tonePowerRatio": 32760762507552.1
+      },
+      {
+        "client": 2,
+        "decodedRemoteToneHz": 440,
+        "rate": 8000,
+        "channels": 1,
+        "decodedSeconds": 7.96,
+        "tonePowerRatio": 1843165160.3
+      }
+    ],
+    "bidirectionalRFC4733": true,
+    "hangupConfirmed": true,
+    "carrierCallingEnabled": false,
+    "carrierSMSEnabled": false
+  },
+  "lanMessage": {
+    "algorithm": "MD5",
+    "confirmed": 200,
+    "duplicateResult": 200,
+    "changedBodyResult": 400,
+    "carrierSMS": false
+  },
+  "defaultSHA256Registration": {
+    "algorithm": "SHA-256",
+    "challenge": 401,
+    "registered": 200,
+    "unregistered": 200
+  },
+  "existingESIMProfileRoundTrip": {
+    "started": 1793038813.8607297,
+    "alternateSwitchVerified": true,
+    "originalRestored": true,
+    "carrierActionsRequested": false,
+    "alternateSwitchHTTP": 200,
+    "originalRestoreHTTP": 200,
+    "completed": 1793038941.8289132
+  },
+  "promptImports": {
+    "started": 1793037734.7113898,
+    "formats": [
+      {
+        "format": "wav",
+        "imported": true,
+        "previewPCM": true,
+        "durationSeconds": 1.0,
+        "staleRevisionRejected": true
+      },
+      {
+        "format": "mp3",
+        "imported": true,
+        "previewPCM": true,
+        "durationSeconds": 1.013875,
+        "staleRevisionRejected": true
+      },
+      {
+        "format": "wma",
+        "imported": true,
+        "previewPCM": true,
+        "durationSeconds": 0.96,
+        "staleRevisionRejected": true
+      },
+      {
+        "format": "aac",
+        "imported": true,
+        "previewPCM": true,
+        "durationSeconds": 1.152,
+        "staleRevisionRejected": true
+      }
+    ],
+    "automaticAnsweringEverEnabled": false,
+    "restoredDisabledAndEmpty": true,
+    "completed": 1793037738.4606295
+  },
+  "cleanup": {
+    "time": 1793039280.6877344,
+    "originalProfileAndPolicyRestored": true,
+    "inactiveProfilePreferencesRestored": true,
+    "sipSettingsRestored": true,
+    "temporaryServicesStopped": true,
+    "onlyOurOriginalInhibitorReleased": true,
+    "sameModemsAndSIMs": true,
+    "modems": {
+      "1": {
+        "state": "registered",
+        "power": "on"
+      },
+      "0": {
+        "state": "registered",
+        "power": "on"
+      }
+    },
+    "originalModemManagerRunning": true,
+    "modemManagerRestarts": 0,
+    "xfrmStates": 0,
+    "xfrmPolicies": 0,
+    "hostIMSClaims": 0,
+    "originalContainersUnchanged": true,
+    "serviceExitCodes": {
+      "application": 0,
+      "softphone1": 0,
+      "softphone2": 0
+    }
+  },
+  "retainedFailures": [
+    "legacy AT/ModemManager serial ownership conflict",
+    "HTTP write deadline exceeded while waiting for AT owner",
+    "ALSA runtime dependency absent",
+    "old softphone lacks SHA-256 Digest",
+    "old softphone sine source only accepts 48 kHz",
+    "initial startup observation window too short",
+    "TCP control client failed to consume a buffered response",
+    "test attempted to compare a struct containing a slice",
+    "eSIM committed before complete subscription metadata was published",
+    "cached metadata wait could not refresh while holding the line writer"
+  ],
+  "remaining": [
+    "answered/incoming carrier voice and media",
+    "carrier hold/DTMF/recording/playback/browser takeover",
+    "mobile SMS delivery to an authorized controlled destination",
+    "physical hotplug and crash recovery",
+    "cellular data and export-proxy transfers",
+    "scheduled jobs and external notification delivery",
+    "disposable profile provisioning/download/delete",
+    "browser pages behind the first-use license confirmation"
+  ],
+  "privateEvidenceCommitted": false,
+  "remotePushed": false
+}

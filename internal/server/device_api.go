@@ -861,7 +861,11 @@ func native410UnsupportedOperation(tail []string) bool {
 func (s *Server) handleUSBNetMode(w http.ResponseWriter, r *http.Request, physicalID string) bool {
 	switch r.Method {
 	case http.MethodGet:
-		result, err := s.devices.USBNetMode(r.Context(), physicalID)
+		// Leave time to send a structured timeout before the HTTP server's
+		// 30-second write deadline, including time waiting for the AT owner.
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		result, err := s.devices.USBNetMode(ctx, physicalID)
 		if err != nil {
 			s.writeDeviceError(w, err)
 			return true
@@ -1612,8 +1616,14 @@ func (s *Server) handleCellularIMS(
 	}
 	switch r.Method {
 	case http.MethodGet:
-		status, statusErr := controller.CellularIMS(r.Context(), physicalID)
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		status, statusErr := controller.CellularIMS(ctx, physicalID)
 		if statusErr != nil {
+			if errors.Is(statusErr, context.DeadlineExceeded) || errors.Is(statusErr, context.Canceled) || errors.Is(statusErr, modem.ErrCommandTimeout) {
+				s.writeDeviceError(w, statusErr)
+				return true
+			}
 			writeError(w, http.StatusUnprocessableEntity, "cellular_ims_unsupported", statusErr.Error())
 			return true
 		}

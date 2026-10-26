@@ -7,6 +7,19 @@ Create `/run/vocat` as root with mode 0700 before starting a container. Do not r
 two services against the same hardware or use an independent QMI client while
 a line owns its bearer.
 
+Legacy AT operation also needs a single serial-port owner. In the NAS lab,
+ModemManager competing for the EC20 AT port caused command timeouts. A dedicated
+`mmcli --inhibit-device=<verified device UID>` process temporarily released only
+that legacy modem; its process lifetime was retained and acknowledged. The QDC507
+remained managed by ModemManager for Host IMS. Stop and clean up VoCat before
+releasing the exact inhibitor, then verify the original SIM and radio state.
+Do not stop ModemManager globally when another line needs its Host IMS bearer.
+
+Native USB PCM needs `libasound.so.2` (Debian/Ubuntu `libasound2`). The Docker
+runtime now includes this dependency. Pairing metadata alone does not establish
+that ALSA can open the endpoints or that a carrier call has audio. Compressed
+message import separately needs optional FFmpeg; WAV import does not.
+
 ## Existing IMS profiles
 
 In the cellular line's advanced settings, `0` selects the modem default.

@@ -497,7 +497,7 @@ func (s *Server) handleEsimSwitch(w http.ResponseWriter, r *http.Request, config
 		return
 	}
 	if current, configErr := s.store.Device(r.Context(), configuredID); configErr == nil && current.Telephony != nil {
-		identity, identityErr := s.observedTelephonySubscription(r.Context(), current)
+		identity, identityErr := s.awaitSwitchedSubscription(r.Context(), current, physicalID, iccid)
 		if identityErr != nil || identity.ICCID != iccid {
 			writeError(w, 409, "sim_identity_changed", "the switched profile could not be verified before restoring its access")
 			return
