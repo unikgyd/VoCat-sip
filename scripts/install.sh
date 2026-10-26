@@ -480,6 +480,7 @@ TimeoutStartSec=30s
 TimeoutStopSec=120s
 RuntimeDirectory=vocat
 RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
 
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
@@ -578,6 +579,62 @@ write_service() {
     die "不支持的服务管理器。" "Neither systemd nor OpenWrt procd was detected."
 }
 
+systemd_health_url() {
+    if [ -n "${VOCAT_INSTALL_HEALTH_URL:-}" ]; then
+        printf '%s' "$VOCAT_INSTALL_HEALTH_URL"
+        return
+    fi
+    local address="0.0.0.0:7575"
+    local configured=""
+    if [ -f "$ENV_FILE" ]; then
+        # Read a value; never source/execute a systemd EnvironmentFile.
+        configured=$(awk '/^VOCAT_ADDR=/ { sub(/^VOCAT_ADDR=/, ""); value=$0 } END { print value }' "$ENV_FILE")
+        configured=${configured%$'\r'}
+        case "$configured" in
+            \"*\") configured=${configured#\"}; configured=${configured%\"} ;;
+            \'*\') configured=${configured#\'}; configured=${configured%\'} ;;
+        esac
+        [ -z "$configured" ] || address="$configured"
+    fi
+    case "$address" in
+        0.0.0.0:*|\*:*) address="127.0.0.1:${address##*:}" ;;
+        \[::\]:*) address="[::1]:${address##*:}" ;;
+        :*) address="127.0.0.1:${address##*:}" ;;
+    esac
+    printf 'http://%s/healthz' "$address"
+}
+
+wait_systemd_ready() {
+    local initial_pid current_pid health_url response stable=0
+    local installation_deadline=$((SECONDS + 120))
+    initial_pid=$(systemctl show vocat --property=MainPID --value)
+    [ -n "$initial_pid" ] && [ "$initial_pid" != "0" ] || return 1
+    health_url=$(systemd_health_url)
+    case "$health_url" in http://*|https://*) ;; *) return 1 ;; esac
+    while [ "$SECONDS" -lt "$installation_deadline" ]; do
+        systemctl is-active --quiet vocat || return 1
+        current_pid=$(systemctl show vocat --property=MainPID --value)
+        [ "$current_pid" = "$initial_pid" ] || return 1
+        # Health is anonymous and non-identifying. The local service may
+        # redirect to its self-signed HTTPS listener; no credentials are sent.
+        response=$(curl -kfsSL --noproxy '*' --proto '=http,https' --proto-redir '=http,https' \
+            --connect-timeout 1 --max-time 2 --max-filesize 4096 "$health_url" 2>/dev/null) || response=""
+        if printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'; then
+            stable=$((stable + 1))
+            if [ "$stable" -ge 2 ]; then
+                systemctl is-active --quiet vocat || return 1
+                current_pid=$(systemctl show vocat --property=MainPID --value)
+                [ "$current_pid" = "$initial_pid" ]
+                return
+            fi
+        else
+            stable=0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
 enable_and_start() {
     if [ -x "$OPENWRT_INIT_PATH" ] && { [ -x /sbin/procd ] || [ -x /sbin/ubusd ]; }; then
         "$OPENWRT_INIT_PATH" enable
@@ -621,20 +678,21 @@ enable_and_start() {
     fi
     systemctl daemon-reload
     systemctl enable vocat
-    if systemctl restart vocat; then
-        local attempt
-        for attempt in 1 2 3 4 5; do
-            if systemctl is-active --quiet vocat; then
-                rm -f "${BINARY_PATH}.bak"
-                return
-            fi
-            sleep 1
-        done
+    if systemctl restart vocat && wait_systemd_ready; then
+        rm -f "${BINARY_PATH}.bak"
+        return
     fi
     if [ -e "${BINARY_PATH}.bak" ]; then
         msg "新版本启动失败，正在恢复旧二进制。" "The new version failed to start; restoring the previous binary."
-        cp -a "${BINARY_PATH}.bak" "$BINARY_PATH"
-        systemctl restart vocat || true
+        # A healthy-looking process may still be executing the rejected file.
+        # Replace atomically instead of overwriting a running executable.
+        install -m 0755 "${BINARY_PATH}.bak" "${BINARY_PATH}.new"
+        mv -f "${BINARY_PATH}.new" "$BINARY_PATH"
+        if systemctl restart vocat && wait_systemd_ready; then
+            msg "旧版本已恢复并通过服务健康检查。" "The previous binary was restored and passed service health checks."
+        else
+            msg "旧版本健康检查仍未通过；保留备份供诊断。" "The previous service is not healthy; its backup was retained for diagnosis." >&2
+        fi
     fi
     die "vocat 服务启动失败。" "The vocat service failed to start."
 }

@@ -1,0 +1,224 @@
+{
+  "date": "2026-10-27",
+  "sourceBaseline": "890a8adc966d24a8c1e6d2f39dd2cee47b76e974",
+  "sourceManifestSHA256": "ba7b2abc15a36af1523f970b30d063d351e3b89c189fef0a3b03fa5e8a105ab7",
+  "testedSources": {
+    "internal/exportproxy/ipinfo.go": "51545816c3b532272cf50e524d25544504a1662cb02845cb65d5f25e183fb6fc",
+    "internal/exportproxy/ipinfo_test.go": "5f67bf96c973c614dd6146a71c83166304d3302e146985e31ba92350fff6ff76",
+    "scripts/install.sh": "fd08e6acf24b7d34d92bebc8ceffa774fafb6d061a4230ba8bf531af10345713",
+    "deploy/vocat.service": "661ead1e3b8c86facce8f2bf23ccf18f2ff3a78a7f9d1ab877dbdb184fe932d0"
+  },
+  "software": {
+    "results": [
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 188.576,
+        "tests": {
+          "pass": 2062,
+          "fail": 0,
+          "skip": 48
+        }
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 7.082
+      },
+      {
+        "label": "race",
+        "exit": 0,
+        "seconds": 36.477,
+        "tests": {
+          "pass": 20,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 8.595
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 8.799
+      }
+    ],
+    "artifacts": {
+      "amd64": "4fea12ecb7153f68c70929878593fc2bb71c7ba87bd48577a5eec383fcb66a8f",
+      "arm64": "605eb18d254d0c4624e59e25ebd210d4b71566fd8a0d4c5d024fb3af8f002c03"
+    },
+    "generalCGOEnabled": false,
+    "raceCGOEnabled": true,
+    "networkMountNamespacesIsolated": true,
+    "frontendAndKernelSuitesNotRepeated": true
+  },
+  "nativeInstall": {
+    "actualSystemd": true,
+    "binarySHA256": "4fea12ecb7153f68c70929878593fc2bb71c7ba87bd48577a5eec383fcb66a8f",
+    "twoConsecutiveHTTPChecks": true,
+    "originalAdminLoginPreserved": true,
+    "configMode": "0o600",
+    "sharedLockInodePreserved": true,
+    "bothOriginalModemsRefreshed": true,
+    "originalCTNETProfileVerified": true,
+    "controlledReleaseTransport": true,
+    "shippingUnitSyntaxVerifiedBeforeCleanup": true
+  },
+  "badChecksum": {
+    "checksumRejected": true,
+    "binaryNotInstalled": true,
+    "unitNotWritten": true
+  },
+  "healthURLParsing": {
+    "syntax": true,
+    "urlCases": [
+      {
+        "expected": "http://127.0.0.1:7575/healthz",
+        "passed": true
+      },
+      {
+        "expected": "http://127.0.0.1:7588/healthz",
+        "passed": true
+      },
+      {
+        "expected": "http://[::1]:7588/healthz",
+        "passed": true
+      },
+      {
+        "expected": "http://127.0.0.1:7588/healthz",
+        "passed": true
+      },
+      {
+        "expected": "http://127.0.0.1:7588/healthz",
+        "passed": true
+      }
+    ]
+  },
+  "instanceAdmission": {
+    "exit": 1,
+    "globalGuardRejected": true,
+    "differentDatabaseNeverOpened": true
+  },
+  "failedUpgrade": {
+    "failedCandidateRejected": true,
+    "installerExitNonzero": true,
+    "knownGoodBinaryRestored": true,
+    "healthyServiceRestored": true,
+    "backupRetained": true,
+    "dataIntentReconnected": true,
+    "sharedLockInodePreserved": true,
+    "gracefulRestartOnly": true,
+    "firstObserverStoppedAtStartupOwnershipGuard": true,
+    "subsequentReadConfirmedAutomaticReconnect": true,
+    "noDataStartResubmitted": true,
+    "restoredServiceAutomaticRestarts": 0
+  },
+  "publicIP": {
+    "ipv6": {
+      "detected": true,
+      "addressFamily": 6,
+      "countryPresent": true,
+      "httpStatus": 200,
+      "actualInterface": "wwp0s20f0u2i4"
+    },
+    "ipv6AfterRollback": {
+      "detected": true,
+      "addressFamily": 6,
+      "countryPresent": true,
+      "httpStatus": 200,
+      "actualInterface": "wwp0s20f0u2i4"
+    },
+    "ipv4": {
+      "detected": true,
+      "addressFamily": 4,
+      "countryPresent": true,
+      "httpStatus": 200,
+      "actualInterface": "wwp0s20f0u2i4"
+    }
+  },
+  "dataCleanup": {
+    "ipv6": {
+      "disabled": true,
+      "publicIPCacheCleared": true,
+      "originalRulesDefaultsIPv6SettingsMTULinkRestored": true,
+      "noOwnedAddressOrDNSFile": true
+    },
+    "ipv4": {
+      "disabled": true,
+      "publicIPCacheCleared": true,
+      "originalRulesDefaultsIPv6SettingsMTULinkRestored": true,
+      "noOwnedAddressOrDNSFile": true
+    }
+  },
+  "initialNativeMediaCapabilities": {
+    "runtime_flavor": "glibc-amr",
+    "pcm_codecs": [
+      "PCMA",
+      "PCMU"
+    ],
+    "amr_nb": {
+      "built": true,
+      "available": true,
+      "code": "ready"
+    },
+    "amr_wb": {
+      "built": false,
+      "available": false,
+      "code": "not_built"
+    }
+  },
+  "runtimeCleanup": {
+    "completed": 1793049507.5229132,
+    "applicationExitCode": 0,
+    "nativePathsRemovedAndArchived": true,
+    "sharedLockInodePreserved": true,
+    "originalDatabaseByteIdentical": true,
+    "originalRunningContainersPreserved": true,
+    "originalManagerAndBinaryRestored": true,
+    "bothOriginalModemSIMPairsRegisteredRFOn": true,
+    "patchedManagerSameProcessAndZeroRestartDelta": true,
+    "zeroHostClaimsRecoveryJournalsXFRM": true,
+    "noCarrierCallOrSMS": true
+  },
+  "dependencyRollback": {
+    "exactNewPackagesRemoved": true,
+    "baselinePackageNamesVersionsStatesRestored": true,
+    "noExistingPackageUpgraded": true,
+    "originalPCSCServiceAbsenceRestored": true
+  },
+  "retainedFailures": [
+    {
+      "kind": "baseline-ipv6-public-ip",
+      "httpStatus": 502,
+      "reason": "legacy default lookup endpoint had no AAAA answer through the original carrier DNS",
+      "fixedInFinalCandidate": true
+    },
+    {
+      "kind": "private-dns-helper",
+      "reason": "exec helper shadowed its outer source variable; rerun used an isolated namespace",
+      "productFailure": false
+    },
+    {
+      "kind": "private-rollback-observer",
+      "reason": "observer initially stopped on startup no-process-owned-session state; later read confirmed automatic reconnect without resubmission",
+      "productFailure": false
+    }
+  ],
+  "scope": {
+    "releaseDownloadsControlledFixture": true,
+    "internetGitHubDeliveryTested": false,
+    "existingAdminDatabaseCopy": true,
+    "emptyDatabaseBootstrapTested": false,
+    "realOriginalCTNETModemSIM": true,
+    "existingModemAPNUnchanged": true,
+    "pcscReaderHardwareTested": false,
+    "carrierCallsOrMobileSMS": false,
+    "browserEULAAccepted": false,
+    "abruptTerminationTested": false,
+    "overallHardwareAcceptanceComplete": false,
+    "postCleanupUnitVerificationReportsArchivedBinary": true
+  }
+}

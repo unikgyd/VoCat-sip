@@ -42,7 +42,8 @@ authorization checks remain in force.
 | Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported playback, browser takeover, recording and separate RTCP/statistics are integrated. See the verification record for the tested software scope. |
 | Live Linux acceptance | QDC507/China Telecom Host IMS and EC20/DITO VoWiFi registered simultaneously on the NAS. The authorized Host IMS call reached ringing and negotiated AMR; no answer was received. |
 | Further live acceptance | Real Baresip extension media/transcoding, RTCP and DTMF, LAN MESSAGE confirmation/deduplication, physical USB PCM I/O, an existing eSIM profile round trip and four prompt import formats passed their scoped checks. |
-| Cellular data export | Real CTNET IPv6, simultaneous IPv4/IPv6 and IPv4 HTTPS through authenticated HTTP/SOCKS5, original data cleanup and scoped deployment-permission checks passed. |
+| Cellular data export | Real CTNET IPv6, simultaneous IPv4/IPv6 and IPv4 HTTPS through authenticated HTTP/SOCKS5, IPv4/IPv6 public-IP queries and original data cleanup passed. |
+| Native installation | Scoped real systemd installation, failed-upgrade rollback, original administrator preservation and shared-lock retention passed. |
 | Remaining acceptance | Answered carrier audio, USB call media, live playback/takeover, carrier softphone bridging and other hardware/installation combinations. |
 
 The initial combined software run passed: **2,025 native Go tests, 2,020 static Go
@@ -57,6 +58,8 @@ the next acceptance scenarios, observed failures and remaining hardware work.
 The [IPv6 and dual-stack follow-up](docs/VERIFICATION_20261027_IPV6.md) records
 the latest candidate's 2,057 Go checks, race/kernel checks, amd64/arm64 builds,
 real data transfers, dependency requirements and shipping-permission evidence.
+The [native installation follow-up](docs/VERIFICATION_20261027_NATIVE.md) records
+the subsequent 2,062 Go checks, real systemd rollback and IPv4/IPv6 public-IP repair.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the
@@ -171,6 +174,14 @@ The installer:
 - creates a hardened systemd service with the hardware and network access required by Vocat;
 - stores runtime configuration in `/etc/vocat/env`;
 - generates a random initial administrator password on first installation.
+
+On systemd, installation requires two consecutive HTTP health responses from
+the same service process before deleting the previous binary backup. Failed
+upgrades restore that binary and check its health, retaining the backup for
+diagnosis. The probe reads `VOCAT_ADDR` from `/etc/vocat/env`; deployments with
+a different listener configuration can set `VOCAT_INSTALL_HEALTH_URL` when
+running the installer. The private `/run/vocat` directory is preserved across
+service stops so shared locks and unresolved ownership records remain available.
 
 After installation, open:
 

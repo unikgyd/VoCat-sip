@@ -120,5 +120,7 @@ takeover and mobile SMS delivery need controlled endpoint participation. Physica
 hotplug, abrupt crash recovery, successful task business execution, browser work
 past the first-use agreement, external notification-provider delivery and
 disposable eSIM provisioning/download/delete retain their separate acceptance.
-Positive IPv6 public-IP API acceptance also remains to be completed.
+Positive IPv6 public-IP API acceptance was subsequently completed, with a
+provider-endpoint repair and real native upgrade rollback, in the
+[native installation run](VERIFICATION_20261027_NATIVE.md).
 VoWiFi carrier calls remain outside the requested scope.

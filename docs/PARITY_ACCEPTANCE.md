@@ -67,6 +67,15 @@ service/container permission probes. The matching patched ModemManager retained
 its original process through data tests and inhibitor release; the distribution
 binary's earlier crash remains a separate dependency limitation.
 
+The [native installation run](VERIFICATION_20261027_NATIVE.md) adds actual
+systemd installation and failed-upgrade rollback, retained administrator/shared
+locks, positive IPv6 public-IP API acceptance and IPv4 regression. The final
+frozen source passed 2,062 Go tests, vet, 20 selected race executions and two
+Linux builds. Release transport was a controlled checked-build fixture and the
+database was an existing private copy; empty-database bootstrap and Internet
+GitHub delivery remain outside that run. Automatic data reconnect was confirmed
+after a transient startup ownership guard, without another start submission.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
 hotplug, abrupt crash recovery, successful scheduled work and external provider

@@ -42,7 +42,8 @@ Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制�
 | 高级通话 | 已接 IMS 保持／恢复、legacy SIP INFO、按卡延时接听、留言导入／播放、网页接管、录音及独立 RTCP／媒体统计；已验证的软件范围见验收记录。 |
 | Linux 实机 | NAS 上 QDC507／电信 Host IMS 与 EC20／DITO VoWiFi 已同时注册；电信实拨收到振铃并协商 AMR，本次无人接听。 |
 | 后续实测 | 已通过真实 Baresip 分机双向媒体／转码、RTCP 和按键、局域网 MESSAGE 确认／防重、物理 USB PCM 读写、已安装 eSIM 配置往返切换及四种留言格式导入的分项检查。 |
-| 蜂窝数据出口 | 电信 CTNET 的 IPv6、IPv4V6 和 IPv4 已通过 HTTP／SOCKS5 认证代理的真实 HTTPS、原数据资源清理和限定部署权限检查。 |
+| 蜂窝数据出口 | 电信 CTNET 的 IPv6、IPv4V6 和 IPv4 已通过 HTTP／SOCKS5 认证代理的真实 HTTPS、IPv4／IPv6 公网地址查询及原数据资源清理。 |
+| 原生安装 | 限定场景下的真实 systemd 安装、失败升级回滚、原管理员保留和共享锁保留已通过。 |
 | 尚待验收 | 接通后的运营商双向音频、USB 通话媒体、真实通话留言／接管、软电话运营商桥接及其他硬件／安装组合。 |
 
 首轮按先实现、最后统一测试的顺序，通过了 **2025 项原生 Go、2020 项静态 Go、79 项前端、
@@ -52,6 +53,8 @@ Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制�
 后续场景、实测发现的问题与剩余项目见[部署服务补充验收](VERIFICATION_20261027_FOLLOWUP.md)。
 最新候选的 2057 项 Go 检查、竞态／内核检查、双架构构建、真实数据出口、依赖要求和
 发布权限检查见[IPv6 与双栈验收](VERIFICATION_20261027_IPV6.md)。
+后续 2,062 个 Go 测试、真实 systemd 升级回滚及 IPv4／IPv6 公网查询修复见
+[原生安装补充验收](VERIFICATION_20261027_NATIVE.md)。
 
 完整差异见[能力并集清单](FEATURE_UNION.md)，接入边界见[独立接入说明](INDEPENDENT_ACCESS.md)，
 源码、缓存和运行文件的提交规则见[仓库约定](REPOSITORY.md)。原许可、地区准入和授权检查保持。
@@ -142,6 +145,12 @@ sudo bash install.sh --skip-vowifi-check
 - 创建具有 Vocat 所需硬件与网络访问权限的强化版 systemd 服务；
 - 将运行时配置存放在 `/etc/vocat/env`；
 - 首次安装时生成随机初始管理员密码。
+
+systemd 安装会等待同一个服务进程连续两次通过 HTTP 健康检查，之后才删除旧程序
+备份。升级启动失败会恢复旧二进制并再次检查健康状态，同时保留备份供诊断。
+检查地址从 `/etc/vocat/env` 的 `VOCAT_ADDR` 读取；采用其他监听配置时，可在运行
+安装脚本时指定 `VOCAT_INSTALL_HEALTH_URL`。服务停止后会保留私有的 `/run/vocat`
+目录，使共享锁及尚未确认清理的资源记录仍然可用。
 
 安装完成后打开：
 

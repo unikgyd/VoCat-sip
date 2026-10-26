@@ -83,6 +83,13 @@ session's cache. Wi-Fi coexistence does not suppress module data or IP lookup;
 the call default route is independent. The Wi-Fi upstream-route reconnect
 helper honors the line gate, current SIM and active Wi-Fi calls.
 
+Public-IP detection races the provider's separate legacy IPv4 and IPv6
+endpoints through the same owned session. The first valid response cancels the
+other request, and both workers exit before returning the transfer lease. This
+avoids exhausting an IPv6-only session's deadline on the IPv4 endpoint. Real
+IPv4/IPv6 lookup and upgrade rollback are recorded in the
+[native installation acceptance](VERIFICATION_20261027_NATIVE.md).
+
 Graceful application shutdown now fences new data work, cancels and joins
 existing proxy/IP transfers and superseded workers, then releases each original
 data capability under its line gate before the device manager closes WDS.

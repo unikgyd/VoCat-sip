@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const ipInfoURL = "https://ipinfo.io/json"
+var ipInfoURLs = [...]string{"https://ipinfo.io/json", "https://v6.ipinfo.io/json"}
 
 type PublicIPInfo struct {
 	IP           string `json:"ip"`
@@ -43,7 +43,45 @@ func LookupPublicIP(ctx context.Context, networkInterface string) (PublicIPInfo,
 		ResponseHeaderTimeout: 12 * time.Second,
 	}
 	defer transport.CloseIdleConnections()
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, ipInfoURL, nil)
+	return lookupPublicIP(ctx, networkInterface, transport)
+}
+
+func lookupPublicIP(ctx context.Context, networkInterface string, transport http.RoundTripper) (PublicIPInfo, error) {
+	// The legacy API has distinct IPv4 and IPv6 endpoints. The host's default
+	// route says nothing about the marked modem session. Race both endpoints
+	// within the same lease; cancel and join the loser before releasing it.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	type result struct {
+		info PublicIPInfo
+		err  error
+	}
+	results := make(chan result, len(ipInfoURLs))
+	for _, endpoint := range ipInfoURLs {
+		go func() {
+			info, err := queryPublicIP(ctx, endpoint, networkInterface, transport)
+			results <- result{info: info, err: err}
+		}()
+	}
+	var selected PublicIPInfo
+	var failures []error
+	for range ipInfoURLs {
+		r := <-results
+		if r.err != nil {
+			failures = append(failures, r.err)
+		} else if selected.IP == "" {
+			selected = r.info
+			cancel()
+		}
+	}
+	if selected.IP != "" {
+		return selected, nil
+	}
+	return PublicIPInfo{}, errors.Join(failures...)
+}
+
+func queryPublicIP(ctx context.Context, endpoint, networkInterface string, transport http.RoundTripper) (PublicIPInfo, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return PublicIPInfo{}, err
 	}
@@ -51,12 +89,12 @@ func LookupPublicIP(ctx context.Context, networkInterface string) (PublicIPInfo,
 	request.Header.Set("User-Agent", "VoCat/1.0")
 	response, err := transport.RoundTrip(request)
 	if err != nil {
-		return PublicIPInfo{}, fmt.Errorf("query ipinfo.io through %s: %w", networkInterface, err)
+		return PublicIPInfo{}, fmt.Errorf("query %s through %s: %w", request.URL.Host, networkInterface, err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
-		return PublicIPInfo{}, fmt.Errorf("ipinfo.io returned HTTP %d", response.StatusCode)
+		return PublicIPInfo{}, fmt.Errorf("%s returned HTTP %d", request.URL.Host, response.StatusCode)
 	}
 	return decodePublicIPInfo(io.LimitReader(response.Body, 64<<10))
 }
