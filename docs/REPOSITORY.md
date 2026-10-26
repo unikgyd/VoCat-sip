@@ -1,8 +1,10 @@
 # 仓库与提交约定
 
-VoCat-sip 是独立 Go／React 仓库，远端为 `unikgyd/VoCat-sip`，现有默认分支是 `master`。
-“提交到主分支”沿用该分支，不额外改名为 `main`。Windows 的 `unikgyd/VoWin` 仓库使用 `main`。
-两者在本机可以嵌套存放，但不是隐式 Git 子模块；分别管理提交记录。
+VoCat-sip 是独立 Go／React 仓库，远端为 `unikgyd/VoCat-sip`。按用户最新要求，
+本地开发与后续提交统一放在 `main`，现有 `master` 历史保留。
+远端默认分支目前仍是 `master`；创建本地 `main` 不会自动推送或更改远端默认分支。
+Windows 的 `unikgyd/VoWin` 也使用 `main`。两者在本机可以嵌套存放，但不是隐式
+Git 子模块；分别管理提交记录。
 
 ## 纳入源码提交
 
