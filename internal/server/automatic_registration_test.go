@@ -21,6 +21,7 @@ type registrationTaskController struct {
 	actions      []string
 	registration int
 	stopErr      error
+	idleErr      error
 }
 
 func (c *registrationTaskController) SetNetwork(_ context.Context, _ string, request device.NetworkRequest) (device.NetworkResult, error) {
@@ -56,6 +57,9 @@ func (c *registrationTaskController) Refresh(context.Context, string) (device.Sn
 
 func (c *registrationTaskController) ExecuteAT(ctx context.Context, id, command string) (modem.Response, error) {
 	if command == "AT+CLCC" {
+		if c.idleErr != nil {
+			return modem.Response{}, c.idleErr
+		}
 		return modem.Response{Final: "OK"}, nil
 	}
 	return c.fakeDeviceController.ExecuteAT(ctx, id, command)
@@ -112,7 +116,7 @@ func TestCellularRegistrationTaskExecution(t *testing.T) {
 				if err != nil || output != "已注册蜂窝网络，未启用数据连接" {
 					t.Fatalf("output=%q error=%v", output, err)
 				}
-				want := []string{"data:false", "flight:false", "automatic:true", "register", "refresh", "refresh", "data:false", "flight:true"}
+				want := []string{"data:false", "refresh", "data:false", "flight:false", "automatic:true", "register", "refresh", "refresh", "data:false", "refresh", "refresh", "data:false", "flight:true"}
 				if !reflect.DeepEqual(controller.actions, want) {
 					t.Fatalf("actions=%v, want %v", controller.actions, want)
 				}

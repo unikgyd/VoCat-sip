@@ -49,6 +49,30 @@ func TestPublicIPCacheFollowsCurrentICCID(t *testing.T) {
 	}
 }
 
+func TestPublicIPCacheRequiresOwnedSessionAndRejectsPreviousRevision(t *testing.T) {
+	s := publicIPCacheTestServer()
+	info := exportproxy.PublicIPInfo{IP: "203.0.113.8"}
+	entry := s.cellularData.entries["ec20"]
+	entry.session.owned = false
+	s.savePublicIP("ec20", "8944100001", info)
+	if len(s.publicIPs) != 0 {
+		t.Fatal("observation-only connection admitted an IP cache")
+	}
+	entry.session.owned = true
+	s.savePublicIP("ec20", "8944100001", info, 7)
+	if _, ok := s.loadPublicIP("ec20", "8944100001"); !ok {
+		t.Fatal("confirmed session cache missing")
+	}
+	entry.status.Revision = 8
+	if _, ok := s.loadPublicIP("ec20", "8944100001"); ok {
+		t.Fatal("cache crossed reconnect revision")
+	}
+	s.savePublicIP("ec20", "8944100001", info, 7)
+	if len(s.publicIPs) != 0 {
+		t.Fatal("late old IP result populated successor session")
+	}
+}
+
 func TestPublicIPGetClearsCacheWhenCellularDataIsDisabled(t *testing.T) {
 	ctx := context.Background()
 	database, err := store.Open(ctx, ":memory:")
