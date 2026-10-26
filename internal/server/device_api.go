@@ -1437,7 +1437,11 @@ func (s *Server) handleFlightMode(w http.ResponseWriter, r *http.Request, config
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return true
 	}
-	if config.VoWiFiEnabled {
+	if config.Telephony != nil && request.Enabled && config.Telephony.AutoConnectCellular {
+		writeError(w, 409, "cellular_access_enabled", "disable cellular auto-connect in Phone lines before enabling airplane mode")
+		return true
+	}
+	if config.VoWiFiEnabled && store.WiFiExclusive(config) {
 		writeError(w, http.StatusConflict, "vowifi_owns_airplane_mode", "airplane mode is locked on while VoWiFi is enabled")
 		return true
 	}
@@ -2050,6 +2054,7 @@ func (s *Server) configuredDeviceSummary(
 	config store.Device,
 	entry *device.Device,
 ) map[string]any {
+	entry, hostIdentityKnown := s.projectHostSubscription(config, entry)
 	var result map[string]any
 	if entry != nil {
 		result = deviceSummary(*entry)
@@ -2083,7 +2088,7 @@ func (s *Server) configuredDeviceSummary(
 	runtimeMatchesCard := true
 	if wifi := s.wifiController(); wifi != nil && (config.Telephony != nil || !store.HostIMSConfigured(config)) {
 		if runtime, err := wifi.State(config.ID); err == nil {
-			runtimeMatchesCard = voWiFiRuntimeMatchesSnapshot(runtime.ICCID, entry)
+			runtimeMatchesCard = hostIdentityKnown && voWiFiRuntimeMatchesSnapshot(runtime.ICCID, entry)
 			if runtimeMatchesCard {
 				runtimeResponse = liveVoWiFiRuntime(runtime)
 			} else {
@@ -2101,8 +2106,8 @@ func (s *Server) configuredDeviceSummary(
 					currentICCID = strings.TrimSpace(entry.Snapshot.ICCID)
 				}
 			}
-			runtimeMatchesCard = currentICCID == "" || runtime.ICCID == "" ||
-				strings.EqualFold(currentICCID, strings.TrimSpace(runtime.ICCID))
+			runtimeMatchesCard = hostIdentityKnown && (currentICCID == "" || runtime.ICCID == "" ||
+				strings.EqualFold(currentICCID, strings.TrimSpace(runtime.ICCID)))
 			if runtimeMatchesCard {
 				runtimeResponse = storedVoWiFiRuntime(runtime)
 			} else {
@@ -2121,7 +2126,7 @@ func (s *Server) configuredDeviceSummary(
 	if store.HostIMSConfigured(config) {
 		selected := idleVoWiFiRuntime(config.ID, snapshotForEntry(entry))
 		if s.hostIMS != nil {
-			if state, err := s.hostIMS.State(config.ID); err == nil && voWiFiRuntimeMatchesSnapshot(state.ICCID, entry) {
+			if state, err := s.hostIMS.State(config.ID); err == nil && hostIdentityKnown && voWiFiRuntimeMatchesSnapshot(state.ICCID, entry) {
 				selected = liveVoWiFiRuntime(state)
 			}
 		}

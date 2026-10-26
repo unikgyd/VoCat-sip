@@ -28,6 +28,17 @@ type nativeQMIRegistrationSession interface {
 	AttachDetach(context.Context, bool) error
 }
 
+// A registration retry may search/attach, but cannot cycle another access
+// owner's RF/SIM in order to recover its own registration.
+type sharedNativeRegistration struct{ nativeQMIRegistrationSession }
+
+func (s sharedNativeRegistration) SetOperatingMode(ctx context.Context, mode qmi.OperatingMode) error {
+	if mode != qmi.ModeOnline {
+		return errors.New("radio cycling requires exclusive modem maintenance")
+	}
+	return s.nativeQMIRegistrationSession.SetOperatingMode(ctx, mode)
+}
+
 const (
 	nativeQMIRegistrationPollInterval               = 2 * time.Second
 	nativeQMIRegistrationMaxAttempts                = 45
@@ -79,6 +90,9 @@ func (manager *Manager) openNativeQMIRegistration(
 	if !ok {
 		_ = session.Close()
 		return nil, errors.New("QMI radio session does not expose NAS registration control")
+	}
+	if manager.allowAutomaticSIMRecovery != nil && !manager.allowAutomaticSIMRecovery(ctx, candidate) {
+		return sharedNativeRegistration{nas}, nil
 	}
 	return nas, nil
 }

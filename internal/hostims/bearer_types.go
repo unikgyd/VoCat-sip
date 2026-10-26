@@ -77,6 +77,7 @@ type modemSnapshot struct {
 	State      int32
 	Families   uint32
 	Bearers    []string
+	SIMMissing bool // confirmed MM Sim="/"; not a metadata timeout
 }
 
 func (s modemSnapshot) Format(out fmt.State, _ rune) {

@@ -91,7 +91,15 @@ func (s *Server) verifiedCarrierIMSOwner(ctx context.Context, id string, control
 	if device.RegionBlockReason(state.IMSI) != "" {
 		return sipgateway.ErrCarrierForbidden
 	}
-	if entry.Snapshot != nil {
+	if store.HostIMSConfigured(config) {
+		identity, err := s.observedTelephonySubscription(ctx, config)
+		if err != nil || identity.ICCID != state.ICCID || identity.IMSI == "" || device.IsPlaceholderIMSI(identity.IMSI) {
+			return sipgateway.ErrCarrierUnavailable
+		}
+		if device.RegionBlockReason(identity.IMSI) != "" {
+			return sipgateway.ErrCarrierForbidden
+		}
+	} else if entry.Snapshot != nil {
 		if device.RegionBlockReason(entry.Snapshot.IMSI) != "" {
 			return sipgateway.ErrCarrierForbidden
 		}

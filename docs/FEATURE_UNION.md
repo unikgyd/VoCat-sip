@@ -12,7 +12,7 @@
 | 能力 | VoWin 基准或 VoCat 自有能力 | VoCat 当前状态与差距 |
 | --- | --- | --- |
 | 独立模组状态与控制 | Windows `VoKernelService.TelephonyModes.cs`、`ModuleManagementInstance` | `ims_dispatch.go`、`ims_mode_api.go` 已按模组分派；实际热拔、换卡、冷启动恢复仍须补验收 |
-| 蜂窝模式、VoWiFi 与默认选路独立 | Windows `SimTelephonyPreferences` 分开保存蜂窝／WiFi 自动连接及默认路由 | 已写入按 ICCID 的策略存储、独立接入／默认路由 API、双运行时分派、原通话／USSI 会话归属和 Web 控制；换卡、eSIM、任务及 Telegram 正在整合。最新应用改动尚未统一测试／构建，不能视为完成。见[独立接入边界](INDEPENDENT_ACCESS.md) |
+| 蜂窝模式、VoWiFi 与默认选路独立 | Windows `SimTelephonyPreferences` 分开保存蜂窝／WiFi 自动连接及默认路由 | 已写入逐卡策略、双运行时分派、原通话／USSI 会话归属、Web 控制、逐卡启动投递、换卡停止确认和 Host IMS 实时 SIM 元数据；RF 写入核验、数据会话清理及部分管理生命周期仍在整合。最新应用改动尚未统一测试／构建，不能视为完成。见[独立接入边界](INDEPENDENT_ACCESS.md) |
 | Host IMS 信令与短信 | VoSharp Host IMS 会话、承载与安全所有者 | Go `hostimsruntime` 已接应用；真实多机固件、完整冷启动与运营商业务仍待解决／验收 |
 | VoWiFi 注册与恢复 | VoSharp IKE／Manager／按卡历史 | Go `vowifi` 已有双栈、按卡候选、认证证据、持久退避与自动恢复；DITO VoWiFi 实测注销 SIP 500、跨 reader／多卡槽及实机故障矩阵仍待解决／验收 |
 | 网页／本机电话 | Windows 电话页、浮窗与麦克风会话 | Go `web_phone.go`＋`web/src/phone` 已有拨接挂、独占 PCM、跨页来电卡、静音和电平；浏览器休眠、真实听感仍需验收 |

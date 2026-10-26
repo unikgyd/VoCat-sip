@@ -517,6 +517,9 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 	deviceManager, err := device.NewManager(device.Options{
 		CardReaders: cardReaders,
 		Logger:      deviceLogger,
+		AllowAutomaticSIMRecovery: func(ctx context.Context, candidate modem.Candidate) bool {
+			return allowAutomaticSIMRecovery(ctx, database, candidate)
+		},
 		MBNProfileForICCID: func(ctx context.Context, iccid string) (string, error) {
 			policy, err := database.CardPolicy(ctx, iccid)
 			if errors.Is(err, store.ErrNotFound) {
@@ -624,12 +627,13 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 	}()
 
 	handler, err := server.New(server.Options{
-		Store:      database,
-		Auth:       authService,
-		Devices:    deviceManager,
-		VoWiFi:     vowifiManager,
-		HostIMS:    hostIMSManager,
-		Recordings: recordings,
+		Store:                 database,
+		Auth:                  authService,
+		Devices:               deviceManager,
+		VoWiFi:                vowifiManager,
+		HostIMS:               hostIMSManager,
+		Recordings:            recordings,
+		TelephonyStartupDelay: wifi410VoWiFiStartupDelay,
 		ReadSubscription: func(ctx context.Context, id string) (vowifi.SIMIdentity, error) {
 			config, err := database.Device(ctx, id)
 			if err != nil {
@@ -646,10 +650,8 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 			if store.HostIMSConfigured(config) {
 				return hostIMSManager.Subscription(ctx, id)
 			}
-			if entry.Snapshot == nil {
-				return vowifi.SIMIdentity{}, nil
-			}
-			return vowifi.SIMIdentity{ICCID: strings.TrimSpace(entry.Snapshot.ICCID), IMSI: strings.TrimSpace(entry.Snapshot.IMSI)}, nil
+			iccid, imsi, err := device.SnapshotSubscription(entry.Snapshot)
+			return vowifi.SIMIdentity{ICCID: iccid, IMSI: imsi}, err
 		},
 		Logs:                logs,
 		Assets:              web.Dist,
@@ -846,6 +848,9 @@ func restoreDefaultCellularRadios(
 			if config.DeviceType == store.DeviceTypeUSBSIMReader {
 				return
 			}
+			if config.Telephony != nil {
+				return
+			} // live-SIM activation belongs to the independent reconciler
 			if !store.AccessEnabled(config, store.IMSModeModule) {
 				return
 			}
@@ -1055,7 +1060,7 @@ func configureVoWiFiRuntime(
 			_ = manager.Close(context.Background())
 			return nil, fmt.Errorf("register device %q VoWiFi runtime: %w", deviceConfig.ID, err)
 		}
-		if store.AccessEnabled(deviceConfig, store.IMSModeVoWiFi) {
+		if deviceConfig.Telephony == nil && store.AccessEnabled(deviceConfig, store.IMSModeVoWiFi) {
 			if entry, mapErr := mapper.Get(deviceConfig.ID); mapErr == nil && store.WiFiExclusive(deviceConfig) {
 				flightErr := protectVoWiFiStartupRadio(ctx, deviceManager, entry.ID)
 				if flightErr != nil {

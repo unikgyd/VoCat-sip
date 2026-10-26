@@ -4,6 +4,12 @@
 not just exposed as a protocol API. This is software integration, **not live
 firmware/carrier acceptance or a deployed service upgrade**.
 
+2026-10-26 source checkpoint: the independent per-SIM cellular/Wi-Fi policy now
+supersedes the single-mode application controls below when `telephony` is set.
+See [independent access](INDEPENDENT_ACCESS.md). Its startup/SIM reconciliation,
+metadata projection and MM radio-enable changes are **not yet tested or built**;
+the verification results below apply only to the older frozen snapshot.
+
 ## Per-modem configuration
 
 Each device persists one `ims_mode` (`module`, `vowifi`, `host_ims`) and one
@@ -91,7 +97,8 @@ It matches saved IMEI plus canonical USB/QMI topology to one unique modem;
 never a guessed `/Modem/0`, a highest-scoring AT port, or the first match.
 Cold startup can use saved strong hardware anchors without first issuing
 legacy QMI Sync. The live SIM is then verified by ModemManager and the owned
-UIM transaction. Existing cached subscriber evidence, if available, must agree.
+UIM transaction. Cached AT subscriber fields are not used to select the current
+SIM under a Host IMS owner; saved hardware anchors still have to agree.
 Background refresh uses the same strict physical resolver; ambiguous ownership
 suppresses legacy refresh rather than probing a possibly owned modem.
 An unready SIM does not by itself block a different modem: a separate negative
@@ -105,16 +112,22 @@ Current prerequisites remain explicit:
 
 - Supported QMI modem exposed by ModemManager, with an identifiable physical
   USB ancestor and saved hardware identity.
-- Valid live SIM, existing regional/device admission checks, and a cellular
-  network already registered (MM state 8 or 11).
+- Valid live SIM and existing regional/device admission checks. The selected
+  modem may already be registered (MM state 8 or 11). New source can also send
+  `Modem.Enable(true)` for disabled state 3, then observe enabling/enabled/searching
+  states 5/6/7 until registration, within the bounded acquisition deadline.
+  The unique MM owner and exact hardware/SIM binding are rechecked; connecting or
+  disconnecting states remain busy. No modem reset or raw QMI RF write is used.
 - Compatible dedicated IMS PDN, WDS/P-CSCF proof, NAS and protected kernel path.
   Unsupported firmware is rejected, not downgraded to unprotected SIP.
   Conflicting existing IMS bearers are refused; this phase does not automatically
   quiesce baseband IMS or take over a foreign bearer.
 - AMR-NB bridging additionally needs the host OpenCORE library described in
   [AMR media](AMR_MEDIA.md); cross-compilation alone does not prove codec availability.
-- From VoWiFi RF-off, first switch to module mode and turn flight mode off.
-  This phase does **not** add an automatic radio/registration owner.
+- Switching from exclusive VoWiFi RF-off still requires its original cleanup ACK
+  before the selected Host IMS owner may enable RF. RF enable follows persisted
+  connection intent; stopping Host IMS releases its own bearer and IMS resources
+  without treating RF-on as a temporary checkpoint that must be restored.
 
 The factory rechecks the current selected/enabled mode before acquiring new
 resources. Stop cleans only owned IMS/access/PDN resources; no modem reset,

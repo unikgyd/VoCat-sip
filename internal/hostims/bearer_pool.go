@@ -304,13 +304,14 @@ func (p *BearerPool) Acquire(ctx context.Context, s Selection, options BearerOpt
 	if err != nil {
 		return nil, err
 	}
-	if snapshot.State == 9 || snapshot.State == 10 {
-		return nil, ErrBusy
-	}
-	if snapshot.State != 8 && snapshot.State != 11 {
-		return nil, ErrSelection
-	}
 	if err := p.conflicts(ctx, s, snapshot, options, ""); err != nil {
+		return nil, err
+	}
+	snapshot, err = p.waitRegistered(ctx, s, snapshot)
+	if err != nil {
+		return nil, err
+	}
+	if err = p.conflicts(ctx, s, snapshot, options, ""); err != nil {
 		return nil, err
 	}
 	family := options.IPFamily

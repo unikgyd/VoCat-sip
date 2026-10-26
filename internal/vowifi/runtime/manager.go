@@ -100,6 +100,21 @@ func (manager *Manager) EndMaintenance(deviceID string) {
 	manager.mu.Unlock()
 }
 
+// DesiredEnabled is admission intent, including a retry/backoff in progress.
+// It does not turn a failed registration snapshot into another enable request.
+func (manager *Manager) DesiredEnabled(deviceID string) (bool, error) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if manager.closed {
+		return false, ErrClosed
+	}
+	item := manager.entries[deviceID]
+	if item == nil {
+		return false, nil
+	}
+	return item.desiredEnabled && !item.maintenance, nil
+}
+
 // StopDevice fences background enable/reconnect and joins the line's worker
 // before confirming cleanup. A status snapshot alone cannot prove that a
 // queued enable worker has finished. EndMaintenance explicitly releases the

@@ -64,6 +64,11 @@ func (manager *Manager) readSnapshot(
 	optional := func(command string) (modem.Response, bool) {
 		response, commandErr := manager.command(ctx, client, command)
 		if commandErr != nil {
+			if command == "AT+CPIN?" {
+				if status, ready := parseCPIN(response); status == "not_inserted" {
+					snapshot.SIMStatus, snapshot.SIMReady = status, ready
+				}
+			}
 			snapshot.Warnings = append(snapshot.Warnings, commandErr.Error())
 			return response, false
 		}
@@ -74,7 +79,8 @@ func (manager *Manager) readSnapshot(
 		snapshot.SIMStatus, snapshot.SIMReady = parseCPIN(response)
 	}
 	previousICCID = strings.TrimSpace(previousICCID)
-	if !snapshot.SIMReady && isNativeQMICandidate(candidate) {
+	allowRecovery := manager.allowAutomaticSIMRecovery == nil || manager.allowAutomaticSIMRecovery(ctx, candidate)
+	if !snapshot.SIMReady && isNativeQMICandidate(candidate) && allowRecovery {
 		prepared, prepareErr := manager.prepareNativeQMISIMInterface(ctx, client)
 		if prepareErr != nil {
 			snapshot.Warnings = append(snapshot.Warnings, "prepare native SIM interface: "+prepareErr.Error())
@@ -85,7 +91,7 @@ func (manager *Manager) readSnapshot(
 			}
 		}
 	}
-	if !snapshot.SIMReady && isNativeQMICandidate(candidate) {
+	if !snapshot.SIMReady && isNativeQMICandidate(candidate) && allowRecovery {
 		recoveryContext, cancelRecovery := context.WithTimeout(ctx, 12*time.Second)
 		recovered, recoveryErr := manager.recoverNativeQMIHotSwap(recoveryContext, candidate)
 		cancelRecovery()
@@ -98,7 +104,7 @@ func (manager *Manager) readSnapshot(
 			}
 		}
 	}
-	if !snapshot.SIMReady && previousICCID != "" && !isNativeQMICandidate(candidate) {
+	if !snapshot.SIMReady && previousICCID != "" && !isNativeQMICandidate(candidate) && allowRecovery {
 		// On Quectel EC20 and similar modems without physical SIMDET GPIO interrupts,
 		// hot-swapping a SIM cuts card power and leaves the UIM interface de-powered.
 		// A fast soft cycle (AT+CFUN=0 -> AT+CFUN=4) re-powers the SIM interface,
@@ -493,6 +499,10 @@ func parseCGMR(response modem.Response) string {
 }
 
 func parseCPIN(response modem.Response) (string, bool) {
+	final := strings.ToUpper(strings.TrimSpace(response.Final))
+	if final == "+CME ERROR: 10" || final == "+CME ERROR: SIM NOT INSERTED" {
+		return "not_inserted", false
+	}
 	value := strings.ToUpper(valueAfterPrefix(response, "+CPIN:"))
 	switch {
 	case strings.Contains(value, "READY"):

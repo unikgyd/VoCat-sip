@@ -631,6 +631,20 @@ func (m *Manager) publisher(e *managedLine) {
 	}
 }
 
+// DesiredEnabled includes an admitted retry/backoff, without queuing new work.
+func (m *Manager) DesiredEnabled(id string) (bool, error) {
+	e, closed := m.entry(id)
+	if closed {
+		return false, ErrClosed
+	}
+	if e == nil {
+		return false, nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.desired && !e.maintenance && !e.shutdown, nil
+}
+
 // StopDevice joins an acknowledged stop generation, not an optimistic !Active
 // snapshot. It is suitable for mode switches, eSIM maintenance and deletion.
 func (m *Manager) StopDevice(ctx context.Context, id string) error {

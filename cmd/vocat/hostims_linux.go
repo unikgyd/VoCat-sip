@@ -216,6 +216,9 @@ func (f *linuxHostIMSFactory) prepare(ctx context.Context, id string) (hostimsru
 	if err != nil {
 		return nil, err
 	}
+	// AT snapshots are intentionally not refreshed while MM owns this modem.
+	// Pin fresh SIM identity below; only hardware anchors come from inventory.
+	target.ICCID, target.IMSI = "", ""
 	pool, err := f.sharedPool(ctx)
 	if err != nil {
 		return nil, err
@@ -237,10 +240,11 @@ func (f *linuxHostIMSFactory) prepare(ctx context.Context, id string) (hostimsru
 		return nil, hostims.ErrChanged
 	}
 	again, err := hostIMSPhysicalTarget(currentConfig, f.opts.Devices.List())
+	again.ICCID, again.IMSI = "", ""
 	if err != nil || again != target {
 		return nil, hostims.ErrChanged
 	}
-	options := hostims.BearerOptions{APN: vowifisettings.IMSAPN(ctx, f.opts.Store)}
+	options := hostims.BearerOptions{APN: vowifisettings.IMSAPN(ctx, f.opts.Store), Timeout: time.Minute}
 	if f.opts.BearerOptions != nil {
 		options, err = f.opts.BearerOptions(ctx, config)
 		if err != nil {
@@ -310,11 +314,11 @@ func (f *linuxHostIMSFactory) Subscription(ctx context.Context, id string) (vowi
 	if err != nil {
 		return vowifi.SIMIdentity{}, err
 	}
-	selection, err := pool.SelectTarget(ctx, target)
+	iccid, imsi, err := pool.Subscription(ctx, target)
 	if err != nil {
 		return vowifi.SIMIdentity{}, err
 	}
-	return vowifi.SIMIdentity{ICCID: selection.SubscriberICCID(), IMSI: selection.SubscriberIMSI()}, nil
+	return vowifi.SIMIdentity{ICCID: iccid, IMSI: imsi}, nil
 }
 
 type hostIMSCleanup interface{ Close(context.Context) error }

@@ -39,24 +39,25 @@ const (
 )
 
 type Options struct {
-	Store               *store.Store
-	Auth                *auth.Service
-	Devices             DeviceController
-	VoWiFi              VoWiFiController
-	HostIMS             VoWiFiController
-	ReadSubscription    func(context.Context, string) (vowifi.SIMIdentity, error)
-	Recordings          *callrecord.Service
-	Logs                *loghub.Hub
-	Assets              fs.FS
-	Logger              *slog.Logger
-	SecureCookies       bool
-	MaxRequestBodyBytes int64
-	Extensions          *extensions.Manager
-	ExportProxy         *exportproxy.Manager
-	DeveloperEnabled    bool
-	UpdateRepository    string
-	UpdateToken         string
-	HTTPS               *httpsmode.Manager
+	Store                 *store.Store
+	Auth                  *auth.Service
+	Devices               DeviceController
+	VoWiFi                VoWiFiController
+	HostIMS               VoWiFiController
+	ReadSubscription      func(context.Context, string) (vowifi.SIMIdentity, error)
+	Recordings            *callrecord.Service
+	TelephonyStartupDelay time.Duration
+	Logs                  *loghub.Hub
+	Assets                fs.FS
+	Logger                *slog.Logger
+	SecureCookies         bool
+	MaxRequestBodyBytes   int64
+	Extensions            *extensions.Manager
+	ExportProxy           *exportproxy.Manager
+	DeveloperEnabled      bool
+	UpdateRepository      string
+	UpdateToken           string
+	HTTPS                 *httpsmode.Manager
 }
 
 // Server is the single HTTP handler for the JSON API and embedded SPA.
@@ -124,6 +125,10 @@ type Server struct {
 	callPromptImport          sync.Mutex
 	recordings                *callrecord.Service
 	recordingsMu              sync.Mutex
+	telephonyCleanup          sync.Map // (device, access) retains an unacknowledged stop
+	subscriptionObservations  sync.Map // read-only identity projection; never authority for hardware I/O
+	subscriptionTransitions   sync.Map // stale AT evidence cannot replace a newer MM observation
+	telephonyStartupNotBefore time.Time
 	smsAPI                    *smsapi.Service
 }
 
@@ -152,40 +157,41 @@ func New(options Options) (*Server, error) {
 	}
 
 	server := &Server{
-		store:               options.Store,
-		auth:                options.Auth,
-		devices:             options.Devices,
-		vowifi:              options.VoWiFi,
-		wifiIMS:             options.VoWiFi,
-		hostIMS:             options.HostIMS,
-		readSubscription:    options.ReadSubscription,
-		imsCallOwners:       make(map[string]VoWiFiController),
-		ussdSessions:        newUSSDSessionStore(),
-		logs:                options.Logs,
-		assets:              options.Assets,
-		indexHTML:           indexHTML,
-		fileServer:          http.FileServer(http.FS(options.Assets)),
-		logger:              options.Logger,
-		secureCookies:       options.SecureCookies,
-		maxRequestBodyBytes: options.MaxRequestBodyBytes,
-		startedAt:           time.Now().UTC(),
-		e911Sessions:        newE911SessionManager(),
-		loginLimiter:        newLoginRateLimiter(),
-		extensions:          options.Extensions,
-		exportProxy:         options.ExportProxy,
-		developerEnabled:    options.DeveloperEnabled,
-		updateRepository:    strings.TrimSpace(options.UpdateRepository),
-		updateToken:         strings.TrimSpace(options.UpdateToken),
-		https:               options.HTTPS,
-		netTraffic:          newLiveNetTracker(),
-		hostStats:           newHostStatsSampler(),
-		publicIPs:           make(map[string]cachedPublicIP),
-		smsStorage:          make(map[string]device.SMSStorageUsage),
-		lookupPublicIP:      exportproxy.LookupPublicIP,
-		updateCheck:         update.CheckLatest,
-		updateApply:         update.ApplyLatest,
-		updateRestart:       update.RestartService,
-		recordings:          options.Recordings,
+		store:                     options.Store,
+		auth:                      options.Auth,
+		devices:                   options.Devices,
+		vowifi:                    options.VoWiFi,
+		wifiIMS:                   options.VoWiFi,
+		hostIMS:                   options.HostIMS,
+		readSubscription:          options.ReadSubscription,
+		imsCallOwners:             make(map[string]VoWiFiController),
+		ussdSessions:              newUSSDSessionStore(),
+		logs:                      options.Logs,
+		assets:                    options.Assets,
+		indexHTML:                 indexHTML,
+		fileServer:                http.FileServer(http.FS(options.Assets)),
+		logger:                    options.Logger,
+		secureCookies:             options.SecureCookies,
+		maxRequestBodyBytes:       options.MaxRequestBodyBytes,
+		startedAt:                 time.Now().UTC(),
+		e911Sessions:              newE911SessionManager(),
+		loginLimiter:              newLoginRateLimiter(),
+		extensions:                options.Extensions,
+		exportProxy:               options.ExportProxy,
+		developerEnabled:          options.DeveloperEnabled,
+		updateRepository:          strings.TrimSpace(options.UpdateRepository),
+		updateToken:               strings.TrimSpace(options.UpdateToken),
+		https:                     options.HTTPS,
+		netTraffic:                newLiveNetTracker(),
+		hostStats:                 newHostStatsSampler(),
+		publicIPs:                 make(map[string]cachedPublicIP),
+		smsStorage:                make(map[string]device.SMSStorageUsage),
+		lookupPublicIP:            exportproxy.LookupPublicIP,
+		updateCheck:               update.CheckLatest,
+		updateApply:               update.ApplyLatest,
+		updateRestart:             update.RestartService,
+		recordings:                options.Recordings,
+		telephonyStartupNotBefore: time.Now().Add(options.TelephonyStartupDelay),
 	}
 	if options.VoWiFi != nil || options.HostIMS != nil {
 		server.vowifi = &imsServiceDispatch{server: server}

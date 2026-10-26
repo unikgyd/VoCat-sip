@@ -179,12 +179,12 @@ func (d *imsServiceDispatch) StopDevice(ctx context.Context, id string) error {
 			return err
 		}
 		if config.Telephony != nil {
-			controllers, err := d.server.imsControllers(config)
+			_, err := d.server.imsControllers(config)
 			if err != nil {
 				return err
 			}
-			for _, c := range controllers {
-				if err := stopIMSController(ctx, c, id); err != nil {
+			for _, access := range d.server.telephonyControllerAccesses(config) {
+				if err := d.server.stopTelephonyController(ctx, id, access); err != nil {
 					return err
 				}
 			}

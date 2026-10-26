@@ -115,19 +115,22 @@ func (b *modemManagerBackend) Modem(ctx context.Context, path string) (modemSnap
 		return modemSnapshot{}, ErrTransport
 	}
 	simPath, ok := props["Sim"].Value().(dbus.ObjectPath)
-	if !ok || !objectPath(string(simPath), "SIM") {
+	if !ok || simPath != "/" && !objectPath(string(simPath), "SIM") {
 		return modemSnapshot{}, ErrSelection
 	}
-	sim, err := b.properties(ctx, owner, string(simPath), mmSIM)
-	if err != nil {
-		return modemSnapshot{}, err
-	}
-	iccid, _ := mmText(sim, "SimIdentifier")
-	imsi, _ := mmText(sim, "Imsi")
-	if active, exists := sim["Active"]; exists {
-		value, ok := active.Value().(bool)
-		if !ok || !value {
-			return modemSnapshot{}, ErrSelection
+	var iccid, imsi string
+	if simPath != "/" {
+		sim, err := b.properties(ctx, owner, string(simPath), mmSIM)
+		if err != nil {
+			return modemSnapshot{}, err
+		}
+		iccid, _ = mmText(sim, "SimIdentifier")
+		imsi, _ = mmText(sim, "Imsi")
+		if active, exists := sim["Active"]; exists {
+			value, ok := active.Value().(bool)
+			if !ok || !value {
+				return modemSnapshot{}, ErrSelection
+			}
 		}
 	}
 	state, ok := props["State"].Value().(int32)
@@ -146,7 +149,7 @@ func (b *modemManagerBackend) Modem(ctx context.Context, path string) (modemSnap
 	if !ok || len(bearers) > 64 {
 		return modemSnapshot{}, ErrSelection
 	}
-	result := modemSnapshot{Owner: owner, Path: path, State: state, Families: families,
+	result := modemSnapshot{Owner: owner, Path: path, State: state, Families: families, SIMMissing: simPath == "/",
 		Binding: cardBinding{Equipment: read("EquipmentIdentifier"), Device: read("DeviceIdentifier"), SIMPath: string(simPath), ICCID: iccid, IMSI: imsi,
 			Physical: physical, PhysicalToken: hashText(physicalToken + "\x00" + busID), Slot: slot}}
 	result.QMIControl, _ = mmQMIControl(props)
@@ -398,6 +401,16 @@ func (b *modemManagerBackend) Create(ctx context.Context, owner, modem string, p
 }
 func (b *modemManagerBackend) Connect(ctx context.Context, owner, path string) error {
 	return b.bearerMethod(ctx, owner, path, "Connect")
+}
+
+func (b *modemManagerBackend) Enable(ctx context.Context, owner, path string) error {
+	if !validOwner(owner) || !objectPath(path, "Modem") {
+		return ErrSelection
+	}
+	if b.connection.Object(owner, dbus.ObjectPath(path)).CallWithContext(ctx, mmModem+".Enable", 0, true).Err != nil {
+		return ErrTransport
+	}
+	return nil
 }
 func (b *modemManagerBackend) Disconnect(ctx context.Context, owner, path string) error {
 	return b.bearerMethod(ctx, owner, path, "Disconnect")

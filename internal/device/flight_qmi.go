@@ -166,7 +166,9 @@ func (session *productionQMIRadioSession) AttachDetach(ctx context.Context, atta
 // 410 firmware rejects AT+CFUN=1 even though the equivalent DMS online request
 // is supported, so native WWAN devices must not fall back to the AT path.
 func openQMIRadioSession(ctx context.Context, controlDevice string) (qmiRadioSession, error) {
-	return openQMIRadioSessionWithPolicy(ctx, controlDevice, false)
+	// Opening a DMS/NAS/UIM client is not ownership of every QMI service on
+	// this modem. CTL Sync would invalidate other live WDS/IMS/UIM clients.
+	return openQMIRadioSessionWithPolicy(ctx, controlDevice, true)
 }
 
 func openQMISharedSIMSession(ctx context.Context, controlDevice string) (qmiRadioSession, error) {

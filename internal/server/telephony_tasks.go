@@ -21,8 +21,9 @@ func (s *Server) stopTelephonyAccess(ctx context.Context, config store.Device) e
 			return err
 		}
 	}
-	for _, controller := range controllers {
-		if err := stopIMSController(ctx, controller, config.ID); err != nil {
+	for _, access := range s.telephonyControllerAccesses(config) {
+		controller := s.controllerForMode(access)
+		if err := s.stopTelephonyController(ctx, config.ID, access); err != nil {
 			return err
 		}
 		defer endIMSMaintenance(controller, config.ID)
@@ -47,11 +48,13 @@ func (s *Server) prepareIndependentTaskEnvironment(ctx context.Context, config *
 		}
 		progress("正在准备独立 Wi-Fi 通话执行环境")
 		policy.AutoConnectWiFi = true
+		policy.AutoConnectCellular = false
 		policy.DefaultRoute = store.IMSModeVoWiFi
 	} else {
 		progress("正在准备蜂窝执行环境")
 		policy.CellularMode, policy.DefaultRoute = store.IMSModeModule, store.IMSModeModule
 		policy.AutoConnectCellular, policy.WiFiRadioPolicy = true, "coexist"
+		policy.AutoConnectWiFi = false
 	}
 	config.Telephony = &policy
 	config.NetworkEnabled = task.TaskType == "public_ip"

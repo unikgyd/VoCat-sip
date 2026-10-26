@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"vocat/internal/modem"
 	"vocat/internal/store"
 	"vocat/internal/vowifi"
 )
@@ -13,6 +14,30 @@ var errTelephonySubscriptionChanged = errors.New("telephony: active subscription
 type subscriptionSIMReader struct {
 	reader   vowifi.SIMIdentityReader
 	database *store.Store
+}
+
+// Used by metadata refresh, not explicit eSIM maintenance. A shared Wi-Fi
+// transaction must retain its logical channel and the cellular owner's RF.
+func allowAutomaticSIMRecovery(ctx context.Context, database *store.Store, candidate modem.Candidate) bool {
+	configs, err := database.ListDevices(ctx)
+	if err != nil {
+		return false
+	}
+	for _, config := range configs {
+		protected := store.HostIMSConfigured(config) || config.Telephony != nil && store.AccessEnabled(config, store.IMSModeVoWiFi) && !store.WiFiExclusive(config)
+		if !protected {
+			continue
+		}
+		if config.ID == candidate.ID || config.USBPath != "" && config.USBPath == candidate.USBPath ||
+			config.ControlDevice != "" && (config.ControlDevice == candidate.QMIControl || config.ControlDevice == candidate.ReaderName || config.ControlDevice == candidate.ATPort.OpenPath()) ||
+			config.ATPort != "" && (config.ATPort == candidate.ATPort.Path || config.ATPort == candidate.ATPort.OpenPath()) {
+			return false
+		}
+		if config.USBPath == "" && config.ControlDevice == "" && config.ATPort == "" {
+			return false
+		}
+	}
+	return true
 }
 
 func (s subscriptionSIMReader) ReadIdentity(ctx context.Context, id string) (vowifi.SIMIdentity, error) {

@@ -29,26 +29,30 @@ type Options struct {
 	// MBNProfileForICCID returns a stored per-card MBN override. An empty
 	// result keeps the HPLMN heuristic used after eSIM profile switches.
 	MBNProfileForICCID func(context.Context, string) (string, error)
+	// A metadata refresh must not power-cycle a SIM borrowed by another live
+	// access owner. nil retains standalone-device recovery behavior.
+	AllowAutomaticSIMRecovery func(context.Context, modem.Candidate) bool
 }
 
 type Manager struct {
-	audioInspector     modemaudio.Inspector
-	mu                 sync.RWMutex
-	uiccMu             sync.Mutex // serializes all multi-command UICC/APDU transactions
-	esimMu             sync.Mutex // serializes eSIM card access (list/switch/download)
-	esimRecoveryMu     sync.Mutex
-	esimRecoveries     map[string]*esimRecovery
-	esimCacheMu        sync.RWMutex
-	esimCache          map[string]EsimInfo
-	discoverer         modem.Discoverer
-	opener             modem.Opener
-	commandTimeout     time.Duration
-	longTimeout        time.Duration
-	smsTimeout         time.Duration
-	scanTimeout        time.Duration
-	cardReaders        *pcsc.Service
-	logger             *slog.Logger
-	mbnProfileForICCID func(context.Context, string) (string, error)
+	audioInspector            modemaudio.Inspector
+	mu                        sync.RWMutex
+	uiccMu                    sync.Mutex // serializes all multi-command UICC/APDU transactions
+	esimMu                    sync.Mutex // serializes eSIM card access (list/switch/download)
+	esimRecoveryMu            sync.Mutex
+	esimRecoveries            map[string]*esimRecovery
+	esimCacheMu               sync.RWMutex
+	esimCache                 map[string]EsimInfo
+	discoverer                modem.Discoverer
+	opener                    modem.Opener
+	commandTimeout            time.Duration
+	longTimeout               time.Duration
+	smsTimeout                time.Duration
+	scanTimeout               time.Duration
+	cardReaders               *pcsc.Service
+	logger                    *slog.Logger
+	mbnProfileForICCID        func(context.Context, string) (string, error)
+	allowAutomaticSIMRecovery func(context.Context, modem.Candidate) bool
 
 	networkEventsMu         sync.Mutex
 	networkEventSubscribers map[chan string]struct{}
@@ -193,6 +197,7 @@ func NewManager(options Options) (*Manager, error) {
 		mbnProfileForICCID: options.MBNProfileForICCID,
 
 		qmiRadioOpener:                openQMIRadioSession,
+		allowAutomaticSIMRecovery:     options.AllowAutomaticSIMRecovery,
 		qmiSharedSIMOpener:            openQMISharedSIMSession,
 		qmiDataOpener:                 openQMIDataSession,
 		nativeQMIRegistrationInFlight: make(map[string]struct{}),

@@ -92,7 +92,7 @@ func configureHostIMSRuntime(ctx context.Context, logger *slog.Logger, database 
 		if err := manager.Ensure(ctx, config.ID); err != nil {
 			return manager, closeAll, err
 		}
-		if store.AccessEnabled(config, store.IMSModeHost) {
+		if config.Telephony == nil && store.AccessEnabled(config, store.IMSModeHost) {
 			if _, err := manager.RequestEnabled(config.ID, true); err != nil {
 				return manager, closeAll, err
 			}

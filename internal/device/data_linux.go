@@ -40,9 +40,8 @@ type productionQMIDataSession struct {
 func openQMIDataSession(ctx context.Context, controlDevice string) (qmiDataSession, error) {
 	openContext, cancel := context.WithTimeout(ctx, qmiDataOpenTimeout)
 	defer cancel()
-	opts := qmi.DefaultClientOptions()
-	opts.UseProxy = true
-	opts.ProxyFallbackToRaw = false
+	opts := sharedSIMClientOptions()
+	opts.DefaultRequestTimeout = qmiDataStartTimeout
 	opts.ProxyExecutable = qmiProxyExecutable()
 	opts.Logf = func(qmi.ClientLogLevel, string, ...any) {}
 	client, err := qmi.NewClientWithOptions(openContext, controlDevice, opts)

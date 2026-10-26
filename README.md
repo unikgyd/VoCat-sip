@@ -38,7 +38,7 @@ authorization checks remain in force.
 | Calls and media | Web phone, physically paired USB PCM, SIP extension/peer bridges and negotiated RFC 4733 DTMF are wired. |
 | Multiple modems | Independent runtime ownership, Host IMS, per-SIM ePDG history and persistent IKE retry admission are present. |
 | Independent access | Per-ICCID cellular/Wi-Fi preferences, default routing, session ownership, reconnect controls and UI are being integrated. **The latest changes have not had the final combined test/build run.** |
-| Management | Existing eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained; independent-access lifecycle integration is still in progress. |
+| Management | Existing eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained. Per-SIM startup intent, SIM replacement cleanup and live Host IMS identity are wired in new source; remaining lifecycle work and unified testing are pending. |
 | Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported message playback, browser takeover and call recording are wired in the latest source, awaiting final combined validation. |
 | Remaining acceptance | Complete independent-access lifecycle, real hardware, softphone and carrier acceptance. |
 

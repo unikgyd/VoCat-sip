@@ -12,14 +12,17 @@ import (
 
 func (s *Server) telephonyPolicyResponse(config store.Device, iccid string) map[string]any {
 	p := config.Telephony
-	if p == nil && iccid != "" {
+	if p != nil && (iccid == "" || p.ICCID != iccid) {
+		p = nil
+	}
+	if config.Telephony == nil && iccid != "" {
 		legacy := store.LegacyTelephonyPolicy(config, iccid)
 		if entry, _, present := s.physicalForConfig(config); present && entry.Snapshot != nil && entry.Snapshot.FlightMode && legacy.CellularMode == store.IMSModeModule {
 			legacy.AutoConnectCellular = false
 		}
 		p = &legacy
 	}
-	result := map[string]any{"policy": p, "legacy": config.Telephony == nil}
+	result := map[string]any{"policy": p, "legacy": config.Telephony == nil, "subscription_pending": p == nil}
 	if c := s.wifiController(); c != nil {
 		if state, err := c.State(config.ID); err == nil {
 			result["wifi_runtime"] = state
@@ -39,6 +42,8 @@ func (s *Server) handleTelephonyPolicy(w http.ResponseWriter, r *http.Request, c
 	if r.Method == http.MethodGet {
 		if identity, err := s.observedTelephonySubscription(r.Context(), config); err == nil {
 			iccid = identity.ICCID
+		} else {
+			iccid = ""
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"data": s.telephonyPolicyResponse(config, iccid)})
 		return true
@@ -140,14 +145,14 @@ func (s *Server) handleTelephonyPolicy(w http.ResponseWriter, r *http.Request, c
 	// A route-only edit reaches none of these lifecycle operations. Its active
 	// calls and media leases retain their original control and physical owner.
 	if wifiChanged {
-		if err := stopIMSController(r.Context(), s.wifiController(), current.ID); err != nil {
+		if err := s.stopTelephonyController(r.Context(), current.ID, store.IMSModeVoWiFi); err != nil {
 			writeError(w, 409, "ims_cleanup_pending", "Wi-Fi cleanup has not been acknowledged")
 			return true
 		}
 		defer endIMSMaintenance(s.wifiController(), current.ID)
 	}
 	if cellChanged && previous.CellularMode == store.IMSModeHost {
-		if err := stopIMSController(r.Context(), s.hostIMS, current.ID); err != nil {
+		if err := s.stopTelephonyController(r.Context(), current.ID, store.IMSModeHost); err != nil {
 			writeError(w, 409, "ims_cleanup_pending", "Host IMS cleanup has not been acknowledged")
 			return true
 		}
@@ -175,23 +180,15 @@ func (s *Server) handleTelephonyPolicy(w http.ResponseWriter, r *http.Request, c
 		return true
 	}
 	current.Telephony = &requested
-	if cellChanged && requested.AutoConnectCellular && requested.CellularMode == store.IMSModeModule {
-		if _, err := s.devices.SetFlight(r.Context(), physical, false); err != nil {
-			writeError(w, 502, "cellular_start_failed", "saved cellular policy could not be activated; retry after checking the modem")
-			return true
-		}
-	}
-	if cellChanged && requested.AutoConnectCellular && requested.CellularMode == store.IMSModeHost {
-		endIMSMaintenance(s.hostIMS, current.ID)
-		if _, err := s.hostIMS.RequestEnabled(current.ID, true); err != nil {
-			writeError(w, 503, "ims_start_failed", "Host IMS intent was saved but could not be queued")
-			return true
-		}
-	}
-	if wifiChanged && requested.AutoConnectWiFi {
+	if wifiChanged {
 		endIMSMaintenance(s.wifiController(), current.ID)
-		if _, err := s.wifiController().RequestEnabled(current.ID, true); err != nil {
-			writeError(w, 503, "ims_start_failed", "Wi-Fi intent was saved but could not be queued")
+	}
+	if cellChanged {
+		endIMSMaintenance(s.hostIMS, current.ID)
+	}
+	if cellChanged || wifiChanged {
+		if err := s.startTelephonyAccess(r.Context(), current, physical); err != nil {
+			writeError(w, 503, "access_start_pending", "policy was saved; one or more access starts remain pending and will be retried independently")
 			return true
 		}
 	}
