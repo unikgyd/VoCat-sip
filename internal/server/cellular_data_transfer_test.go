@@ -16,7 +16,7 @@ func transferRuntime() (*cellularDataRuntime, *cellularDataSession) {
 }
 
 func TestCellularTransferRequiresAcknowledgedSessionAndOriginalBinding(t *testing.T) {
-	for _, mode := range []string{"unowned", "running", "closing", "quiescing", "maintenance", "disconnected", "physical", "sim"} {
+	for _, mode := range []string{"unowned", "running", "closing", "quiescing", "shutdown", "maintenance", "disconnected", "physical", "sim"} {
 		t.Run(mode, func(t *testing.T) {
 			r, s := transferRuntime()
 			physical, iccid := "physical-a", s.identity
@@ -30,6 +30,8 @@ func TestCellularTransferRequiresAcknowledgedSessionAndOriginalBinding(t *testin
 				s.phase = cellularDataSessionClosing
 			case "quiescing":
 				r.quiescing["a"] = true
+			case "shutdown":
+				r.closing = true
 			case "maintenance":
 				e.status.MaintenancePhase = "pending"
 			case "disconnected":

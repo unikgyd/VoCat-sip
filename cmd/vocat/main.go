@@ -415,7 +415,7 @@ func splitSubcommand(args []string) (string, []string) {
 	return args[0], args[1:]
 }
 
-func run(logger *slog.Logger, logs *loghub.Hub) error {
+func run(logger *slog.Logger, logs *loghub.Hub) (runErr error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load configuration: %w", err)
@@ -675,6 +675,14 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 		return err
 	}
 	defer handler.CloseSIPGateway()
+	defer func() {
+		cancelPolling()
+		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := handler.CloseCellularData(cleanup); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("cellular data shutdown is incomplete: %w", err))
+		}
+	}()
 	go handler.ReconcileTelephonyPolicies(pollContext)
 	incomingCallMu.Lock()
 	onIncomingCall = func(ctx context.Context, call ims.ReceivedCall) error {

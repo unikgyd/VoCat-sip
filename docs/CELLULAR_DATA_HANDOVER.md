@@ -71,6 +71,14 @@ session's cache. Wi-Fi coexistence does not suppress module data or IP lookup;
 the call default route is independent. The Wi-Fi upstream-route reconnect
 helper honors the line gate, current SIM and active Wi-Fi calls.
 
-Final source checklist review and combined cancellation, restart, failure,
-hotplug, frontend and multi-architecture verification remain. Real firmware and
+Graceful application shutdown now fences new data work, cancels and joins
+existing proxy/IP transfers and superseded workers, then releases each original
+data capability under its line gate before the device manager closes WDS.
+Independent modems drain concurrently. Saved data-enable preferences remain
+intact for the next startup; failed cleanup is returned as a shutdown error.
+The fence also rejects late startup callbacks and task-finalizer admission.
+
+This addresses orderly process exit. Abrupt termination, machine restart and
+physical hotplug require separate live evidence; graceful cleanup does not
+establish recovery of a lost WDS transport after a crash. Real firmware and
 carrier acceptance remains separate from software verification.

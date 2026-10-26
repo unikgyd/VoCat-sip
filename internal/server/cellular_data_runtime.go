@@ -169,6 +169,7 @@ const (
 // worker reconciles the newest desired state.
 type cellularDataRuntime struct {
 	mu                    sync.Mutex
+	closing               bool // process shutdown permanently fences new work
 	root                  context.Context
 	setter                cellularNetworkSetter
 	logger                *slog.Logger
@@ -595,7 +596,7 @@ func (runtime *cellularDataRuntime) requestWithIdentity(
 func (runtime *cellularDataRuntime) requestWithIdentityContext(ctx context.Context, configID, physicalID string, request device.NetworkRequest, identity string) cellularDataRuntimeStatus {
 	runtime.mu.Lock()
 	status := runtime.requestLocked(configID, physicalID, request, strings.TrimSpace(identity))
-	if !runtime.quiescing[configID] {
+	if !runtime.closing && !runtime.quiescing[configID] {
 		runtime.entries[configID].taskLease, _ = ctx.Value(automaticTaskLeaseKey{}).(*automaticTaskLease)
 	}
 	runtime.mu.Unlock()
@@ -609,7 +610,7 @@ func (runtime *cellularDataRuntime) requestLocked(
 	identity string,
 ) cellularDataRuntimeStatus {
 	entry := runtime.entries[configID]
-	if runtime.quiescing[configID] {
+	if runtime.closing || runtime.quiescing[configID] {
 		if entry != nil {
 			return entry.status
 		}

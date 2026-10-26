@@ -1,0 +1,274 @@
+{
+  "date": "2026-10-27",
+  "timezone": "Asia/Taipei",
+  "sourceBaseline": "4d42ee48c0ec17eeaa10749b442e6462b62a6807",
+  "goalComplete": false,
+  "software": {
+    "started": 1793041743.9988563,
+    "sourceBaseline": "4d42ee48c0ec17eeaa10749b442e6462b62a6807",
+    "manifestSHA256": "5859116dfa2043d9327db248d8109d88627e24e9ca2c238ba649e99b74921335",
+    "contractManifestSHA256": "235f9dd816d375be23726fee26c43193d3cac6edeed804a378a8b0f44f7fddff",
+    "results": [
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 186.5,
+        "tests": {
+          "passCount": 2051,
+          "failCount": 0,
+          "skipCount": 47
+        }
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 6.548
+      },
+      {
+        "label": "race",
+        "exit": 0,
+        "seconds": 31.914,
+        "tests": {
+          "passCount": 18,
+          "failCount": 0,
+          "skipCount": 0
+        }
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 8.097
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 8.354
+      }
+    ],
+    "artifacts": {
+      "amd64": "d72ac3d601c74440f81c054b2d6faa1f1d73e4e322ed23162edbe06384828213",
+      "arm64": "3cbb570cd08b42ed44f4f4c121db74765382c1e4eaa188067f976e9129857cc7"
+    },
+    "completed": 1793041985.7754145
+  },
+  "deployedAMD64SHA256": "d72ac3d601c74440f81c054b2d6faa1f1d73e4e322ed23162edbe06384828213",
+  "initialDataAndProxyBinarySHA256": "af97e7ec81f00dde9a0e373241ff592899914810fed5944fd49645d6786e2896",
+  "initialHeaderEvidence": {
+    "started": 1793040830.719615,
+    "completed": 1793040870.809208,
+    "identityChanged": false,
+    "observedHeaders": 70,
+    "outboundTCP443": 29,
+    "inboundTCP443": 25,
+    "outboundDNS": 8,
+    "observedIPBytes": 14881
+  },
+  "initialDataCleanup": {
+    "ct-host": {
+      "status": 200,
+      "records": [
+        {
+          "index": "2",
+          "direction": "1",
+          "state": "0",
+          "mode": "1"
+        },
+        {
+          "index": "1",
+          "direction": "1",
+          "state": "0",
+          "mode": "1"
+        }
+      ]
+    },
+    "dito-wifi": {
+      "status": 200,
+      "records": [
+        {
+          "index": "1",
+          "direction": "1",
+          "state": "0",
+          "mode": "1"
+        },
+        {
+          "index": "2",
+          "direction": "1",
+          "state": "0",
+          "mode": "1"
+        }
+      ]
+    },
+    "existingTasks": 0,
+    "recoveries": 0,
+    "rulesRestored": true,
+    "mainDefaultsRestored": true,
+    "privateDNSRemoved": true,
+    "modemGlobalAddressesCleared": true
+  },
+  "taskDispatchAndAdmission": {
+    "manualQueued202": true,
+    "realClockDispatch": true,
+    "executions": 2,
+    "attemptsEach": 1,
+    "taskType": "cellular_attach",
+    "bothRejectedObservedModuleCall": true,
+    "originalDeviceAndCardUnchanged": true,
+    "zeroRecoveryJournals": true,
+    "onlyOwnTaskDeleted": true,
+    "fullTaskSuccessProven": false,
+    "carrierCallOrSMS": false
+  },
+  "finalActiveShutdown": {
+    "activeDataAtShutdown": true,
+    "containerExitCode": 0,
+    "originalRulesRestored": true,
+    "originalDefaultRoutesRestored": true,
+    "ownedGlobalAddressesCleared": true,
+    "privateDNSRemoved": true,
+    "durableEnableIntentPreserved": true,
+    "zeroTaskRecoveryJournals": true,
+    "headerEvidence": {
+      "started": 1793042174.8044398,
+      "completed": 1793042178.7081072,
+      "identityChanged": false,
+      "linkDownObserved": true,
+      "observedHeaders": 90,
+      "outboundTCP443": 36,
+      "inboundTCP443": 38,
+      "outboundDNS": 8,
+      "observedIPBytes": 23704
+    }
+  },
+  "restart": {
+    "sameCheckedBinary": true,
+    "savedDataEnableIntentAutomaticallyRestored": true,
+    "bothProxiesAutomaticallyReady": true
+  },
+  "restoration": {
+    "completed": 1793042301.0292714,
+    "stoppedApplicationExitCode": 0,
+    "originalDevicePoliciesRestored": true,
+    "originalCardPoliciesRestored": true,
+    "testProxyConfigurationRestored": true,
+    "incomingMessagesAndSIPLedgersPreserved": true,
+    "onlyOriginalInhibitorsReleased": true,
+    "bothOriginalModemAndSIMPairsVerified": true,
+    "bothRegisteredRFOn": true,
+    "enabledOnlyVerifiedOriginalDisabledModems": 0,
+    "originalRunningContainerIDsPreserved": true,
+    "originalModemManagerRunning": true,
+    "modemManagerRestartCount": 1,
+    "modemManagerSegfaultObservedDuringInhibitorRelease": true,
+    "modemManagerAutomaticallyRestarted": true,
+    "zeroHostIMSClaims": true,
+    "zeroXFRMStatesAndPolicies": true,
+    "zeroTaskRecoveryJournals": true,
+    "restorationViaStoppedFixture": true,
+    "unknownModuleCallsNotHungUp": true
+  },
+  "retainedFailedSoftwareAttempt": {
+    "started": 1793041524.788502,
+    "sourceBaseline": "4d42ee48c0ec17eeaa10749b442e6462b62a6807",
+    "manifestSHA256": "5859116dfa2043d9327db248d8109d88627e24e9ca2c238ba649e99b74921335",
+    "results": [
+      {
+        "label": "go",
+        "exit": 1,
+        "seconds": 187.499,
+        "tests": {
+          "passCount": 2038,
+          "failCount": 13,
+          "skipCount": 47
+        }
+      }
+    ],
+    "reason": "Shared sibling contract fixtures were omitted from the first isolated source export; frozen application source was unchanged for the complete successful rerun."
+  },
+  "noCarrierCallOrSMSSubmitted": true,
+  "publicSubscriberOrIPAddressValuesIncluded": false,
+  "initialIndependentClient": {
+    "started": 1793040831.0426688,
+    "completed": 1793040838.934762,
+    "client": "Windows Python 3.10",
+    "sameCarrierPublicIP": true,
+    "existingTunnelsClosed": [
+      true,
+      true
+    ],
+    "newConnectionsRejected": true,
+    "tests": {
+      "missingAuthentication": {
+        "status": 407,
+        "passed": true
+      },
+      "wrongAuthentication": {
+        "status": 407,
+        "passed": true
+      },
+      "httpHTTPS": {
+        "httpStatus": 200,
+        "bodyBytes": 226,
+        "tlsVerified": true,
+        "bodySHA256": "7f2aa1d1abddf10282c429e14e701c936bbc893f17c10495734235a5dfa1e960"
+      },
+      "socksWrongAuthentication": {
+        "rejected": true
+      },
+      "socks5HTTPS": {
+        "httpStatus": 200,
+        "bodyBytes": 226,
+        "tlsVerified": true,
+        "bodySHA256": "4381cc49a4b2252253fd18f20e23c168dbd6d13aca09379f9913cd983d7bd42e"
+      }
+    }
+  },
+  "finalIndependentClient": {
+    "started": 1793042175.0726464,
+    "completed": 1793042183.5620925,
+    "client": "Windows Python 3.10",
+    "sameCarrierPublicIP": true,
+    "existingTunnelsClosed": [
+      true,
+      true
+    ],
+    "newConnectionsRejected": true,
+    "tests": {
+      "missingAuthentication": {
+        "status": 407,
+        "passed": true
+      },
+      "wrongAuthentication": {
+        "status": 407,
+        "passed": true
+      },
+      "httpHTTPS": {
+        "httpStatus": 200,
+        "bodyBytes": 231,
+        "tlsVerified": true,
+        "bodySHA256": "ad50d497d9e8f2f67bcc56b800a1e5eea8923e09b78dd5711449fafaefbb6851"
+      },
+      "socksWrongAuthentication": {
+        "rejected": true
+      },
+      "socks5HTTPS": {
+        "httpStatus": 200,
+        "bodyBytes": 231,
+        "tlsVerified": true,
+        "bodySHA256": "12d52eab60a114f22b0a7177c32299f10781fb490ead224729f8562d29ce706b"
+      }
+    }
+  },
+  "initialProxyDisableGuard": {
+    "dataOffGuarded": true,
+    "onlyOwnProxiesDisabled": true,
+    "listenersStopped": true
+  },
+  "hardwareLimits": [
+    "Carrier answered/incoming voice and advanced media require controlled endpoint participation.",
+    "No mobile SMS was submitted.",
+    "VoWiFi carrier calls are outside requested scope.",
+    "IPv6-only/dual-stack data export and abrupt crash/hotplug recovery are not established.",
+    "Task dispatch admission was tested on the baseline binary; successful task business execution remains open.",
+    "Distribution ModemManager segfaulted during inhibitor release and automatically restarted once; reliability remains open."
+  ]
+}

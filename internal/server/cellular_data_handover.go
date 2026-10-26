@@ -150,7 +150,7 @@ func (s *Server) startTelephonyData(ctx context.Context, config store.Device, ph
 	}
 	runtime := s.cellularDataRuntime()
 	runtime.mu.Lock()
-	if runtime.quiescing[config.ID] {
+	if runtime.closing || runtime.quiescing[config.ID] {
 		runtime.mu.Unlock()
 		return device.ErrDataCleanupPending
 	}

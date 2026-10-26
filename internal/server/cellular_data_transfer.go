@@ -34,7 +34,7 @@ func (runtime *cellularDataRuntime) acquireTransfer(ctx context.Context, id, phy
 	}
 	runtime.mu.Lock()
 	entry := runtime.entries[id]
-	if runtime.quiescing[id] || entry == nil || entry.running || !entry.status.DesiredEnabled ||
+	if runtime.closing || runtime.quiescing[id] || entry == nil || entry.running || !entry.status.DesiredEnabled ||
 		!entry.status.Connected || entry.status.Phase != "connected" || entry.status.MaintenancePhase != "" ||
 		entry.session == nil || !entry.session.owned || entry.session.phase != cellularDataSessionActive || entry.session.physicalID != physical ||
 		iccid == "" || entry.session.identity != iccid {
@@ -132,7 +132,7 @@ func (runtime *cellularDataRuntime) activeDataGeneration(id, iccid string) uint6
 	runtime.mu.Lock()
 	defer runtime.mu.Unlock()
 	entry := runtime.entries[id]
-	if runtime.quiescing[id] || entry == nil || entry.running || !entry.status.DesiredEnabled || !entry.status.Connected ||
+	if runtime.closing || runtime.quiescing[id] || entry == nil || entry.running || !entry.status.DesiredEnabled || !entry.status.Connected ||
 		entry.status.Phase != "connected" || entry.status.MaintenancePhase != "" || entry.session == nil || !entry.session.owned ||
 		entry.session.phase != cellularDataSessionActive || entry.session.identity == "" || entry.session.identity != iccid {
 		return 0

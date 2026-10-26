@@ -53,11 +53,19 @@ candidate completed an actual existing-profile round trip with verified HTTP
 200 results in both directions. The initial failure and restoration remain in
 the record rather than being counted as passes.
 
+The [data and shutdown run](VERIFICATION_20261027_NETWORK.md) adds real CTNET
+WDS data, independent authenticated HTTP CONNECT/SOCKS5 HTTPS transfers, observed
+modem-interface DNS/TCP traffic, proxy-disable cancellation, public-IP cache
+invalidation and original host-routing restoration. It also adds actual manual
+and clock task dispatch with a correctly rejected non-idle modem. That refusal
+does not establish successful task business execution.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
-hotplug, crash recovery, data/export transfers, scheduled work and external
-provider delivery still need their live scenarios. Existing profile management
-does not establish provisioning/download/delete of a disposable profile.
+hotplug, abrupt crash recovery, IPv6/dual-stack data export, successful scheduled
+work and external provider delivery still need their live scenarios. Existing
+profile management does not establish provisioning/download/delete of a
+disposable profile.
 
 Protocol and ownership details remain in [the feature matrix](FEATURE_UNION.md),
 [independent access](INDEPENDENT_ACCESS.md), [task restoration](AUTOMATIC_TASKS.md),
