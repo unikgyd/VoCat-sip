@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"vocat/internal/device"
-	"vocat/internal/exportproxy"
 	"vocat/internal/store"
 	"vocat/internal/vowifi"
 )
@@ -723,11 +722,11 @@ func (s *Server) executeAutomaticPublicIP(ctx context.Context, config store.Devi
 	if strings.TrimSpace(config.Interface) == "" {
 		return "", errors.New("device has no cellular network interface")
 	}
-	info, err := exportproxy.LookupPublicIP(ctx, config.Interface)
+	info, generation, err := s.lookupCellularPublicIP(ctx, config.ID, config.Interface)
 	if err != nil {
 		return "", fmt.Errorf("detect roaming public IP: %w", err)
 	}
-	s.savePublicIP(config.ID, iccid, info)
+	s.savePublicIP(config.ID, iccid, info, generation)
 	return strings.TrimSpace(fmt.Sprintf("公网 IP %s · %s %s", info.IP, info.CountryCode, info.Region)), nil
 }
 

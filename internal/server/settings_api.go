@@ -1434,6 +1434,9 @@ func (s *Server) liveCardPolicyFlags(ctx context.Context, iccid string) (vowifi,
 	}
 	clean := strings.TrimSpace(iccid)
 	for _, config := range configs {
+		if store.HostIMSConfigured(config) {
+			continue
+		} // AT RF metadata is not the Host IMS observation source.
 		entry, _, present := s.physicalForConfig(config)
 		if !present || entry.Snapshot == nil {
 			continue
@@ -1441,11 +1444,8 @@ func (s *Server) liveCardPolicyFlags(ctx context.Context, iccid string) (vowifi,
 		if !strings.EqualFold(strings.TrimSpace(entry.Snapshot.ICCID), clean) {
 			continue
 		}
-		// VoWiFi is an RF-off service mode. Surface that fact explicitly: while
-		// VoWiFi is selected both switches are on, but the airplane switch is
-		// read-only in the UI. Once VoWiFi is disabled, airplane remains on until
-		// the user explicitly turns it off.
-		return config.VoWiFiEnabled, config.VoWiFiEnabled && store.WiFiExclusive(config) || entry.Snapshot.FlightMode, true
+		wifi := store.AccessEnabled(config, store.IMSModeVoWiFi)
+		return wifi, wifi && store.WiFiExclusive(config) || entry.Snapshot.FlightMode, true
 	}
 	return false, false, false
 }

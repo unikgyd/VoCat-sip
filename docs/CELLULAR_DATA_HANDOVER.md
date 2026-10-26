@@ -46,7 +46,30 @@ the durable per-SIM preferences and reapplies the actual card's saved policy.
 
 Task writer capabilities and original-call lifetime handling are now implemented
 in [automatic tasks](AUTOMATIC_TASKS.md), with the same unverified status.
-Remaining integration includes persistent task/revert recovery, complete Host
-IMS task handover, management and export-proxy paths, and final cancellation, failure, hotplug,
-frontend and multi-architecture verification. Real firmware/carrier acceptance
-remains separate from software verification.
+That path now includes a durable restore/revert journal and Host IMS task handover.
+
+Export Proxy and public-IP lookup now acquire revocable user-plane leases on an
+acknowledged data session. Merely observing an online interface does not grant
+that ownership. Admission checks the current device/SIM policy, physical target,
+ICCID, USB generation and kernel netdev index. Host IMS, exclusive Wi-Fi, a task
+writer or pending task recovery cannot supply export traffic. A listener can
+remain open while data is unavailable; the API and UI distinguish listening from
+having an admitted data session. No admission callback means no outgoing traffic.
+
+Data transitions, invalidation and handover cancel existing transfers. Workers
+wait for transfer completion before invoking the next data operation; handover
+also joins superseded transfers before releasing the original data owner. HTTP,
+CONNECT, SOCKS dialing, DNS and established tunnels use the lease context.
+Cancellation closes their original sockets, and both tunnel-copy directions
+exit before returning the lease. Proxy disable, deletion, replacement and
+developer-mode shutdown also close existing clients.
+
+Public-IP cache entries carry the accepted data request revision as well as
+ICCID. A result from a stopped or replaced request cannot populate a newer
+session's cache. Wi-Fi coexistence does not suppress module data or IP lookup;
+the call default route is independent. The Wi-Fi upstream-route reconnect
+helper honors the line gate, current SIM and active Wi-Fi calls.
+
+Final source checklist review and combined cancellation, restart, failure,
+hotplug, frontend and multi-architecture verification remain. Real firmware and
+carrier acceptance remains separate from software verification.

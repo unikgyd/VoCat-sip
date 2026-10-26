@@ -25,7 +25,10 @@ export function DeviceDetailHeader(props: DeviceDetailHeaderProps) {
   const { t } = useI18n();
   const { device } = props;
 	const vowifiInUse = isVoWiFiInUse(device);
-  const hostIMS = device.imsMode === "host_ims";
+  const hostIMS = device.telephonyPolicy ? device.telephonyPolicy.cellularMode === "host_ims" : device.imsMode === "host_ims";
+  const exclusiveWifi = device.telephonyPolicy
+    ? device.telephonyPolicy.autoConnectWifi && device.telephonyPolicy.wifiRadioPolicy === "exclusive"
+    : vowifiInUse;
   return (
     <div className="ui-card p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -43,11 +46,12 @@ export function DeviceDetailHeader(props: DeviceDetailHeaderProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-		  {vowifiInUse ? (
+		  {vowifiInUse && !device.telephonyPolicy ? (
             <Button loading={props.reconnectingVoWiFi} onClick={props.onReconnectVowifi} className="ui-glass-border !border-0" icon={<ArrowSyncRegular />}>
               {t("重连 VoWiFi")}
             </Button>
-		  ) : device.developerEnabled && !props.wifiCallingOnly && !hostIMS ? (
+		  ) : null}
+		  {device.developerEnabled && !props.wifiCallingOnly && !hostIMS && !exclusiveWifi ? (
 			<div
 			  className="ui-glass-border flex h-8 items-center gap-2 rounded-lg px-3 text-sm text-gray-700 dark:text-gray-200"
 			  title={t("蜂窝数据仅进入 Export Proxy 的受保护路由，不会成为主机默认出口")}

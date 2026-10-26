@@ -22,6 +22,7 @@ interface ExportProxyConfig {
 interface ExportProxyStatus {
   id: string;
   running: boolean;
+  ready: boolean;
   listen?: string;
   error?: string;
 }
@@ -185,8 +186,8 @@ export default function ExportProxyPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Switch checked={config.enabled} loading={busy === config.id} onChange={() => void toggle(config)} size="small" />
-                        <span className={status?.running ? "text-green-600" : status?.error ? "text-red-500" : "text-gray-400"}>
-                          {status?.running ? t("运行中") : status?.error ? t("错误") : t("已停用")}
+                        <span className={status?.ready ? "text-green-600" : status?.error ? "text-red-500" : "text-gray-400"}>
+                          {status?.ready ? t("运行中") : status?.running ? t("等待数据会话确认") : status?.error ? t("错误") : t("已停用")}
                         </span>
                       </div>
                       {status?.error ? <div className="mt-1 max-w-xs text-xs text-red-500">{status.error}</div> : null}

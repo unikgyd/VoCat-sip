@@ -42,6 +42,11 @@ func pipe(left, right net.Conn) {
 	go func() { _, _ = copyConnection(right, left); done <- struct{}{} }()
 	go func() { _, _ = copyConnection(left, right); done <- struct{}{} }()
 	<-done
+	// Closing both sockets joins the other copy before releasing the cellular
+	// lease. Half of a tunnel is not proof that all user-plane I/O has exited.
+	_ = left.Close()
+	_ = right.Close()
+	<-done
 }
 
 func copyConnection(destination net.Conn, source net.Conn) (int64, error) {

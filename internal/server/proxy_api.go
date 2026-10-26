@@ -320,16 +320,30 @@ func (s *Server) handleProfileProxyBindings(w http.ResponseWriter, r *http.Reque
 // returned as advisory information: the chosen route will still be used on
 // the next VoWiFi start/reconnect.
 func (s *Server) requestProfileProxyRouteReconnect(deviceID, iccid string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	unlock, err := s.acquireLineRead(ctx, deviceID)
+	if err != nil {
+		return false, err
+	}
+	defer unlock()
 	controller := s.wifiController()
 	if controller == nil {
 		return false, nil
 	}
-	config, err := s.store.Device(context.Background(), deviceID)
+	config, err := s.store.Device(ctx, deviceID)
 	if err != nil {
 		return false, err
 	}
 	if !store.AccessEnabled(config, store.IMSModeVoWiFi) {
 		return false, nil
+	}
+	identity, err := s.observedTelephonySubscription(ctx, config)
+	if err != nil || identity.ICCID != strings.TrimSpace(iccid) {
+		return false, err
+	}
+	if err := imsActiveCalls(controller, deviceID); err != nil {
+		return false, err
 	}
 	state, stateErr := controller.State(deviceID)
 	if stateErr != nil || strings.TrimSpace(state.ICCID) == "" || strings.TrimSpace(state.ICCID) != strings.TrimSpace(iccid) {

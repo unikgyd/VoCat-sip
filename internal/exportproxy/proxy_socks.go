@@ -12,6 +12,15 @@ import (
 )
 
 func serveSOCKS(client net.Conn, config Config, dialer *net.Dialer, resolver *net.Resolver) error {
+	return serveSOCKSContext(context.Background(), client, config, dialer, resolver)
+}
+
+func serveSOCKSContext(ctx context.Context, client net.Conn, config Config, dialer *net.Dialer, resolver *net.Resolver) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	stopClient := context.AfterFunc(ctx, func() { _ = client.Close() })
+	defer stopClient()
 	reader := bufio.NewReader(client)
 	version, err := reader.ReadByte()
 	if err != nil || version != 5 {
@@ -52,14 +61,16 @@ func serveSOCKS(client net.Conn, config Config, dialer *net.Dialer, resolver *ne
 		_ = writeSocksReply(client, 1)
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), proxyTimeout)
-	target, err := dialTarget(ctx, net.JoinHostPort(host, strconv.Itoa(port)), dialer, resolver)
+	dialContext, cancel := context.WithTimeout(ctx, proxyTimeout)
+	target, err := dialTarget(dialContext, net.JoinHostPort(host, strconv.Itoa(port)), dialer, resolver)
 	cancel()
 	if err != nil {
 		_ = writeSocksReply(client, 5)
 		return err
 	}
 	defer target.Close()
+	stopClosing := context.AfterFunc(ctx, func() { _ = target.Close() })
+	defer stopClosing()
 	if err := writeSocksReply(client, 0); err != nil {
 		return err
 	}

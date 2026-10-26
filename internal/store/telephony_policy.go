@@ -75,6 +75,13 @@ func WiFiExclusive(value Device) bool {
 	return value.Telephony == nil || value.Telephony.WiFiRadioPolicy == "exclusive"
 }
 
+// User-plane data is owned by the module data session, independently of the
+// default call route. Host IMS bearers and RF-exclusive Wi-Fi cannot supply it.
+func CellularDataEnabled(value Device) bool {
+	return value.NetworkEnabled && NormalizeDeviceType(value.DeviceType) != DeviceTypeUSBSIMReader &&
+		!HostIMSConfigured(value) && !(AccessEnabled(value, IMSModeVoWiFi) && WiFiExclusive(value))
+}
+
 // HostIMSConfigured is hardware ownership, independent of the default route
 // and current registration. A disabled Host IMS configuration can still have
 // pending durable cleanup and must not be borrowed by a legacy QMI path.

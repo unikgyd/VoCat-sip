@@ -49,7 +49,7 @@ func (s *Server) beginAutomaticTaskRecovery(ctx context.Context, id, token strin
 		runtime.mu.Lock()
 		wasQuiescing := runtime.quiescing[id]
 		runtime.quiescing[id] = true
-		var done []<-chan struct{}
+		done := runtime.cancelTransfersLocked(id, nil)
 		for worker := range runtime.workers[id] {
 			if worker.cancel != nil {
 				worker.cancel()
@@ -59,12 +59,17 @@ func (s *Server) beginAutomaticTaskRecovery(ctx context.Context, id, token strin
 		runtime.mu.Unlock()
 		finish := func() error {
 			var recoveryErr error
+			var publicIPPhysical string
+			var publicIPRevision uint64
 			if lease.finishRecovery != nil {
 				recoveryErr = lease.finishRecovery()
 			}
 			runtime.mu.Lock()
 			if entry := runtime.entries[id]; entry != nil && entry.taskLease == lease {
 				entry.taskLease = nil
+				if entry.status.Connected && entry.status.DesiredEnabled && entry.status.Phase == "connected" {
+					publicIPPhysical, publicIPRevision = entry.physicalID, entry.status.Revision
+				}
 			}
 			if !wasQuiescing {
 				delete(runtime.quiescing, id)
@@ -72,6 +77,11 @@ func (s *Server) beginAutomaticTaskRecovery(ctx context.Context, id, token strin
 			runtime.mu.Unlock()
 			s.automaticTaskOwners.Delete(id)
 			gate.Unlock()
+			if recoveryErr == nil && publicIPPhysical != "" {
+				// The transition callback ran while this writer/journal still
+				// fenced ordinary traffic. Detect the restored exit after release.
+				s.schedulePublicIPDetection(id, publicIPPhysical, publicIPRevision)
+			}
 			return recoveryErr
 		}
 		cleanup, cancel := context.WithTimeout(context.Background(), 90*time.Second)

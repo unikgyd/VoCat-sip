@@ -5,6 +5,7 @@
  * 富文本片段（嵌套链接/代码块的说明框）不走字典，在组件里按语言分支渲染。
  */
 export const EN_DICT: Record<string, string> = {
+  "等待数据会话确认": "Waiting for a confirmed data session",
   "任务环境恢复": "Task environment restoration",
   "线路将在原设备、SIM 和通话清理确认后恢复；恢复期间新任务保持排队。重启不会重放通话或短信。": "The line restores after its original device, SIM and call cleanup are confirmed. New tasks stay queued during restoration. Restarting never replays calls or SMS.",
   "任务执行或恢复中": "Task running or restoring",

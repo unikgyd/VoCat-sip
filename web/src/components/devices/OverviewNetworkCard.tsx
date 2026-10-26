@@ -30,7 +30,9 @@ export function OverviewNetworkCard({ device, onOpenOperatorSelection, onOpenCel
 	const simMissing = !!modem?.imei && modem?.simInserted === false;
 	// A persisted runtime may briefly describe the old session while disable is
 	// being cleaned up. Desired policy is authoritative for the overview badge.
-	const vowifiRegistered = !!device.vowifiEnabled && !!(device.vowifiActive || device.vowifiRuntime?.smsReady);
+	// Independent access has its own Wi-Fi status card. Cellular registration
+	// must not turn green just because the other access registered successfully.
+	const vowifiRegistered = !device.telephonyPolicy && !!device.vowifiEnabled && !!(device.vowifiActive || device.vowifiRuntime?.smsReady);
 	const registered = !simMissing && (cellularRegistered || vowifiRegistered);
 	const radioOffForVowifi = vowifiRegistered && (modem?.operatingMode === 0 || modem?.operatingMode === 4 || device.flightMode);
 	const tone = isRecoveringPhase(device.lifecyclePhase) ? "warning" : online ? (registered ? "success" : "warning") : "danger";

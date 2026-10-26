@@ -207,6 +207,9 @@ func New(options Options) (*Server, error) {
 		server.moduleCalls = modulecall.New(context.Background(), moduleVoiceBackend{server}, factory)
 	}
 	server.cellularDataRuntime()
+	if server.exportProxy != nil {
+		server.exportProxy.SetAdmission(server.acquireExportProxyAccess)
+	}
 	server.loadAccessConfig(context.Background())
 	server.loadUILanguage(context.Background())
 	server.loadLoggingConfig(context.Background())

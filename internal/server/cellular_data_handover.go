@@ -25,7 +25,7 @@ func (r *cellularDataRuntime) quiesce(ctx context.Context, id string) ([]string,
 		r.quiescing = make(map[string]bool)
 	}
 	r.quiescing[id] = true
-	var done []<-chan struct{}
+	done := r.cancelTransfersLocked(id, nil)
 	for worker := range r.workers[id] {
 		if worker.cancel != nil {
 			worker.cancel()

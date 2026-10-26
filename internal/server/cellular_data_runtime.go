@@ -130,6 +130,8 @@ type cellularDataSession struct {
 	identity   string // current ICCID/Profile identity when known
 	phase      cellularDataSessionPhase
 	watchdog   *cellularDataWatchdog
+	binding    *cellularDataTransferBinding
+	owned      bool // acknowledged SetNetwork; an observation alone cannot grant traffic
 }
 
 type cellularDataRuntimeEntry struct {
@@ -175,6 +177,7 @@ type cellularDataRuntime struct {
 	workers               map[string]map[*cellularDataWorker]struct{}
 	quiescing             map[string]bool
 	physicalTargets       map[string]map[string]struct{}
+	transfers             map[*cellularDataTransfer]struct{}
 	nextSessionGeneration uint64
 }
 
@@ -227,7 +230,7 @@ func (setter imsAwareNetworkSetter) SetNetwork(ctx context.Context, physicalID s
 			return device.NetworkResult{}, err
 		}
 		_, resolved, present = s.physicalForConfig(current)
-		if !present || resolved != physicalID || request.Enabled && store.HostIMSConfigured(current) {
+		if !present || resolved != physicalID || request.Enabled && !store.CellularDataEnabled(current) {
 			return device.NetworkResult{}, device.ErrDataBackendUnavailable
 		}
 		if current.Telephony != nil || store.HostIMSConfigured(current) {
@@ -628,6 +631,7 @@ func (runtime *cellularDataRuntime) requestLocked(
 	}
 	runtime.physicalTargets[configID][physicalID] = struct{}{}
 	entry.request = request
+	runtime.cancelTransfersLocked(configID, nil)
 	if identity == "" {
 		identity = entry.identity
 	}
@@ -691,6 +695,7 @@ func (runtime *cellularDataRuntime) beginClosingLocked(entry *cellularDataRuntim
 	}
 	entry.session.phase = cellularDataSessionClosing
 	entry.session.watchdog.stop()
+	runtime.cancelTransfersLocked("", entry.session)
 }
 
 func (runtime *cellularDataRuntime) activateSessionLocked(entry *cellularDataRuntimeEntry, physicalID, identity string) {
@@ -709,6 +714,8 @@ func (runtime *cellularDataRuntime) activateSessionLocked(entry *cellularDataRun
 		entry.identity = identity
 	}
 	entry.session.phase = cellularDataSessionActive
+	entry.session.owned = true
+	entry.session.binding = nil // a completed data operation may have replaced its netdev
 	entry.session.watchdog.start(entry.session.generation)
 }
 
@@ -718,6 +725,7 @@ func (runtime *cellularDataRuntime) closeSessionLocked(entry *cellularDataRuntim
 	}
 	entry.session.watchdog.stop()
 	entry.session.phase = cellularDataSessionClosed
+	runtime.cancelTransfersLocked("", entry.session)
 }
 
 func (runtime *cellularDataRuntime) stopAllWatchdogs() {
@@ -726,6 +734,7 @@ func (runtime *cellularDataRuntime) stopAllWatchdogs() {
 	for _, entry := range runtime.entries {
 		runtime.beginClosingLocked(entry)
 	}
+	runtime.cancelTransfersLocked("", nil)
 }
 
 // closeForPhysicalID is the terminal path for a physical disappearance. The
@@ -1100,16 +1109,17 @@ func (runtime *cellularDataRuntime) run(configID string, entry *cellularDataRunt
 		}
 		worker.cancel = cancel
 		entry.cancel = cancel
+		transfers := runtime.cancelTransfersLocked(configID, nil)
 		runtime.mu.Unlock()
+		var result device.NetworkResult
+		err := waitCellularTransfers(operationContext, transfers)
 		if closingWatchdog != nil {
 			drainContext, drainCancel := context.WithTimeout(operationContext, cellularDataMonitorProbeTimeout)
 			_ = closingWatchdog.wait(drainContext)
 			drainCancel()
 		}
 
-		var result device.NetworkResult
-		var err error
-		for attempt := 0; attempt < 3; attempt++ {
+		for attempt := 0; err == nil && attempt < 3; attempt++ {
 			result, err = runtime.setter.SetNetwork(operationContext, physicalID, request)
 			if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				break
@@ -1130,6 +1140,7 @@ func (runtime *cellularDataRuntime) run(configID string, entry *cellularDataRunt
 					runtime.signalLocked(entry)
 				}
 				runtime.mu.Unlock()
+				err = nil // retry only after the previous failure's backoff
 			}
 		}
 		cancel()

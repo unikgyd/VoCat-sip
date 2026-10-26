@@ -49,20 +49,43 @@ type Status struct {
 	Mode      string    `json:"mode"`
 	Enabled   bool      `json:"enabled"`
 	Running   bool      `json:"running"`
+	Ready     bool      `json:"ready"`
 	Listen    string    `json:"listen"`
 	Error     string    `json:"error,omitempty"`
 	StartedAt time.Time `json:"started_at,omitempty"`
 }
 
 type Manager struct {
-	mu        sync.Mutex
-	store     *store.Store
-	logger    *slog.Logger
-	configs   []Config
-	listeners map[string]net.Listener
-	started   map[string]time.Time
-	lastError map[string]string
-	disabled  bool
+	mu          sync.Mutex
+	store       *store.Store
+	logger      *slog.Logger
+	configs     []Config
+	listeners   map[string]net.Listener
+	started     map[string]time.Time
+	lastError   map[string]string
+	disabled    bool
+	admission   Admission
+	connections map[*proxyConnection]struct{}
+}
+
+// Admission grants a revocable lease on one confirmed cellular data session.
+// Until the application installs it, listeners cannot send user-plane traffic.
+type Admission func(context.Context, Config) (context.Context, func(), error)
+
+type proxyConnection struct {
+	proxyID string
+	client  net.Conn
+	cancel  context.CancelFunc
+}
+
+func (manager *Manager) SetAdmission(admission Admission) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	manager.admission = admission
+	for connection := range manager.connections {
+		connection.cancel()
+		_ = connection.client.Close()
+	}
 }
 
 func New(ctx context.Context, database *store.Store, logger *slog.Logger, legacyConfigPath string) (*Manager, error) {
@@ -175,10 +198,12 @@ func (manager *Manager) EnabledConfigForDevice(deviceID string) (Config, bool) {
 
 func (manager *Manager) Status() ([]Status, error) {
 	manager.mu.Lock()
-	defer manager.mu.Unlock()
 	if manager.disabled {
+		manager.mu.Unlock()
 		return nil, ErrDisabled
 	}
+	configs := append([]Config(nil), manager.configs...)
+	admission := manager.admission
 	result := make([]Status, 0, len(manager.configs))
 	for _, config := range manager.configs {
 		status := Status{ID: config.ID, Name: config.Name, Mode: config.Mode, Enabled: config.Enabled, Error: manager.lastError[config.ID]}
@@ -188,6 +213,19 @@ func (manager *Manager) Status() ([]Status, error) {
 			status.StartedAt = manager.started[config.ID]
 		}
 		result = append(result, status)
+	}
+	manager.mu.Unlock()
+	for i := range result {
+		if !result[i].Running || admission == nil {
+			continue
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		_, release, err := admission(ctx, configs[i])
+		if err == nil {
+			result[i].Ready = true
+			release()
+		}
+		cancel()
 	}
 	return result, nil
 }
@@ -256,7 +294,7 @@ func (manager *Manager) Update(ctx context.Context, id string, incoming Config) 
 		return Config{}, err
 	}
 	wasRunning := manager.listeners[incoming.ID] != nil
-	runtimeChanged := existing.Mode != incoming.Mode || existing.Interface != incoming.Interface ||
+	runtimeChanged := existing.DeviceID != incoming.DeviceID || existing.Mode != incoming.Mode || existing.Interface != incoming.Interface ||
 		existing.ListenHost != incoming.ListenHost || existing.ListenPort != incoming.ListenPort ||
 		existing.AuthEnabled != incoming.AuthEnabled || existing.Username != incoming.Username || existing.Password != incoming.Password
 	manager.configs[index] = incoming
@@ -347,8 +385,13 @@ func (manager *Manager) prepareConfig(ctx context.Context, config *Config) error
 		return errors.New("proxy interface does not match the selected device")
 	}
 	config.Interface = device.Interface
-	if config.Enabled && !device.NetworkEnabled {
+	if config.Enabled && !store.CellularDataEnabled(device) {
 		return errors.New("enable roaming data on the selected device before starting its export proxy")
+	}
+	if config.Enabled {
+		if err := manager.store.RequireAutomaticTaskRecovered(ctx, config.DeviceID); err != nil {
+			return err
+		}
 	}
 	if config.Mode != "http" && config.Mode != "socks5" {
 		return errors.New("mode must be http or socks5")
@@ -446,6 +489,12 @@ func (manager *Manager) stopLocked(id string) {
 		delete(manager.listeners, id)
 	}
 	delete(manager.started, id)
+	for connection := range manager.connections {
+		if connection.proxyID == id {
+			connection.cancel()
+			_ = connection.client.Close()
+		}
+	}
 }
 
 func (manager *Manager) serve(listener net.Listener, config Config) {
@@ -458,11 +507,30 @@ func (manager *Manager) serve(listener net.Listener, config Config) {
 		}
 		go func(client net.Conn) {
 			defer client.Close()
-			var err error
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			tracked := &proxyConnection{proxyID: config.ID, client: client, cancel: cancel}
+			manager.mu.Lock()
+			admission := manager.admission
+			if manager.disabled || manager.listeners[config.ID] != listener || admission == nil {
+				manager.mu.Unlock()
+				return
+			}
+			if manager.connections == nil {
+				manager.connections = make(map[*proxyConnection]struct{})
+			}
+			manager.connections[tracked] = struct{}{}
+			manager.mu.Unlock()
+			defer func() { manager.mu.Lock(); delete(manager.connections, tracked); manager.mu.Unlock() }()
+			ctx, release, err := admission(ctx, config)
+			if err != nil {
+				return
+			}
+			defer release()
 			if config.Mode == "http" {
-				err = serveHTTP(client, config, &dialer, resolver)
+				err = serveHTTPContext(ctx, client, config, &dialer, resolver)
 			} else {
-				err = serveSOCKS(client, config, &dialer, resolver)
+				err = serveSOCKSContext(ctx, client, config, &dialer, resolver)
 			}
 			if err != nil {
 				manager.logger.Debug("export proxy connection closed", "id", config.ID, "error", err)
