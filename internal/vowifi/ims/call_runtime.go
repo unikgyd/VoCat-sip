@@ -54,24 +54,26 @@ type imsCall struct {
 	sessionCancel   context.CancelFunc
 	// callMu protects these fields; replyMu orders incoming final responses
 	// without holding the session state lock across network I/O.
-	replyMu        sync.Mutex
-	answering      bool
-	answerSent     bool
-	inviteResponse []byte
-	inviteStatus   int
-	invitePending  bool
-	provisional    bool
-	cancelSent     bool
-	inviteFrom     string
-	inviteTo       string
-	inviteRoutes   []string
-	invitePacket   []byte
-	wake           chan struct{}
-	byeStarted     bool
-	remoteCSeq     uint32
-	remoteByeVia   string
-	answerAck      chan struct{}
-	answerAcked    bool
+	replyMu           sync.Mutex
+	answering         bool
+	answerSent        bool
+	inviteResponse    []byte
+	inviteStatus      int
+	invitePending     bool
+	provisional       bool
+	cancelSent        bool
+	inviteFrom        string
+	inviteTo          string
+	inviteRoutes      []string
+	invitePacket      []byte
+	wake              chan struct{}
+	byeStarted        bool
+	remoteCSeq        uint32
+	remoteByeVia      string
+	answerAck         chan struct{}
+	answerAcked       bool
+	localOfferPending bool
+	localOfferDrains  int
 }
 
 func (session *Session) Calls() []vowifi.Call {
@@ -81,7 +83,8 @@ func (session *Session) Calls() []vowifi.Call {
 	calls := make([]vowifi.Call, 0, len(session.calls))
 	for id, call := range session.calls {
 		call.public.DTMFDigits = ""
-		if !call.terminated && call.public.State == "active" && call.media != nil {
+		call.public.CanHold = !call.terminated && call.public.State == "active" && (!call.answerSent || call.answerAcked) && call.media != nil && call.media.ready()
+		if call.public.CanHold && !call.public.Held && !call.localOfferPending {
 			call.public.DTMFDigits = call.media.DTMFDigits()
 		}
 		if call.public.EndedAt != nil && !call.invitePending && now.Sub(*call.public.EndedAt) > terminalCallRetention &&
@@ -892,7 +895,7 @@ func (session *Session) buildDialogRequest(call *imsCall, method string, cseq ui
 	if method != "CANCEL" {
 		lines = session.appendPAccessNetworkInfoHeader(lines)
 	}
-	if method == "UPDATE" {
+	if method == "UPDATE" || method == "INVITE" {
 		lines = append(lines, session.dialogContactHeader())
 	}
 	lines = append(lines, "Content-Length: 0", "", "")
@@ -911,7 +914,7 @@ func (session *Session) localMediaIP() net.IP {
 }
 
 func buildSIPResponseWithBody(request *sipRequest, status int, tag string, body []byte, extraHeaders ...string) ([]byte, error) {
-	reasons := map[int]string{180: "Ringing", 200: "OK", 481: "Call/Transaction Does Not Exist", 486: "Busy Here", 487: "Request Terminated", 488: "Not Acceptable Here", 500: "Server Internal Error"}
+	reasons := map[int]string{180: "Ringing", 200: "OK", 481: "Call/Transaction Does Not Exist", 486: "Busy Here", 487: "Request Terminated", 488: "Not Acceptable Here", 491: "Request Pending", 500: "Server Internal Error"}
 	reason := reasons[status]
 	if reason == "" {
 		return nil, errors.New("ims: unsupported call response status")
@@ -1108,6 +1111,8 @@ func (session *Session) finishCall(id, state string, code int, reason string) {
 		media = call.media
 		call.terminated = true
 		call.public.MediaReady = false
+		call.public.CanHold = false
+		call.public.HoldPending = false
 		if call.public.EndedAt == nil {
 			call.public.State = state
 			call.public.EndedAt = &now

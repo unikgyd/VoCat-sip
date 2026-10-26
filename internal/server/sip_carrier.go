@@ -251,6 +251,17 @@ func (b sipCarrierBackend) SendDTMF(ctx context.Context, id, callID string, digi
 	return controller.SendDTMF(ctx, id, callID, digit)
 }
 
+func (b sipCarrierBackend) SetCallHold(ctx context.Context, id, callID string, held bool) (vowifi.Call, error) {
+	if b.server.moduleVoiceCall(id, callID) {
+		return vowifi.Call{}, sipgateway.ErrCarrierUnavailable
+	}
+	controller, ok := b.server.vowifi.(VoWiFiCallHoldController)
+	if !ok {
+		return vowifi.Call{}, sipgateway.ErrCarrierUnavailable
+	}
+	return controller.SetCallHold(ctx, id, callID, held)
+}
+
 var _ sipgateway.CarrierBackend = sipCarrierBackend{}
 var _ sipgateway.CarrierIncomingBackend = sipCarrierBackend{}
 var _ sipgateway.CarrierDTMFBackend = sipCarrierBackend{}

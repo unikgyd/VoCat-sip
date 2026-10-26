@@ -6,6 +6,7 @@ import { tl } from "../lib/i18n";
 export interface PhoneCall {
   id: string; number: string; direction: string; state: string; mediaReady?: boolean;
   answeredAt?: string; startedAt: string; audioOwner: string; codec?: string; dtmfDigits?: string;
+  canHold?: boolean; held?: boolean; holdPending?: boolean;
 }
 export interface PhoneLine { deviceId: string; name: string; ready: boolean; calls: PhoneCall[]; transport?: string }
 interface OwnedCall { deviceId: string; callId: string; token: string; audio: PhoneAudio }
@@ -15,6 +16,7 @@ interface PhoneState {
   act: (action: "dial" | "answer" | "hangup", line: string, target: string) => Promise<void>;
   toggleMute: () => void; clearError: () => void;
   sendDTMF: (digit: string) => Promise<void>; dtmfBusy: boolean;
+  setHold: (held: boolean) => Promise<void>; holdBusy: boolean;
   chime: boolean; toggleChime: () => void;
 }
 const Context = createContext<PhoneState | null>(null);
@@ -35,6 +37,9 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const [dtmfBusy, setDTMFBusy] = useState(false);
   const dtmfPending = useRef(false);
   const dtmfOperation = useRef<AbortController | null>(null);
+  const [holdBusy, setHoldBusy] = useState(false);
+  const holdPending = useRef(false);
+  const holdOperation = useRef<AbortController | null>(null);
   const chimeContext = useRef<AudioContext | null>(null);
   const current = useRef<OwnedCall | null>(null);
   const preparing = useRef<PhoneAudio | null>(null);
@@ -57,7 +62,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         const owner = current.current;
         if (owner && owner === ownerAtStart) {
           const call = result.lines.find(line => line.deviceId === owner.deviceId)?.calls.find(call => call.id === owner.callId);
-          if (!call) { owner.audio.close(); current.current = null; setOwned(null); setLevel(0); }
+          if (!call) { holdOperation.current?.abort(); dtmfOperation.current?.abort(); owner.audio.close(); current.current = null; setOwned(null); setLevel(0); }
           else if (call.state === "active" && call.mediaReady) owner.audio.connect(owner.deviceId, owner.callId, owner.token);
         }
       } catch { if (!stopped) setError(tl("电话状态更新失败，请检查连接")); }
@@ -67,7 +72,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     const loop = async () => { await load(); if (!stopped) timer = window.setTimeout(loop, 1500); };
     void loop();
     return () => {
-      stopped = true; active.current = false; clearTimeout(timer); controller.abort(); operation.current?.abort(); dtmfOperation.current?.abort();
+      stopped = true; active.current = false; clearTimeout(timer); controller.abort(); operation.current?.abort(); dtmfOperation.current?.abort(); holdOperation.current?.abort();
       preparing.current?.close(); current.current?.audio.close(); current.current = null;
       void chimeContext.current?.close().catch(() => {}); chimeContext.current = null;
     };
@@ -94,6 +99,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     if (pending.current) return;
     pending.current = true; setBusy(true); setError("");
     const abort = operation.current = new AbortController();
+    if (action === "hangup") { holdOperation.current?.abort(); dtmfOperation.current?.abort(); }
     let audio: PhoneAudio | null = null;
     try {
       if (action !== "hangup") {
@@ -131,7 +137,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }
   async function sendDTMF(digit: string) {
     const owner = current.current;
-    if (!owner || dtmfPending.current || !/^[0-9*#A-D]$/.test(digit)) return;
+    if (!owner || dtmfPending.current || holdPending.current || !/^[0-9*#A-D]$/.test(digit)) return;
     dtmfPending.current = true; setDTMFBusy(true); setError("");
     const abort = dtmfOperation.current = new AbortController();
     try {
@@ -146,7 +152,24 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       if (active.current) setDTMFBusy(false);
     }
   }
-  return <Context.Provider value={{ lines, error, loading, busy, level, muted, owned, audioState, act, sendDTMF, dtmfBusy,
+  async function setHold(held: boolean) {
+    const owner = current.current;
+    if (!owner || holdPending.current || dtmfPending.current) return;
+    holdPending.current = true; setHoldBusy(true); setError("");
+    const abort = holdOperation.current = new AbortController();
+    try {
+      await api("/phone/hold", { method: "POST", headers,
+        signal: AbortSignal.any([abort.signal, AbortSignal.timeout(20000)]),
+        body: { deviceId: owner.deviceId, callId: owner.callId, held },
+      });
+    } catch {
+      if (active.current && current.current === owner && !abort.signal.aborted) setError(tl("保持操作未成功或结果未知，请检查通话状态"));
+    } finally {
+      holdPending.current = false;
+      if (active.current) { setHoldBusy(false); await refresh.current(); }
+    }
+  }
+  return <Context.Provider value={{ lines, error, loading, busy, level, muted, owned, audioState, act, sendDTMF, dtmfBusy, setHold, holdBusy,
     chime, toggleChime: () => {
       if (chime) { setChime(false); return; }
       try {

@@ -29,6 +29,7 @@
 | `POST /api/phone/answer` | `device_id, call_id`，精确接听仍在振铃的来电，共享 SIP 首接仲裁 |
 | `POST /api/phone/hangup` | `device_id, call_id`，管理员显式结束该通话，不能省略 ID 或误挂下一通 |
 | `POST /api/phone/dtmf` | `device_id, call_id, digit`；仅当前音频浏览器向原 IMS 会话提交一个协商后的 RTP 按键 |
+| `POST /api/phone/hold` | `device_id, call_id, held`；仅原音频浏览器保持／恢复对应 IMS 对话，新增源码待统一验证 |
 | `GET /api/phone/media` | `device_id, call_id`；同源认证 WebSocket，使用一次独占音频租约 |
 
 Dial／Answer 返回 `{data:{call,audio_token}}`。音频仅在 `state=active` 且 `media_ready=true`
@@ -55,7 +56,8 @@ AudioWorklet 将本机 44.1／48 kHz 单声道采集转换为 8 kHz、16 位小�
 播放数秒前的语音。该简单窄带重采样不等于专业自适应抖动／语音增强算法。
 
 实际运营商编解码仍由 IMS 提供，目前边界为 8 kHz PCM。默认静态发布不含原生 AMR-NB，
-需要按 [AMR_MEDIA](AMR_MEDIA.md) 准备后端；没有新增 AMR-WB 编码、RTCP、保持或转接。
+需要按 [AMR_MEDIA](AMR_MEDIA.md) 准备后端；没有新增 AMR-WB 编码、RTCP 或转接。
+[本机 IMS 保持／恢复](IMS_CALL_HOLD.md)已接入可选能力和网页入口，新增实现尚未统一验证。
 本次已补协商式 RFC 4733 按键，网页只显示对端实际允许的键；取消和不确定结果不会
 自动重发。音频断开、通话结束或租约释放会取消在途按键。RTP 接收具备端点核验和
 重复结束报告去重；[SIP 分机／peer 的 RFC 4733 跨腿](SIP_DTMF.md)已接线，实际运营商 IVR 未验收。

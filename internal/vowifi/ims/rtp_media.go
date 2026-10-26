@@ -49,6 +49,10 @@ type rtpMedia struct {
 	dtmfPayload         byte
 	dtmfEvents          uint16
 	remoteRevision      uint64
+	sdpSessionID        int64
+	sdpVersion          uint64
+	localHeld           bool // mu; writes are serialized with writeMu
+	peerDirection       string
 	dtmfMu              sync.Mutex
 	dtmfActive          bool // writeMu
 	dtmfDownlink        chan dtmfKey
@@ -162,6 +166,7 @@ func (media *rtpMedia) answerSDP(local net.IP) []byte {
 	media.mu.RLock()
 	codec, payload, params := media.codec, media.payloadType, media.amrParams
 	dtmfPayload, dtmfEvents := media.dtmfPayload, media.dtmfEvents
+	held, peerDirection := media.localHeld, media.peerDirection
 	media.mu.RUnlock()
 	if !supportedPCMCodec(codec) && codec != "AMR" {
 		return media.offerSDP(local)
@@ -177,7 +182,23 @@ func (media *rtpMedia) answerSDP(local net.IP) []byte {
 		formats += " " + strconv.Itoa(int(dtmfPayload))
 		attributes = append(attributes, fmt.Sprintf("a=rtpmap:%d telephone-event/8000", dtmfPayload), fmt.Sprintf("a=fmtp:%d %s", dtmfPayload, dtmfFormat(dtmfEvents)))
 	}
-	return media.buildSDP(local, formats, attributes)
+	direction := "sendrecv"
+	switch peerDirection {
+	case "sendonly":
+		direction = "recvonly"
+	case "recvonly":
+		direction = "sendonly"
+	case "inactive":
+		direction = "inactive"
+	}
+	if held {
+		if direction == "recvonly" || direction == "inactive" {
+			direction = "inactive"
+		} else {
+			direction = "sendonly"
+		}
+	}
+	return replaceSDPDirection(media.buildSDP(local, formats, attributes), direction)
 }
 
 func (media *rtpMedia) buildSDP(local net.IP, formats string, attributes []string) []byte {
@@ -194,10 +215,16 @@ func (media *rtpMedia) buildSDP(local net.IP, formats string, attributes []strin
 		family = "IP6"
 	}
 	port := media.conn.LocalAddr().(*net.UDPAddr).Port
-	sessionID := time.Now().UnixNano()
+	media.mu.Lock()
+	if media.sdpSessionID == 0 {
+		media.sdpSessionID = time.Now().UnixNano()
+	}
+	media.sdpVersion++
+	sessionID, version := media.sdpSessionID, media.sdpVersion
+	media.mu.Unlock()
 	lines := []string{
 		"v=0",
-		fmt.Sprintf("o=- %d %d IN %s %s", sessionID, sessionID, family, local.String()),
+		fmt.Sprintf("o=- %d %d IN %s %s", sessionID, version, family, local.String()),
 		"s=VoCat",
 		fmt.Sprintf("c=IN %s %s", family, local.String()),
 		"t=0 0",
@@ -232,6 +259,10 @@ func (media *rtpMedia) configureRemoteWithCommit(ctx context.Context, body []byt
 	}
 	defer release()
 	address, port, formats, mappings, err := parseAudioSDP(body)
+	if err != nil {
+		return err
+	}
+	peerDirection, err := audioSDPDirection(body)
 	if err != nil {
 		return err
 	}
@@ -299,14 +330,25 @@ func (media *rtpMedia) configureRemoteWithCommit(ctx context.Context, body []byt
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if media.codec != codec || media.payloadType != payload || media.remote == nil ||
+		if media.codec != codec || media.payloadType != payload || media.peerDirection != peerDirection || media.remote == nil ||
 			!media.remote.IP.Equal(address) || media.remote.Port != port {
 			media.pending = nil
+		}
+		if media.peerDirection != peerDirection {
+			for i := 0; i < cap(media.downlink); i++ {
+				select {
+				case <-media.downlink:
+				default:
+					i = cap(media.downlink)
+				}
+			}
+			media.FlushDTMF()
 		}
 		previous = media.route
 		media.route = route
 		media.remote = &net.UDPAddr{IP: address, Port: port}
 		media.codec, media.payloadType = codec, payload
+		media.peerDirection = peerDirection
 		media.dtmfPayload, media.dtmfEvents = dtmfPayload, dtmfEvents
 		media.remoteRevision++
 		media.amrParams = params
@@ -426,13 +468,21 @@ func negotiatePCMCodec(payload int, mapping string) (string, bool) {
 }
 
 func (media *rtpMedia) ReadPCM(ctx context.Context) ([]int16, error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-media.closed:
-		return nil, io.EOF
-	case samples := <-media.downlink:
-		return samples, nil
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-media.closed:
+			return nil, io.EOF
+		case samples := <-media.downlink:
+			media.mu.RLock()
+			held := media.localHeld || media.peerDirection == "recvonly" || media.peerDirection == "inactive"
+			media.mu.RUnlock()
+			if held {
+				continue
+			}
+			return samples, nil
+		}
 	}
 }
 
@@ -448,6 +498,11 @@ func (media *rtpMedia) WritePCM(samples []int16) error {
 		return nil
 	}
 	media.mu.RLock()
+	if media.localHeld || media.peerDirection == "sendonly" || media.peerDirection == "inactive" {
+		media.mu.RUnlock()
+		media.pending = nil
+		return nil
+	}
 	var remote *net.UDPAddr
 	if media.remote != nil {
 		copy := *media.remote
@@ -514,10 +569,11 @@ func (media *rtpMedia) receive() {
 		}
 		media.mu.RLock()
 		remote, codec, payload, native, params := media.remote, media.codec, media.payloadType, media.amr, media.amrParams
+		held := media.localHeld || media.peerDirection == "recvonly" || media.peerDirection == "inactive"
 		dtmfPayload, dtmfEvents := media.dtmfPayload, media.dtmfEvents
 		media.mu.RUnlock()
 		isDTMF := dtmfEvents != 0 && count >= 12 && packet[1]&0x7f == dtmfPayload
-		if remote == nil || !supportedPCMCodec(codec) && codec != "AMR" || !remote.IP.Equal(source.IP) || count < 12 || packet[0]>>6 != 2 || packet[1]&0x7f != payload && !isDTMF {
+		if held || remote == nil || !supportedPCMCodec(codec) && codec != "AMR" || !remote.IP.Equal(source.IP) || count < 12 || packet[0]>>6 != 2 || packet[1]&0x7f != payload && !isDTMF {
 			continue
 		}
 		header := 12 + int(packet[0]&0x0f)*4

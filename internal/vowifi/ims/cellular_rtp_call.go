@@ -204,6 +204,17 @@ func (session *Session) admitDialogOfferLocked(call *imsCall, request *sipReques
 	transaction := &dialogOfferTransaction{key: key, pending: true, responders: []func([]byte) error{respond}, request: request, ctx: ctx, cancel: cancel}
 	call.dialogOffers[key] = transaction
 	call.remoteCSeq = sequence
+	if call.localOfferPending {
+		response, err := buildSIPResponseWithBody(request, 491, session.fromTag, nil)
+		transaction.pending = false
+		transaction.response = response
+		transaction.responders = nil
+		cancel()
+		if err != nil {
+			return nil, nil, 500
+		}
+		return nil, append([]byte(nil), response...), 0
+	}
 	return transaction, nil, 0
 }
 

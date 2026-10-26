@@ -28,6 +28,7 @@ type callLeg struct {
 	source, id, localTag, remoteTag string
 	inviteSeq, remoteSeq            uint32
 	remoteBranch                    string
+	remoteMethod                    sip.RequestMethod
 }
 type callEvent struct {
 	branch      *callBranch
@@ -63,6 +64,7 @@ type sipCall struct {
 	cleanupWork    sync.WaitGroup
 	carrier        *carrierLeg
 	inbound        *carrierIncoming
+	infoRequests   map[infoRequestKey]*infoReceipt
 }
 type callBranch struct {
 	call          *sipCall
@@ -596,12 +598,13 @@ func (r *runtime) checkCallDialog(req *sip.Request, source string, ack, commit b
 		}
 	} else {
 		branch, _ := req.Via().Params.Get("branch")
-		if req.CSeq().SeqNo < leg.remoteSeq || req.CSeq().SeqNo == leg.remoteSeq && branch != leg.remoteBranch {
+		if req.CSeq().SeqNo < leg.remoteSeq || req.CSeq().SeqNo == leg.remoteSeq && (branch != leg.remoteBranch || leg.remoteMethod != "" && leg.remoteMethod != req.Method) {
 			return nil
 		}
 		if commit {
 			leg.remoteSeq = req.CSeq().SeqNo
 			leg.remoteBranch = branch
+			leg.remoteMethod = req.Method
 		}
 	}
 	return leg

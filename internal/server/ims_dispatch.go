@@ -302,6 +302,20 @@ func (d *imsServiceDispatch) SendDTMF(ctx context.Context, id, callID string, di
 	}
 	return controller.SendDTMF(ctx, id, callID, digit)
 }
+
+func (d *imsServiceDispatch) SetCallHold(ctx context.Context, id, callID string, held bool) (vowifi.Call, error) {
+	gate := d.server.imsModeLock(id)
+	gate.RLock()
+	defer gate.RUnlock()
+	owner := d.server.ownerIMSCall(id, callID)
+	controller, ok := owner.(VoWiFiCallHoldController)
+	if !ok {
+		return vowifi.Call{}, errIMSUnavailable
+	}
+	call, err := controller.SetCallHold(ctx, id, callID, held)
+	d.server.pinIMSCall(id, call, owner)
+	return call, err
+}
 func (d *imsServiceDispatch) SendSMS(ctx context.Context, id string, request vowifi.SMSSubmitRequest) (vowifi.SMSSubmitResult, error) {
 	lock := d.server.imsModeLock(id)
 	lock.RLock()

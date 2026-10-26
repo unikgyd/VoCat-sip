@@ -280,3 +280,11 @@ modem call polling. Existing Windows behavior is the functional reference; no
 C# protocol source was copied. SIP extension/peer DTMF bridging, module USB media,
 hold/resume, auto-answer and full hardware acceptance remain incomplete. No new
 third-party dependency. Original license and authorization controls are unchanged.
+
+Advanced call controls (local implementation checkpoint, 2026-10-26):
+independently implemented call-bound re-INVITE hold/resume, bounded response
+retention, SDP direction handling, original browser/media ownership, and legacy
+SIP INFO application/dtmf-relay admission to the original carrier DTMF path.
+Windows behavior is a functional reference; no C# protocol source was copied.
+The latest implementation awaits final combined validation. No new third-party
+dependency; original license, regional and authorization controls are unchanged.

@@ -17,8 +17,8 @@
 | VoWiFi 注册与恢复 | VoSharp IKE／Manager／按卡历史 | Go `vowifi` 已有双栈、按卡候选、认证证据、持久退避与自动恢复；DITO VoWiFi 实测注销 SIP 500、跨 reader／多卡槽及实机故障矩阵仍待解决／验收 |
 | 网页／本机电话 | Windows 电话页、浮窗与麦克风会话 | Go `web_phone.go`＋`web/src/phone` 已有拨接挂、独占 PCM、跨页来电卡、静音和电平；浏览器休眠、真实听感仍需验收 |
 | USB 模组双向媒体 | Windows `CellularAudioBridge`、`UsbAudioModemBinding`、`Qdc507VoiceRuntime` | Go `modulecall` 已接显式 module 模式的网页、SIP 入出呼和 Telegram 原通话控制；先取得同物理设备双向 ALSA 再 ATD／ATA，精确 Call-ID 与串口结束版本隔离。软件回环与实机业务验收分开，见 [USB 语音边界](MODULE_VOICE.md) |
-| 通话中按键 | Windows 电话键盘／控制入口 | 网页 IMS 按键和 SIP 分机／peer 的 RFC 4733 跨腿已接线；IMS 双向 RTP、不同载荷号、USB 原通话 VTS、重复结束包去重已有软件测试。SIP INFO 兼容、运营商 IVR 及真实软电话仍待验收／补齐 |
-| 保持与恢复 | Windows `ImsCallManager.HoldAsync/ResumeAsync` 通过 re-INVITE | Go 没有对应出站业务与 UI；已有入站 SDP 处理不能代替本机保持／恢复 |
+| 通话中按键 | Windows 电话键盘／控制入口 | 网页 IMS 按键和 SIP 分机／peer 的 RFC 4733 跨腿已接线；新增 SIP INFO `application/dtmf-relay` 到原运营商通话的兼容入口、对话核验与防重。INFO 新源码待最后统一验证；运营商 IVR 及真实软电话仍待验收 |
+| 保持与恢复 | Windows `ImsCallManager.HoldAsync/ResumeAsync` 通过 re-INVITE | 已写入精确 IMS 对话的出站 re-INVITE、ACK／迟到回复处理、媒体方向与网页保持／恢复入口；新增源码尚未统一测试／构建，见[保持边界](IMS_CALL_HOLD.md) |
 | 自动接听与留言播放 | Windows `CallMessagePlayback`、`AutoAnswerMessageRequests`、来电延时设置 | Go 目前手动网页／Telegram 接听；延时、群振首接仲裁、文件校验、播放与精确挂断尚未接入 |
 | SIP 内线与来显 | VoSharp SIP gateway；Go 自有 B2BUA | Go 已接 Registrar、Digest、内线群振首接和双向 G.711；软电话实机与高级对话功能仍待验收 |
 | SIP 运营商入呼／外呼 | 两端已有逐线权限、选线和呼叫归属 | Go 已接 IMS、显式 USB module＋PCM 和 RFC 4733 跨腿；群振首接、双向 G.711／IMS 事件回环已有测试，SIP INFO、保持及 RTCP 仍待补齐 |

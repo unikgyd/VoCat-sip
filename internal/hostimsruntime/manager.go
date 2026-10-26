@@ -834,12 +834,12 @@ func (m *Manager) Calls(id string) (result []vowifi.Call, err error) {
 	defer stopRead()
 	stopGeneration := context.AfterFunc(generationContext, stopRead)
 	defer stopGeneration()
-	select {
-	case <-readContext.Done():
+	// Calls is a thread-safe, in-memory snapshot. It must remain readable
+	// during a pending hold/resume transaction; a transient empty call list
+	// would otherwise make the browser release that transaction's audio owner.
+	if readContext.Err() != nil {
 		return nil, readContext.Err()
-	case <-e.gate:
 	}
-	defer func() { e.gate <- struct{}{} }()
 	e.mu.Lock()
 	current := e.generation == gen && e.runtime == rt && !e.busy && !e.shutdown
 	empty := rt == nil && (e.state.Phase == vowifi.PhaseIdle || e.state.Phase == vowifi.PhaseFailed)
@@ -946,6 +946,20 @@ func (m *Manager) SendDTMF(ctx context.Context, id, callID string, digit byte) e
 		}
 		return safeActionError(ctx, controller.SendDTMF(ctx, callID, digit), ErrCall)
 	})
+}
+
+func (m *Manager) SetCallHold(ctx context.Context, id, callID string, held bool) (result vowifi.Call, err error) {
+	ctx = callerContext(ctx)
+	err = m.withSession(ctx, id, func(ctx context.Context, session vowifi.IMSSession, _ cardProvisioning) error {
+		controller, ok := session.(vowifi.CallHoldController)
+		if !ok {
+			return vowifi.ErrNotRunning
+		}
+		var actionErr error
+		result, actionErr = controller.SetCallHold(ctx, callID, held)
+		return safeActionError(ctx, actionErr, ErrCall)
+	})
+	return
 }
 func (m *Manager) SendSMS(ctx context.Context, id string, request vowifi.SMSSubmitRequest) (vowifi.SMSSubmitResult, error) {
 	return m.sendSMS(ctx, id, "", "", request)

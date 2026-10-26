@@ -542,6 +542,19 @@ func (manager *Manager) SendDTMF(ctx context.Context, deviceID, id string, digit
 	return item.orchestrator.SendDTMF(ctx, id, digit)
 }
 
+func (manager *Manager) SetCallHold(ctx context.Context, deviceID, id string, held bool) (vowifi.Call, error) {
+	if err := manager.Ensure(ctx, deviceID); err != nil {
+		return vowifi.Call{}, err
+	}
+	manager.mu.Lock()
+	item := manager.entries[deviceID]
+	manager.mu.Unlock()
+	if item == nil {
+		return vowifi.Call{}, ErrNotRegistered
+	}
+	return item.orchestrator.SetCallHold(ctx, id, held)
+}
+
 func (manager *Manager) startOperation(
 	deviceID string,
 	coalesceReconnect bool,

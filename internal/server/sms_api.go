@@ -734,11 +734,15 @@ func (s *Server) syncOneModemSMSObservedLocked(ctx context.Context, id string, a
 	// SM/ME scan as a catch-up path: an SMS submitted while the card was
 	// offline may be delivered to modem storage when it comes back, even
 	// though subsequent live SMS is delivered by SIP MESSAGE.
-	if s.vowifi != nil {
-		state, stateErr := s.vowifi.State(config.ID)
+	syncController := s.vowifi
+	if config.Telephony != nil {
+		syncController = s.wifiController()
+	}
+	if syncController != nil {
+		state, stateErr := syncController.State(config.ID)
 		deferSync := shouldDeferModemSMSSync(state, stateErr)
-		if !deferSync && stateErr == nil && state.Enabled && state.Phase == vowifi.PhaseFailed {
-			if controller, ok := s.vowifi.(VoWiFiSMSSyncController); ok {
+		if !deferSync && stateErr == nil && state.Enabled {
+			if controller, ok := syncController.(VoWiFiSMSSyncController); ok {
 				deferSync = controller.ModemSMSSyncBlocked(config.ID)
 			}
 		}

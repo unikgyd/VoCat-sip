@@ -62,6 +62,9 @@ func negotiateDTMF(body []byte, formats []string, mappings map[int]string, offer
 func (media *rtpMedia) DTMFDigits() string {
 	media.mu.RLock()
 	mask := media.dtmfEvents
+	if media.localHeld || media.peerDirection == "sendonly" || media.peerDirection == "inactive" {
+		mask = 0
+	}
 	media.mu.RUnlock()
 	return rtpevent.Digits(mask)
 }
@@ -87,6 +90,9 @@ func (media *rtpMedia) SendDTMF(ctx context.Context, digit byte) error {
 	media.writeMu.Lock()
 	media.mu.RLock()
 	remote, payload, mask, revision := media.remote, media.dtmfPayload, media.dtmfEvents, media.remoteRevision
+	if media.localHeld || media.peerDirection == "sendonly" || media.peerDirection == "inactive" {
+		mask = 0
+	}
 	media.mu.RUnlock()
 	select {
 	case <-media.closed:

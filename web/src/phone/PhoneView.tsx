@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Bell, BellOff, Mic, MicOff, Phone, PhoneIncoming, PhoneOff } from "lucide-react";
+import { Bell, BellOff, Mic, MicOff, Pause, Play, Phone, PhoneIncoming, PhoneOff } from "lucide-react";
 import { Button, PageHeader } from "../components/ui";
 import { useI18n } from "../lib/i18n";
 import { usePhone, type PhoneCall, type PhoneLine } from "./PhoneProvider";
@@ -16,7 +16,7 @@ export function CallCard({ line, call }: { line: PhoneLine; call: PhoneCall }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, []);
   const elapsed = call.answeredAt ? Math.max(0, Math.floor((now - Date.parse(call.answeredAt)) / 1000)) : null;
-  const status = incoming ? t("来电") : call.state === "active" ? t("通话中") : call.state === "ringing" ? t("对方振铃") : t("正在呼叫");
+  const status = call.holdPending ? t("正在更新通话") : call.held ? t("通话已保持") : incoming ? t("来电") : call.state === "active" ? t("通话中") : call.state === "ringing" ? t("对方振铃") : t("正在呼叫");
   return <section className={`${panel} ${incoming ? "ring-1 ring-emerald-500/30" : ""}`} aria-label={`${t("通话")} ${call.number || t("未知号码")}`}>
     <div className="mb-4 flex items-start gap-3">
       <div className={`rounded-xl p-3 ${incoming ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10" : "bg-sky-50 text-sky-600 dark:bg-sky-500/10"}`}><PhoneIncoming size={21} /></div>
@@ -34,13 +34,14 @@ export function CallCard({ line, call }: { line: PhoneLine; call: PhoneCall }) {
     <div className="flex flex-wrap gap-2">
       {incoming && !call.audioOwner && <Button variant="success" size="large" icon={<Phone size={16} />} loading={phone.busy} disabled={!!phone.owned || !line.ready} onClick={() => void phone.act("answer", line.deviceId, call.id)}>{t("在本机接听")}</Button>}
       {mine && <Button size="large" icon={phone.muted ? <MicOff size={16} /> : <Mic size={16} />} onClick={phone.toggleMute}>{t(phone.muted ? "取消静音" : "静音")}</Button>}
+      {mine && call.canHold && <Button size="large" icon={call.held ? <Play size={16} /> : <Pause size={16} />} loading={phone.holdBusy} disabled={phone.busy || phone.holdBusy || phone.dtmfBusy || call.holdPending} onClick={() => void phone.setHold(!call.held)}>{t(call.held ? "恢复通话" : "保持通话")}</Button>}
       <Button variant="danger" plain size="large" icon={<PhoneOff size={16} />} disabled={phone.busy} onClick={() => void phone.act("hangup", line.deviceId, call.id)}>{t(incoming ? "拒接整通来电" : "挂断")}</Button>
     </div>
-    {mine && call.state === "active" && <div className="mt-4 border-t border-gray-100 pt-4 dark:border-white/10">
+    {mine && call.state === "active" && !call.held && <div className="mt-4 border-t border-gray-100 pt-4 dark:border-white/10">
       <p className="mb-3 text-xs text-gray-500">{t(call.dtmfDigits ? "通话按键" : "对方未协商通话按键")}</p>
       {call.dtmfDigits && <div role="group" aria-label={t("通话按键")} className="grid grid-cols-3 gap-2">
         {Array.from("123456789*0#").map(digit => <button key={digit} type="button" aria-label={`${t("发送按键")} ${digit}`}
-          disabled={phone.busy || phone.dtmfBusy || phone.audioState !== "connected" || !call.dtmfDigits?.includes(digit)}
+          disabled={phone.busy || phone.dtmfBusy || phone.holdBusy || call.holdPending || phone.audioState !== "connected" || !call.dtmfDigits?.includes(digit)}
           onClick={() => void phone.sendDTMF(digit)}
           className="h-11 rounded-xl border border-gray-200 font-mono text-lg hover:bg-sky-50 disabled:opacity-40 dark:border-white/15 dark:hover:bg-white/10">{digit}</button>)}
       </div>}

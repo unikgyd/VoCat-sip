@@ -266,6 +266,10 @@ type VoWiFiCallDTMFController interface {
 	SendDTMF(context.Context, string, string, byte) error
 }
 
+type VoWiFiCallHoldController interface {
+	SetCallHold(context.Context, string, string, bool) (vowifi.Call, error)
+}
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handler.ServeHTTP(w, r)
 }

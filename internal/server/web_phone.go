@@ -237,6 +237,9 @@ func (s *Server) routePhoneAPI(w http.ResponseWriter, r *http.Request) bool {
 	if tail == "/dtmf" {
 		return s.handlePhoneDTMF(w, r)
 	}
+	if tail == "/hold" {
+		return s.handlePhoneHold(w, r)
+	}
 	if tail != "/dial" && tail != "/answer" && tail != "/hangup" {
 		writeError(w, 404, "not_found", "phone endpoint not found")
 		return true

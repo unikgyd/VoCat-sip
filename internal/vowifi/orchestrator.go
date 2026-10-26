@@ -727,6 +727,16 @@ func (orchestrator *Orchestrator) SendDTMF(ctx context.Context, id string, digit
 	return err
 }
 
+func (orchestrator *Orchestrator) SetCallHold(ctx context.Context, id string, held bool) (Call, error) {
+	return orchestrator.callAction(ctx, func(controller CallController) (Call, error) {
+		hold, ok := controller.(CallHoldController)
+		if !ok {
+			return Call{}, ErrNotRunning
+		}
+		return hold.SetCallHold(ctx, id, held)
+	})
+}
+
 func (orchestrator *Orchestrator) callAction(
 	ctx context.Context,
 	action func(CallController) (Call, error),

@@ -500,12 +500,16 @@ type Call struct {
 	SignalingPending bool       `json:"signaling_pending,omitempty"`
 	Codec            string     `json:"codec,omitempty"`
 	DTMFDigits       string     `json:"dtmf_digits,omitempty"`
+	CanHold          bool       `json:"can_hold,omitempty"`
+	Held             bool       `json:"held,omitempty"`
+	HoldPending      bool       `json:"hold_pending,omitempty"`
 	EndedAt          *time.Time `json:"ended_at,omitempty"`
 }
 
 // CallController is an optional capability of an IMS session. Media remains a
 // separate optional interface so call signalling does not depend on a codec.
 type CallController interface {
+	// Calls returns a thread-safe in-memory snapshot without network or SIM I/O.
 	Calls() []Call
 	DialCall(context.Context, string) (Call, error)
 	AnswerCall(context.Context, string) (Call, error)
@@ -530,6 +534,10 @@ type CallMediaController interface {
 // events remain usable for voice. One action names one exact live dialog.
 type CallDTMFController interface {
 	SendDTMF(context.Context, string, byte) error
+}
+
+type CallHoldController interface {
+	SetCallHold(context.Context, string, bool) (Call, error)
 }
 
 // PhoneStore persists a number only after it was explicitly associated by IMS.

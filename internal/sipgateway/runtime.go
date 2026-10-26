@@ -188,6 +188,7 @@ func start(config stored, options ...runtimeOptions) (*runtime, error) {
 	srv.OnMessage(r.message)
 	srv.OnInvite(r.invite)
 	srv.OnBye(r.bye)
+	srv.OnInfo(r.info)
 	// ACK has no response, even when no dialog exists. Replying 405 to an ACK
 	// can create a response loop with a standards-compliant peer.
 	srv.OnAck(func(_ *sip.Request, _ sip.ServerTransaction) {})
