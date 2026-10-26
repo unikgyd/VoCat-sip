@@ -22,7 +22,9 @@ func publicIPCacheTestServer() *Server {
 	r, _ := transferRuntime()
 	r.entries["ec20"] = r.entries["a"]
 	r.entries["ec20"].session.identity = "8944100001"
-	return &Server{publicIPs: make(map[string]cachedPublicIP), cellularData: r}
+	s := &Server{publicIPs: make(map[string]cachedPublicIP)}
+	s.cellularDataOnce.Do(func() { s.cellularData = r })
+	return s
 }
 
 func (controller *publicIPDeviceController) SetNetwork(_ context.Context, _ string, request device.NetworkRequest) (device.NetworkResult, error) {
@@ -164,7 +166,7 @@ func TestCellularConnectedAutomaticallyDetectsPublicIP(t *testing.T) {
 	}
 	runtime := server.cellularDataRuntime()
 	runtime.start(ctx)
-	requested := runtime.request("ec20", "physical-1", device.NetworkRequest{Enabled: true})
+	requested := runtime.requestWithIdentity("ec20", "physical-1", device.NetworkRequest{Enabled: true}, controller.entry.Snapshot.ICCID)
 	waitContext, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	if status, waitErr := runtime.wait(waitContext, "ec20", requested.Revision); waitErr != nil || !status.Connected {

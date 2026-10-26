@@ -14,7 +14,7 @@ func holdTestSession(t *testing.T) (*Session, *callTestConn, *imsCall) {
 	t.Helper()
 	s, conn := newCallTestSession(t)
 	m, _ := dtmfMedia(t)
-	call := &imsCall{callID: "exact-dialog", target: "sip:peer@ims.example.test", from: "<sip:subscriber@ims.example.test>;tag=local", to: "<sip:peer@ims.example.test>;tag=remote", media: m, public: vowifi.Call{ID: "exact-dialog", State: "active", StartedAt: time.Now()}}
+	call := &imsCall{callID: "exact-dialog", target: "sip:peer@ims.example.test", from: "<sip:subscriber@ims.example.test>;tag=local", to: "<sip:peer@ims.example.test>;tag=remote", media: m, public: vowifi.Call{ID: "exact-dialog", State: "active", MediaReady: true, StartedAt: time.Now()}}
 	s.calls[call.callID] = call
 	return s, conn, call
 }

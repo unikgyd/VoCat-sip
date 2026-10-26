@@ -25,6 +25,11 @@ func (c *revertTestController) SetNetwork(_ context.Context, _ string, request d
 	return device.NetworkResult{Enabled: request.Enabled}, nil
 }
 
+func (c *revertTestController) StopOwnedNetwork(ctx context.Context, id string) error {
+	_, err := c.SetNetwork(ctx, id, device.NetworkRequest{Enabled: false})
+	return err
+}
+
 func (c *revertTestController) SetFlight(_ context.Context, _ string, enabled bool) (device.FlightResult, error) {
 	c.actions = append(c.actions, fmt.Sprintf("flight:%t", enabled))
 	return device.FlightResult{}, nil
@@ -84,7 +89,7 @@ func (c *revertTestController) ESIMSwitchProfile(_ context.Context, _ string, ic
 
 func TestAutomaticTaskRevertToInitialProfile(t *testing.T) {
 	s := blockedRegionServer(t, "310260123456789")
-	s.vowifi = &fakeVoWiFiController{}
+	s.vowifi = &automaticTaskTestWiFi{fakeVoWiFiController: &fakeVoWiFiController{}}
 
 	ctrl := &revertTestController{
 		registration: 1,
@@ -294,12 +299,12 @@ func TestAutomaticTaskSameProfileDoesNotSwitch(t *testing.T) {
 
 	ctrl := &revertTestController{
 		registration: 1,
-		currentICCID: "card-same",
+		currentICCID: "8901000000000000003",
 		fakeDeviceController: fakeDeviceController{
 			entry: device.Device{
 				ID:         "dev1",
 				Discovered: true,
-				Snapshot:   &device.Snapshot{ICCID: "card-same"},
+				Snapshot:   automaticTaskTestSnapshot("8901000000000000003"),
 			},
 		},
 	}
@@ -307,11 +312,11 @@ func TestAutomaticTaskSameProfileDoesNotSwitch(t *testing.T) {
 
 	ctx := context.Background()
 	_ = s.store.UpsertDevice(ctx, store.Device{ID: "dev1", Name: "Modem"})
-	_ = s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "card-same", Source: "user"})
+	_ = s.store.UpsertCardPolicy(ctx, store.CardPolicy{ICCID: "8901000000000000003", Source: "user"})
 
 	task := store.AutomaticTask{
 		DeviceID:      "dev1",
-		ProfileICCID:  "card-same",
+		ProfileICCID:  "8901000000000000003",
 		TaskType:      "cellular_attach",
 		Environment:   "cellular",
 		RevertProfile: true,

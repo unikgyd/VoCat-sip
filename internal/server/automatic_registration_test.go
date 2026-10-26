@@ -30,6 +30,11 @@ func (c *registrationTaskController) SetNetwork(_ context.Context, _ string, req
 	}
 	return device.NetworkResult{Enabled: request.Enabled}, nil
 }
+
+func (c *registrationTaskController) StopOwnedNetwork(ctx context.Context, id string) error {
+	_, err := c.SetNetwork(ctx, id, device.NetworkRequest{Enabled: false})
+	return err
+}
 func (c *registrationTaskController) SetFlight(_ context.Context, _ string, enabled bool) (device.FlightResult, error) {
 	c.actions = append(c.actions, fmt.Sprintf("flight:%t", enabled))
 	return device.FlightResult{}, nil
@@ -79,7 +84,7 @@ func TestCellularRegistrationTaskExecution(t *testing.T) {
 		{name: "roaming", registration: 5, timeout: 10 * time.Second},
 		{name: "denied", registration: 3, timeout: time.Second, wantErr: "registration was denied"},
 		{name: "timeout", registration: 2, timeout: 50 * time.Millisecond, wantErr: "deadline exceeded"},
-		{name: "cannot stop data", registration: 1, timeout: 10 * time.Second, stopErr: errors.New("stop failed"), wantErr: "stop cellular data before registration"},
+		{name: "cannot stop data", registration: 1, timeout: 10 * time.Second, stopErr: errors.New("stop failed"), wantErr: "stop failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := blockedRegionServer(t, "310260123456789")
