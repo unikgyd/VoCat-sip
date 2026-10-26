@@ -11,8 +11,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"vocat/internal/callrecord"
 	"vocat/internal/rtpevent"
 	"vocat/internal/vowifi"
 )
@@ -64,9 +66,11 @@ type rtpMedia struct {
 	timestamp uint32
 	ssrc      uint32
 
-	downlink chan []int16
-	closed   chan struct{}
-	close    sync.Once
+	downlink  chan []int16
+	closed    chan struct{}
+	close     sync.Once
+	recording atomic.Pointer[callrecord.Sink]
+	recordMu  sync.Mutex
 }
 
 func newRTPMedia(local net.IP) (*rtpMedia, error) {
@@ -553,6 +557,9 @@ func (media *rtpMedia) WritePCM(samples []int16) error {
 		if _, err := media.conn.WriteToUDP(packet, remote); err != nil {
 			return fmt.Errorf("ims: send RTP: %w", err)
 		}
+		if recording := media.recording.Load(); recording != nil {
+			recording.PCM(callrecord.Uplink, media.pending[:rtpPacketSamples])
+		}
 		media.pending = media.pending[rtpPacketSamples:]
 		media.sequence++
 		media.timestamp += rtpPacketSamples
@@ -647,6 +654,9 @@ func (media *rtpMedia) receive() {
 		}
 		remote.Port = source.Port
 		media.mu.Unlock()
+		if recording := media.recording.Load(); recording != nil {
+			recording.PCM(callrecord.Downlink, samples)
+		}
 		for len(samples) > 0 {
 			chunk := samples[:min(160, len(samples))]
 			samples = samples[len(chunk):]
@@ -670,6 +680,7 @@ func (media *rtpMedia) receive() {
 func (media *rtpMedia) Close() error {
 	media.close.Do(func() {
 		close(media.closed)
+		media.stopRecording("call_ended")
 		media.cancel()
 		_ = media.conn.Close()
 		media.mu.Lock()
@@ -687,6 +698,31 @@ func (media *rtpMedia) Close() error {
 	})
 	media.startCellularRouteCleanup()
 	return media.cellularRouteCleanupError()
+}
+
+func (media *rtpMedia) stopRecording(reason string) {
+	media.recordMu.Lock()
+	defer media.recordMu.Unlock()
+	if sink := media.recording.Swap(nil); sink != nil {
+		sink.Close(reason)
+	}
+}
+
+func (media *rtpMedia) attachRecording(sink *callrecord.Sink) {
+	if sink == nil {
+		return
+	}
+	media.recordMu.Lock()
+	defer media.recordMu.Unlock()
+	select {
+	case <-media.closed:
+		sink.Close("media_closed")
+		return
+	default:
+	}
+	if !media.recording.CompareAndSwap(nil, sink) {
+		sink.Close("duplicate_media_owner")
+	}
 }
 
 func linearToMuLaw(sample int16) byte {

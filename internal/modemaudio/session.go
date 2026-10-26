@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"vocat/internal/callrecord"
 	"vocat/internal/modem"
 )
 
@@ -84,6 +85,7 @@ type Session struct {
 	writeMu                                           sync.Mutex
 	uplink, downlink                                  chan pcmFrame
 	captured, played, droppedCapture, droppedPlayback atomic.Uint64
+	recording                                         atomic.Pointer[callrecord.Sink]
 }
 
 // Open reserves both selected endpoints without starting capture/playback.
@@ -173,7 +175,21 @@ func (s *Session) Start() error {
 	}
 	return nil
 }
-func (s *Session) Codec() string         { return "PCM" }
+func (s *Session) Codec() string { return "PCM" }
+func (s *Session) SetRecording(sink *callrecord.Sink) {
+	if sink == nil {
+		return
+	}
+	if !s.recording.CompareAndSwap(nil, sink) {
+		sink.Close("duplicate_media_owner")
+		return
+	}
+	if s.ctx.Err() != nil {
+		if stopped := s.recording.Swap(nil); stopped != nil {
+			stopped.Close("media_closed")
+		}
+	}
+}
 func (s *Session) Done() <-chan struct{} { return s.done }
 func (s *Session) Stats() Statistics {
 	return Statistics{s.captured.Load(), s.played.Load(), s.droppedCapture.Load(), s.droppedPlayback.Load()}
@@ -250,6 +266,13 @@ waiting:
 	}
 	<-s.ctx.Done()
 	workers.Wait()
+	if sink := s.recording.Swap(nil); sink != nil {
+		reason := "call_ended"
+		if s.Err() != nil {
+			reason = "audio_failed"
+		}
+		sink.Close(reason)
+	}
 	if err := s.device.close(); err != nil {
 		s.mu.Lock()
 		if s.err == nil {
@@ -357,6 +380,9 @@ func (s *Session) capture() {
 			for len(pending) >= frameSamples {
 				frame := append([]int16(nil), pending[:frameSamples]...)
 				pending = pending[frameSamples:]
+				if sink := s.recording.Load(); sink != nil {
+					sink.PCM(callrecord.Downlink, frame)
+				}
 				enqueue(s.downlink, pcmFrame{frame, pendingAt}, &s.droppedCapture)
 				pendingAt = time.Now()
 				s.captured.Add(1)
@@ -402,6 +428,11 @@ func (s *Session) playback() {
 				if n < 0 || n > len(frame.samples) {
 					s.fail(ErrFormat)
 					return
+				}
+				if n > 0 {
+					if sink := s.recording.Load(); sink != nil {
+						sink.PCM(callrecord.Uplink, frame.samples[:n])
+					}
 				}
 				frame.samples = frame.samples[n:]
 				if err != nil && !errors.Is(err, errAgain) {

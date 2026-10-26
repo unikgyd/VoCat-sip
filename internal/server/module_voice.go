@@ -98,6 +98,12 @@ func (l *serverModuleLease) check(ctx context.Context) error {
 	return nil
 }
 func (l *serverModuleLease) Current() bool { return l.valid.Load() && l.Lease.Current() }
+func (l *serverModuleLease) RecordingICCID() string {
+	if identity, ok := l.Lease.(interface{ RecordingICCID() string }); ok {
+		return identity.RecordingICCID()
+	}
+	return ""
+}
 func (l *serverModuleLease) Read(ctx context.Context) ([]modulecall.Record, error) {
 	if err := l.check(ctx); err != nil {
 		return nil, err

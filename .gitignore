@@ -64,6 +64,7 @@ Thumbs.db
 # ---- Local reports, runtime state and credentials ----
 /publish/
 /data/
+/recordings/
 /tmp/
 .agents/
 .codex/

@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"vocat/internal/callrecord"
 	"vocat/internal/vowifi"
 	"vocat/internal/vowifi/imssec"
 )
@@ -89,6 +90,7 @@ type Config struct {
 	OnUSSD func(context.Context, ReceivedUSSD) error
 	// OnIncomingCall is invoked when an incoming voice call (INVITE) is received over IMS.
 	OnIncomingCall func(context.Context, ReceivedCall) error
+	RecordCall     callrecord.Factory
 	// Logger receives structured IMS runtime diagnostics. Inbound SMS logs do
 	// not include message text or raw protocol payloads.
 	Logger *slog.Logger

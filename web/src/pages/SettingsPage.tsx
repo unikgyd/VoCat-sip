@@ -34,6 +34,7 @@ import { SMSAPICard } from "../components/settings/SMSAPICard";
 
 import { VoWiFiMTUCard } from "../components/settings/VoWiFiMTUCard";
 import { SipGatewayCard } from "../components/settings/SipGatewayCard";
+import { CallRecordingCard } from "../components/settings/CallRecordingCard";
 
 const EMPTY_PASSWORD: PasswordForm = { oldPassword: "", newPassword: "", confirmPassword: "" };
 
@@ -524,6 +525,7 @@ export default function SettingsPage() {
         />
         <VoWiFiMTUCard />
         <SipGatewayCard />
+        <CallRecordingCard />
         <SMSAPICard />
         <SMSAutoClearCard
           enabled={smsAutoClear}

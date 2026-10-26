@@ -52,7 +52,7 @@ services:
       # credentials are stored only in SQLite and are not process environment.
 
     volumes:
-      # SQLite database + persistent state.
+      # SQLite database + persistent state, including the recordings directory.
       # Note for NAS (e.g. QNAP Container Station / Synology): replace named volume
       # with a host absolute path (e.g. /share/Container/vocat/data:/opt/vocat/data)
       # to avoid volume isolation issues between bootstrap-admin and runtime.

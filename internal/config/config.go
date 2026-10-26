@@ -19,6 +19,7 @@ const maxConfigBytes = 1 << 20
 type Config struct {
 	Address             string
 	DatabasePath        string
+	RecordingsDirectory string
 	SessionTTL          time.Duration
 	SecureCookies       bool
 	ShutdownTimeout     time.Duration
@@ -26,8 +27,9 @@ type Config struct {
 }
 
 type fileConfig struct {
-	Address      *string `json:"address"`
-	DatabasePath *string `json:"database_path"`
+	Address             *string `json:"address"`
+	DatabasePath        *string `json:"database_path"`
+	RecordingsDirectory *string `json:"recordings_directory"`
 	// Retain the legacy keys only so upgrades do not reject an existing config
 	// file. They are deliberately ignored: administrator credentials are read
 	// exclusively from SQLite.
@@ -114,6 +116,9 @@ func applyFile(cfg *Config, values fileConfig) error {
 	if values.DatabasePath != nil {
 		cfg.DatabasePath = *values.DatabasePath
 	}
+	if values.RecordingsDirectory != nil {
+		cfg.RecordingsDirectory = *values.RecordingsDirectory
+	}
 	if values.SessionTTL != nil {
 		duration, err := time.ParseDuration(*values.SessionTTL)
 		if err != nil {
@@ -146,6 +151,7 @@ func applyEnvironment(cfg *Config) error {
 
 	applyString("VOCAT_ADDR", &cfg.Address)
 	applyString("VOCAT_DATABASE_PATH", &cfg.DatabasePath)
+	applyString("VOCAT_RECORDINGS_DIRECTORY", &cfg.RecordingsDirectory)
 
 	if value, ok := os.LookupEnv("VOCAT_SESSION_TTL"); ok {
 		duration, err := time.ParseDuration(value)

@@ -4,6 +4,7 @@ import { Bell, BellOff, Mic, MicOff, Pause, Play, Phone, PhoneIncoming, PhoneOff
 import { Button, PageHeader } from "../components/ui";
 import { useI18n } from "../lib/i18n";
 import { usePhone, type PhoneCall, type PhoneLine } from "./PhoneProvider";
+import { CallRecordingsPanel } from "./CallRecordingsPanel";
 
 const panel = "rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/5 dark:text-gray-100";
 function StateDot({ ready }: { ready: boolean }) {
@@ -101,5 +102,6 @@ export default function PhonePage() {
       </div>
     </div>
     <p className="text-xs leading-relaxed text-gray-400">{t("支持已注册的 IMS 和已配对 USB 音频的模组线路。关闭网页或音频断开会结束本机接管的通话；后台休眠不保证收到提醒。")}</p>
+    <CallRecordingsPanel />
   </div>;
 }

@@ -388,6 +388,7 @@ func (session *Session) handleCallACK(request *sipRequest) bool {
 	if valid {
 		call.answerAcked = true
 		close(call.answerAck)
+		session.beginCallRecordingLocked(call)
 	}
 	session.callMu.Unlock()
 	if !valid {

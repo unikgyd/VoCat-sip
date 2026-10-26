@@ -15,7 +15,8 @@ message, preview it, choose a delay of 5–120 seconds and save with answering
 enabled. Choose either to hang up after playback or wait for browser takeover.
 The automatic phase has a 30–3600 second limit, measured from answer, and must
 allow at least five seconds beyond the message. Waiting sends silence; it does
-not open a server microphone or speaker. It does not record the caller.
+not open a server microphone or speaker. The independent [call recording
+setting](CALL_RECORDINGS.md) controls whether the original call's audio is saved.
 
 The web phone can take over during playback or while waiting. It requests
 microphone permission before submission. The worker stops sending the message
@@ -72,7 +73,8 @@ The automatic worker reserves the same per-device audio lease used by the web
 phone. It waits for an IMS answer ACK or module monitor confirmation of an
 active call, plus ready media, before playback. Early media alone is insufficient.
 The worker writes 160 samples per 20 ms frame and drains received PCM without
-recording it. Hangup and cleanup name only the original call. The default
+creating another recorder; the media layer applies the recording preference.
+Hangup and cleanup name only the original call. The default
 outgoing route is never used to relocate an established call.
 
 ## Authenticated API
@@ -102,8 +104,8 @@ SIM/call isolation; physical removal; preview authorization; takeover cancellati
 reader shutdown and missing browser attachment; UI rendering and all builds.
 Real USB/IMS calls, listening quality, carrier behavior and actual softphones
 remain separate acceptance work. Previous passing snapshots do not verify this
-source. VoWin's independent call-recording feature remains a separate porting
-item in [the feature union checklist](FEATURE_UNION.md).
+source. The independent call-recording integration also awaits combined
+verification in [the feature union checklist](FEATURE_UNION.md).
 
 Format references: [Microsoft RIFF](https://learn.microsoft.com/en-us/windows/win32/xaudio2/resource-interchange-file-format--riff-)
 and FFmpeg's [protocol options](https://github.com/FFmpeg/FFmpeg/blob/master/doc/protocols.texi)

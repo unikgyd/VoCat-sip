@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"vocat/internal/callrecord"
 	"vocat/internal/developer"
 	"vocat/internal/device"
 	"vocat/internal/hostims"
@@ -21,11 +22,16 @@ import (
 
 func configureHostIMSRuntime(ctx context.Context, logger *slog.Logger, database *store.Store,
 	devices *device.Manager, developerEnabled bool, incoming func(context.Context, ims.ReceivedCall) error,
+	recordings ...*callrecord.Service,
 ) (*durableHostIMSController, func(context.Context) error, error) {
 	factory, err := buildHostIMSFactory(ctx, hostIMSFactoryOptions{
 		Store: database, Devices: devices,
 		IMSConfig: func(ctx context.Context, config store.Device) (ims.Config, error) {
-			return applicationIMSConfig(ctx, config, database, logger.With("category", "host_ims", "device_id", config.ID), incoming, store.IMSModeHost)
+			value, err := applicationIMSConfig(ctx, config, database, logger.With("category", "host_ims", "device_id", config.ID), incoming, store.IMSModeHost)
+			if err == nil {
+				attachCallRecordings(&value, recordings)
+			}
+			return value, err
 		},
 		// This is application admission, not a substitute for compliance with
 		// LICENSE. Preserve existing regional and configured-device limits.

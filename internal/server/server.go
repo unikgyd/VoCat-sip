@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"vocat/internal/auth"
+	"vocat/internal/callrecord"
 	"vocat/internal/device"
 	"vocat/internal/exportproxy"
 	"vocat/internal/extensions"
@@ -44,6 +45,7 @@ type Options struct {
 	VoWiFi              VoWiFiController
 	HostIMS             VoWiFiController
 	ReadSubscription    func(context.Context, string) (vowifi.SIMIdentity, error)
+	Recordings          *callrecord.Service
 	Logs                *loghub.Hub
 	Assets              fs.FS
 	Logger              *slog.Logger
@@ -120,6 +122,8 @@ type Server struct {
 	autoAnswer                *automaticAnswer
 	answerClaims              callAnswerClaims
 	callPromptImport          sync.Mutex
+	recordings                *callrecord.Service
+	recordingsMu              sync.Mutex
 	smsAPI                    *smsapi.Service
 }
 
@@ -181,12 +185,17 @@ func New(options Options) (*Server, error) {
 		updateCheck:         update.CheckLatest,
 		updateApply:         update.ApplyLatest,
 		updateRestart:       update.RestartService,
+		recordings:          options.Recordings,
 	}
 	if options.VoWiFi != nil || options.HostIMS != nil {
 		server.vowifi = &imsServiceDispatch{server: server}
 	}
 	if _, ok := options.Devices.(moduleVoiceController); ok {
-		server.moduleCalls = modulecall.New(context.Background(), moduleVoiceBackend{server})
+		var factory callrecord.Factory
+		if server.recordings != nil {
+			factory = server.recordings.Start
+		}
+		server.moduleCalls = modulecall.New(context.Background(), moduleVoiceBackend{server}, factory)
 	}
 	server.cellularDataRuntime()
 	server.loadAccessConfig(context.Background())

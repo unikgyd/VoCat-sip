@@ -25,6 +25,9 @@ import (
 
 func (s *Server) routeGeneralAPI(w http.ResponseWriter, r *http.Request) bool {
 	cleanPath := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api"), "/")
+	if s.routeRecordingsAPI(w, r, cleanPath) {
+		return true
+	}
 	if s.routeAutomaticTasksAPI(w, r, cleanPath) {
 		return true
 	}

@@ -33,6 +33,8 @@ type moduleVoiceLease struct {
 	close           sync.Once
 }
 
+func (l *moduleVoiceLease) RecordingICCID() string { return l.iccid }
+
 func (m *Manager) ModuleVoiceAvailable(ctx context.Context, id string) error {
 	state, err := m.lookup(id)
 	if err != nil {

@@ -8,23 +8,27 @@ import (
 	"sync"
 	"time"
 
+	"vocat/internal/callrecord"
 	"vocat/internal/vowifi"
 )
 
 type Manager struct {
-	ctx     context.Context
-	cancel  context.CancelFunc
-	backend Backend
-	mu      sync.Mutex
-	closed  bool
-	closing bool
-	entries map[string]*entry
+	ctx        context.Context
+	cancel     context.CancelFunc
+	backend    Backend
+	mu         sync.Mutex
+	closed     bool
+	closing    bool
+	entries    map[string]*entry
+	recordCall callrecord.Factory
 }
 type entry struct {
+	id   string
 	gate chan struct{}
 	call *call
 }
 type call struct {
+	deviceID                 string
 	public                   vowifi.Call
 	line                     Lease
 	audio                    Audio
@@ -35,21 +39,26 @@ type call struct {
 	hangupAttempted          bool
 	queryFailures            int
 	observed                 bool
+	recordingAttempted       bool
 }
 
-func New(parent context.Context, backend Backend) *Manager {
+func New(parent context.Context, backend Backend, recordings ...callrecord.Factory) *Manager {
 	if parent == nil {
 		parent = context.Background()
 	}
 	ctx, cancel := context.WithCancel(parent)
-	return &Manager{ctx: ctx, cancel: cancel, backend: backend, entries: map[string]*entry{}}
+	m := &Manager{ctx: ctx, cancel: cancel, backend: backend, entries: map[string]*entry{}}
+	if len(recordings) == 1 {
+		m.recordCall = recordings[0]
+	}
+	return m
 }
 func (m *Manager) entry(id string) *entry {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	e := m.entries[id]
 	if e == nil {
-		e = &entry{gate: make(chan struct{}, 1)}
+		e = &entry{id: id, gate: make(chan struct{}, 1)}
 		e.gate <- struct{}{}
 		m.entries[id] = e
 	}
@@ -124,7 +133,7 @@ func (m *Manager) begin(e *entry, line Lease, number, direction, state string) (
 		return nil, err
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
-	c := &call{line: line, ctx: ctx, cancel: cancel, public: vowifi.Call{ID: "usb-" + hex.EncodeToString(seed[:]), Number: number, Direction: direction, State: state, StartedAt: time.Now().UTC()}}
+	c := &call{deviceID: e.id, line: line, ctx: ctx, cancel: cancel, public: vowifi.Call{ID: "usb-" + hex.EncodeToString(seed[:]), Number: number, Direction: direction, State: state, StartedAt: time.Now().UTC()}}
 	m.mu.Lock()
 	e.call = c
 	m.mu.Unlock()
@@ -537,6 +546,7 @@ func (m *Manager) watch(e *entry, c *call) {
 				return
 			}
 			if !c.started {
+				m.beginRecording(c)
 				if c.audio == nil || c.audio.Start() != nil {
 					c.ending = true
 					m.hideMedia(c)

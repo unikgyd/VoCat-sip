@@ -7,6 +7,7 @@
 .claude
 build/
 data/
+recordings/
 **/node_modules/
 web/dist/
 web/build/

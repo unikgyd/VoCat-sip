@@ -22,6 +22,7 @@ import (
 	"golang.org/x/term"
 
 	"vocat/internal/auth"
+	"vocat/internal/callrecord"
 	"vocat/internal/config"
 	"vocat/internal/developer"
 	"vocat/internal/device"
@@ -436,6 +437,19 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 		return err
 	}
 	defer database.Close()
+	recordings, recordingErr := configureCallRecordings(startupContext, cfg, database, logger)
+	if recordingErr != nil {
+		logger.Warn("call recordings unavailable; calls remain enabled", "category", "call", "error", recordingErr)
+	}
+	if recordings != nil {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := recordings.Close(ctx); err != nil {
+				logger.Warn("call recording finalization incomplete", "error", err)
+			}
+		}()
+	}
 	// IMS can deliver during its startup, before Server.New admits the SIP
 	// listener. Install the pure transactional planner before starting any IMS
 	// receiver, rather than adding recipients later in a history poll.
@@ -570,11 +584,12 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 		deviceManager,
 		cardReaders,
 		forwardIncoming,
+		recordings,
 	)
 	if err != nil {
 		return fmt.Errorf("configure VoWiFi runtime: %w", err)
 	}
-	hostIMSManager, closeHostIMS, err := configureHostIMSRuntime(deviceStartupContext, logger, database, deviceManager, developerEnabled, forwardIncoming)
+	hostIMSManager, closeHostIMS, err := configureHostIMSRuntime(deviceStartupContext, logger, database, deviceManager, developerEnabled, forwardIncoming, recordings)
 	if closeHostIMS != nil {
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), hostIMSShutdownTimeout)
@@ -609,11 +624,12 @@ func run(logger *slog.Logger, logs *loghub.Hub) error {
 	}()
 
 	handler, err := server.New(server.Options{
-		Store:   database,
-		Auth:    authService,
-		Devices: deviceManager,
-		VoWiFi:  vowifiManager,
-		HostIMS: hostIMSManager,
+		Store:      database,
+		Auth:       authService,
+		Devices:    deviceManager,
+		VoWiFi:     vowifiManager,
+		HostIMS:    hostIMSManager,
+		Recordings: recordings,
 		ReadSubscription: func(ctx context.Context, id string) (vowifi.SIMIdentity, error) {
 			config, err := database.Device(ctx, id)
 			if err != nil {
@@ -977,6 +993,7 @@ func configureVoWiFiRuntime(
 	deviceManager *device.Manager,
 	cardReaders *pcsc.Service,
 	onIncomingCall func(context.Context, ims.ReceivedCall) error,
+	recordings ...*callrecord.Service,
 ) (*vowifiruntime.Manager, error) {
 	mapper := integration.ATMapper{
 		Store:   database,
@@ -1021,7 +1038,7 @@ func configureVoWiFiRuntime(
 			} else if deviceConfig.DeviceType == store.DeviceTypeWiFi410 {
 				adapter = nativeQMIAdapter
 			}
-			return newVoWiFiOrchestrator(factoryContext, deviceConfig, database, adapter, logger, onIncomingCall)
+			return newVoWiFiOrchestrator(factoryContext, deviceConfig, database, adapter, logger, onIncomingCall, recordings...)
 		},
 	})
 
@@ -1244,6 +1261,7 @@ func newVoWiFiOrchestrator(
 	adapter vowifiDeviceAdapter,
 	logger *slog.Logger,
 	onIncomingCall func(context.Context, ims.ReceivedCall) error,
+	recordings ...*callrecord.Service,
 ) (*vowifi.Orchestrator, error) {
 	// The ePDG tunnel is an IMS service: request the dedicated IMS APN and never
 	// the cellular data APN cached on the device or card policy.
@@ -1259,6 +1277,7 @@ func newVoWiFiOrchestrator(
 	if err != nil {
 		return nil, err
 	}
+	attachCallRecordings(&imsConfig, recordings)
 	imsProvider, err := ims.NewProvider(adapter, imsConfig)
 	if err != nil {
 		return nil, fmt.Errorf("device %q IMS provider: %w", deviceConfig.ID, err)

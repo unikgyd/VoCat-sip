@@ -54,26 +54,27 @@ type imsCall struct {
 	sessionCancel   context.CancelFunc
 	// callMu protects these fields; replyMu orders incoming final responses
 	// without holding the session state lock across network I/O.
-	replyMu           sync.Mutex
-	answering         bool
-	answerSent        bool
-	inviteResponse    []byte
-	inviteStatus      int
-	invitePending     bool
-	provisional       bool
-	cancelSent        bool
-	inviteFrom        string
-	inviteTo          string
-	inviteRoutes      []string
-	invitePacket      []byte
-	wake              chan struct{}
-	byeStarted        bool
-	remoteCSeq        uint32
-	remoteByeVia      string
-	answerAck         chan struct{}
-	answerAcked       bool
-	localOfferPending bool
-	localOfferDrains  int
+	replyMu            sync.Mutex
+	answering          bool
+	answerSent         bool
+	inviteResponse     []byte
+	inviteStatus       int
+	invitePending      bool
+	provisional        bool
+	cancelSent         bool
+	inviteFrom         string
+	inviteTo           string
+	inviteRoutes       []string
+	invitePacket       []byte
+	wake               chan struct{}
+	byeStarted         bool
+	remoteCSeq         uint32
+	remoteByeVia       string
+	answerAck          chan struct{}
+	answerAcked        bool
+	localOfferPending  bool
+	localOfferDrains   int
+	recordingAttempted bool
 }
 
 func (session *Session) Calls() []vowifi.Call {
@@ -373,6 +374,7 @@ func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) 
 					now := time.Now().UTC()
 					call.public.AnsweredAt = &now
 					call.public.MediaReady, call.public.Codec = call.media.ready(), call.media.Codec()
+					session.beginCallRecordingLocked(call)
 				}
 				session.callMu.Unlock()
 				if cancelled {
@@ -480,6 +482,7 @@ func (session *Session) AnswerCall(ctx context.Context, id string) (vowifi.Call,
 		now := time.Now().UTC()
 		call.public.AnsweredAt = &now
 		call.public.MediaReady, call.public.Codec = call.media.ready(), call.media.Codec()
+		session.beginCallRecordingLocked(call)
 	}
 	result := call.public
 	session.callMu.Unlock()
@@ -1087,6 +1090,7 @@ func (session *Session) setCallMediaReady(id string) {
 	if call := session.calls[id]; call != nil && !call.terminated && call.public.EndedAt == nil && call.media != nil {
 		call.public.MediaReady = call.media.ready()
 		call.public.Codec = call.media.Codec()
+		session.beginCallRecordingLocked(call)
 	}
 	session.callMu.Unlock()
 }
@@ -1134,6 +1138,9 @@ func (session *Session) finishCall(id, state string, code int, reason string) {
 	}
 	session.callMu.Unlock()
 	if media != nil {
+		if state == "failed" {
+			media.stopRecording("call_failed")
+		}
 		_ = media.Close()
 	}
 }
