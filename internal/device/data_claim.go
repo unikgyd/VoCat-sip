@@ -2,14 +2,41 @@ package device
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 
 	"vocat/internal/modem"
 )
 
 // A journal is a crash fence. It cannot reconstruct a WDS client or authorize
-// stopping an unknown modem-wide call. Only the original live owner releases it.
+// stopping an unknown modem-wide call. An orphan requires separate death,
+// physical disappearance, and host-cleanup proofs before its exact release.
 type DataClaim interface{ Release(context.Context) error }
+
+// A committed host receipt permits recovery only after the original process
+// and original kernel interface are gone. It never carries a WDS CID or handle.
+type DataHostFile struct {
+	Device, Inode, DirectoryDevice, DirectoryInode uint64
+	UID, Mode                                      uint32
+	SHA256                                         string
+}
+
+type DataHostReceipt struct {
+	Version        int
+	Interface      string
+	InterfaceIndex int
+	Families       []int
+	Rules          map[int]json.RawMessage
+	RouteHashes    map[int]string
+	Addresses      []string
+	DNS            *DataHostFile
+	Ready          bool
+}
+
+type DataHostClaim interface {
+	DataClaim
+	SaveHost(context.Context, DataHostReceipt) error
+}
 
 // DataRecoveryClaim permits one durable restart intent while the original live
 // owner still retains its claim. It never grants a replacement process a lease.

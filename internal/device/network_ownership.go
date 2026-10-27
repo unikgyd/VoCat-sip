@@ -14,6 +14,7 @@ var ErrDataCleanupPending = errors.New("original cellular data cleanup has not b
 // basename, current SIM, APN, or the current desired device configuration.
 type ownedNetwork struct {
 	claim          DataClaim
+	hostReceipt    *DataHostReceipt
 	candidate      modem.Candidate
 	backend        string
 	guard          *simWriteGuard

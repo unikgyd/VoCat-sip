@@ -75,6 +75,18 @@ func clearOwnedQMIHost(ctx context.Context, owner *ownedNetwork, physicalCurrent
 	if !owner.hostTouched {
 		return nil
 	}
+	if owner.hostReceipt != nil && owner.hostReceipt.Ready {
+		if !physicalCurrent {
+			if err := CleanupOrphanDataHost(ctx, *owner.hostReceipt); err != nil {
+				return err
+			}
+			owner.hostTouched = false
+			return nil
+		}
+		if err := validateCurrentDataHost(*owner.hostReceipt); err != nil {
+			return err
+		}
+	}
 	name := owner.candidate.NetworkInterface
 	ip, err := exec.LookPath("ip")
 	if err != nil {

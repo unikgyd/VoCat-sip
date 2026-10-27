@@ -141,5 +141,15 @@ exercised unchanged default restart/health/dependency settings with an explicit
 secondary-port recovery mapping. Actual IPv4, IPv6 and dual-stack proxy SIGKILLs
 recovered with the original main and owner retained. The fault cases used matching
 patched ModemManager; one distribution-manager restoration crash is retained,
-with the original environment subsequently restored. Owner death, unconfigured
-recovery and native systemd dependency cascades remain separate acceptance.
+with the original environment subsequently restored. That earlier run did not
+accept owner death, unconfigured recovery or native systemd dependency cascades.
+
+The later [active-owner run](VERIFICATION_20261028_COMPOSE_OWNER_ACTIVE.md) adds
+recovery after a process holding an acknowledged active claim dies. Version 2
+stores process/namespace identity and a committed host receipt; a replacement
+uses the same opt-in secondary port, one durable reset intent and exact original
+USB/netdev/rule/DNS cleanup proofs. No WDS capability is adopted. Shipping Compose
+IPv4/IPv6/dual-stack faults passed with the original main/proxy retained. Its
+IPv6 baseline maintenance, syscall-observation limit and patched-manager scope
+remain explicit. Legacy/unready records, host boot/power loss and native
+supervision cascades still require separate handling and acceptance.

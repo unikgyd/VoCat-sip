@@ -182,8 +182,13 @@ func runDataOwner(logger *slog.Logger, args []string) error {
 	}
 	lifetime, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	recoveryContext, stopRecovery := context.WithCancel(lifetime)
+	recoveryDone := make(chan struct{})
+	go func() { defer close(recoveryDone); recoverOrphanData(recoveryContext, database, recoveryPorts, logger) }()
 	logger.Info("independent QMI data owner listening", "category", "data_owner")
 	serveErr := server.Serve(lifetime)
+	stopRecovery()
+	<-recoveryDone
 	cleanup, stopCleanup := context.WithTimeout(context.Background(), 90*time.Second)
 	defer stopCleanup()
 	return errors.Join(serveErr, server.Close(cleanup))

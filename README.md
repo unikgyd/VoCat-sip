@@ -47,7 +47,8 @@ QDC507 ADB/D4/UAC voice bridge is outside this implementation target.
 | Live Linux acceptance | QDC507/China Telecom Host IMS and EC20/DITO VoWiFi registered simultaneously. Pure Host IMS SMS received carrier delivery status 0. A later answered AMR call carried bidirectional RTP; the recipient confirmed clear tones and speaking. |
 | Further live acceptance | Real Baresip extension media/transcoding, RTCP and DTMF, LAN MESSAGE confirmation/deduplication, physical USB PCM I/O, an existing eSIM profile round trip and four prompt import formats passed their scoped checks. |
 | Cellular data export | Real CTNET IPv6, simultaneous IPv4/IPv6 and IPv4 HTTPS through authenticated HTTP/SOCKS5, IPv4/IPv6 public-IP queries and original data cleanup passed. |
-| QMI proxy fault | Opt-in original-owner recovery passed one real proxy SIGKILL: one guarded reset, original main/owner retained, automatic new-generation data and IPv6 public query restored. Active-claim owner death and proxy supervision cascades remain separate. |
+| QMI proxy fault | Opt-in original-owner recovery passed real proxy SIGKILL cases with original main/owner retained and fresh public queries. Native supervision cascades remain separate. |
+| Active data-owner death | [Shipping Compose IPv4/IPv6/dual-stack cases](docs/VERIFICATION_20261028_COMPOSE_OWNER_ACTIVE.md) recovered through a replacement owner, retaining the original main/proxy. Committed host receipts and one-shot physical recovery are required; IPv6 baseline maintenance and patched-manager qualifications apply. |
 | Native installation | Scoped real systemd installation, failed-upgrade rollback, original administrator preservation and shared-lock retention passed. |
 | Advanced live acceptance | Pure Host IMS hold/resume, incoming automatic answer, prompt playback, web-phone PCM takeover and complete stereo recordings passed scoped carrier checks. A negotiated key submission succeeded; remote IVR recognition remains separate. |
 | SIP carrier acceptance | Real Baresip PCMU outgoing and PCMA incoming calls through pure Host IMS AMR passed recipient-confirmed prompt/speech checks. Handset keys reached SIP; incoming first-answer cancellation and SIP-peer teardown passed. One SIP SMS was delivered and its human OK reply reached the authorized SIP recipient. |
@@ -138,7 +139,13 @@ their controlled restoration remain recorded separately.
 The [shipping Compose follow-up](docs/VERIFICATION_20261027_COMPOSE_OWNER_IDLE.md)
 adds an actual idle-owner SIGKILL/automatic restart with default policies retained,
 then an explicit fresh connection and successful IPv6 public query. This does not
-recover a dead owner with an active data claim.
+recover a dead owner with an active data claim. The later
+[active-owner follow-up](docs/VERIFICATION_20261028_COMPOSE_OWNER_ACTIVE.md)
+adds that separate qualified path with real IPv4, IPv6 and dual-stack owner
+SIGKILLs, exact host cleanup and fresh public queries. Initial IPv6 DNS failure,
+separate pre-fault module maintenance and the missing IPv6 command-byte capture
+are retained. Legacy/unready records, host power loss and native supervision
+cascades remain separate.
 
 The [SIP handset-hangup follow-up](docs/VERIFICATION_20261027_SIP_LIFECYCLE.md)
 confirms handset termination reaching the SIP endpoint, but retains a failed

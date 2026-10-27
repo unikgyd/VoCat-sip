@@ -57,7 +57,7 @@ func (s *Store) HasDataBearerClaim(ctx context.Context, equipmentKey, physicalKe
 			Version                   int
 			EquipmentKey, PhysicalKey string
 		}
-		if !sensitive || len(raw) > MaxDataBearerClaimBytes || json.Unmarshal([]byte(raw), &header) != nil || header.Version != 1 || key != DataBearerClaimPrefix+header.EquipmentKey {
+		if !sensitive || len(raw) > MaxDataBearerClaimBytes || json.Unmarshal([]byte(raw), &header) != nil || (header.Version != 1 && header.Version != 2) || key != DataBearerClaimPrefix+header.EquipmentKey {
 			return true, nil
 		}
 		for _, value := range []string{header.EquipmentKey, header.PhysicalKey} {
@@ -71,4 +71,28 @@ func (s *Store) HasDataBearerClaim(ctx context.Context, equipmentKey, physicalKe
 		}
 	}
 	return false, rows.Err()
+}
+
+// DataBearerClaims exposes only the bounded private data journal to its
+// recovery coordinator. It must never enumerate unrelated application secrets.
+func (s *Store) DataBearerClaims(ctx context.Context) ([]AppSetting, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT key,value_json,sensitive FROM app_settings WHERE key GLOB 'cellular.data.owner.private.v1.*' LIMIT 129`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []AppSetting
+	for rows.Next() {
+		var setting AppSetting
+		var raw string
+		if err := rows.Scan(&setting.Key, &raw, &setting.Sensitive); err != nil {
+			return nil, err
+		}
+		if len(result) >= 128 || !setting.Sensitive || len(raw) > MaxDataBearerClaimBytes {
+			return nil, errors.New("unrecognised data ownership journal")
+		}
+		setting.Value = json.RawMessage(raw)
+		result = append(result, setting)
+	}
+	return result, rows.Err()
 }

@@ -1,0 +1,419 @@
+{
+  "schema": 1,
+  "date": "2026-10-28",
+  "sourceBaseline": "3df1727c4d93fcd4a5c514b2835239b09b274bf3",
+  "sourceManifestSHA256": "70c48c2c09a6cd292882fffcd8b37a315b81c7ec7343a605aaa5fef6cfb074d9",
+  "artifactSHA256": "403d5708de465c3575ee8118af35a9e0d2155c1bf69f581d87310e99eef04ad1",
+  "allLinuxArtifacts": {
+    "amd64": "403d5708de465c3575ee8118af35a9e0d2155c1bf69f581d87310e99eef04ad1",
+    "arm64": "07b10e8bf018c812590e97a6edfdd0448d65cecf793ada38c3f077705634a36c",
+    "386": "35fd24ec5f2a6433c6486059aa11481aee399f92ef14398f5ae55252951aedf0",
+    "arm": "fca517fd2d6075613827a68f0aa27b0685bb8ea61abaadeb367f032ff9bfbd58"
+  },
+  "scope": "Actual active-claim independent owner death under shipping Compose defaults; original main and proxy preserved in every fault window",
+  "unqualifiedWholePlatformPass": false,
+  "qualifiedActiveReadyOwnerRecoveryAccepted": true,
+  "overallGoalComplete": false,
+  "software": [
+    {
+      "label": "data-kernel",
+      "exit": 0,
+      "seconds": 13.433,
+      "tests": {
+        "pass": 7,
+        "fail": 0,
+        "skip": 0
+      },
+      "rootNames": 7,
+      "repetitionsPerRoot": [
+        1
+      ]
+    },
+    {
+      "label": "go",
+      "exit": 0,
+      "seconds": 197.14,
+      "tests": {
+        "pass": 2140,
+        "fail": 0,
+        "skip": 50
+      },
+      "rootNames": 2140,
+      "repetitionsPerRoot": [
+        1
+      ]
+    },
+    {
+      "label": "vet",
+      "exit": 0,
+      "seconds": 7.283
+    },
+    {
+      "label": "data-kernel-race",
+      "exit": 0,
+      "seconds": 57.451,
+      "tests": {
+        "pass": 35,
+        "fail": 0,
+        "skip": 0
+      },
+      "rootNames": 7,
+      "repetitionsPerRoot": [
+        5
+      ]
+    },
+    {
+      "label": "amd64",
+      "exit": 0,
+      "seconds": 13.161
+    },
+    {
+      "label": "arm64",
+      "exit": 0,
+      "seconds": 15.837
+    },
+    {
+      "label": "386",
+      "exit": 0,
+      "seconds": 14.074
+    },
+    {
+      "label": "arm",
+      "exit": 0,
+      "seconds": 14.505
+    }
+  ],
+  "unchangedOwnerRaceReference": {
+    "sourceManifestSHA256": "42523b971b014bddbc07e3d5b2cec861a0f1e5c26f9a6946cfee0b042e41bb1a",
+    "result": {
+      "label": "owner-recovery-race",
+      "exit": 0,
+      "seconds": 352.2,
+      "tests": {
+        "pass": 200,
+        "fail": 0,
+        "skip": 10
+      },
+      "rootNames": 40,
+      "repetitionsPerRoot": [
+        5
+      ]
+    },
+    "unchangedOtherInputs": true,
+    "changedInputsRetestedByCurrentKernelRace": [
+      "internal/device/data_host_rules_linux.go"
+    ]
+  },
+  "retainedInitialSoftwareFailures": [
+    {
+      "version": 1,
+      "accepted": false,
+      "results": [
+        {
+          "label": "go",
+          "exit": 1,
+          "seconds": 206.732,
+          "tests": {
+            "pass": 2126,
+            "fail": 14,
+            "skip": 49
+          },
+          "rootNames": 2126,
+          "repetitionsPerRoot": [
+            1
+          ]
+        },
+        {
+          "label": "data-kernel",
+          "exit": 1,
+          "seconds": 1.737,
+          "tests": {
+            "pass": 3,
+            "fail": 3,
+            "skip": 0
+          },
+          "rootNames": 3,
+          "repetitionsPerRoot": [
+            1
+          ]
+        },
+        {
+          "label": "vet",
+          "exit": 0,
+          "seconds": 7.285
+        },
+        {
+          "label": "owner-recovery-race",
+          "exit": 1,
+          "seconds": 354.323,
+          "tests": {
+            "pass": 195,
+            "fail": 5,
+            "skip": 5
+          },
+          "rootNames": 39,
+          "repetitionsPerRoot": [
+            5
+          ]
+        },
+        {
+          "label": "amd64",
+          "exit": 0,
+          "seconds": 17.038
+        },
+        {
+          "label": "arm64",
+          "exit": 0,
+          "seconds": 17.211
+        },
+        {
+          "label": "386",
+          "exit": 0,
+          "seconds": 18.261
+        },
+        {
+          "label": "arm",
+          "exit": 0,
+          "seconds": 16.949
+        }
+      ]
+    },
+    {
+      "version": 2,
+      "accepted": false,
+      "results": [
+        {
+          "label": "go",
+          "exit": 0,
+          "seconds": 205.528,
+          "tests": {
+            "pass": 2140,
+            "fail": 0,
+            "skip": 50
+          },
+          "rootNames": 2140,
+          "repetitionsPerRoot": [
+            1
+          ]
+        },
+        {
+          "label": "data-kernel",
+          "exit": 1,
+          "seconds": 2.039,
+          "tests": {
+            "pass": 4,
+            "fail": 3,
+            "skip": 0
+          },
+          "rootNames": 4,
+          "repetitionsPerRoot": [
+            1
+          ]
+        },
+        {
+          "label": "vet",
+          "exit": 0,
+          "seconds": 6.774
+        },
+        {
+          "label": "owner-recovery-race",
+          "exit": 0,
+          "seconds": 352.2,
+          "tests": {
+            "pass": 200,
+            "fail": 0,
+            "skip": 10
+          },
+          "rootNames": 40,
+          "repetitionsPerRoot": [
+            5
+          ]
+        },
+        {
+          "label": "amd64",
+          "exit": 0,
+          "seconds": 13.712
+        },
+        {
+          "label": "arm64",
+          "exit": 0,
+          "seconds": 14.64
+        },
+        {
+          "label": "386",
+          "exit": 0,
+          "seconds": 16.237
+        },
+        {
+          "label": "arm",
+          "exit": 0,
+          "seconds": 16.254
+        }
+      ]
+    }
+  ],
+  "hardwareCases": [
+    {
+      "requestedFamily": "dual",
+      "actualShippingComposeAndRestartPolicies": true,
+      "actualActiveOwnerSIGKILLAndExit137": true,
+      "ownerAutomaticallyRestartedOnce": true,
+      "originalMainUnchanged": true,
+      "originalProxyUnchanged": true,
+      "originalClaimRecoveryIntentObserved": true,
+      "originalOwnerDeathProvedByReplacement": true,
+      "oldClaimDeletedBeforeNewClaim": true,
+      "oldHostRoutingAndDNSClearedBeforeNewClaim": true,
+      "newOwnerPIDNewClaimSameSIMAndEquipment": true,
+      "newUSBGeneration": true,
+      "readyReceiptOnBothActiveClaims": true,
+      "oneSubmissionLog": true,
+      "observedCFUNWrites": 1,
+      "CFUNByteObservationComplete": true,
+      "noManualModemRebootOrMainRestartOrDataEnableOrFenceDeletionAfterFault": true,
+      "publicQueryHTTPStatus": 200,
+      "publicIPAddressFamily": 6,
+      "secondsIncludingPublicQuery": 51.79,
+      "carrierCalls": 0,
+      "carrierSMS": 0,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0
+    },
+    {
+      "requestedFamily": "4",
+      "actualShippingComposeAndRestartPolicies": true,
+      "actualActiveOwnerSIGKILLAndExit137": true,
+      "ownerAutomaticallyRestartedOnce": true,
+      "originalMainUnchanged": true,
+      "originalProxyUnchanged": true,
+      "originalClaimRecoveryIntentObserved": true,
+      "originalOwnerDeathProvedByReplacement": true,
+      "oldClaimDeletedBeforeNewClaim": true,
+      "oldHostRoutingAndDNSClearedBeforeNewClaim": true,
+      "newOwnerPIDNewClaimSameSIMAndEquipment": true,
+      "newUSBGeneration": true,
+      "readyReceiptOnBothActiveClaims": true,
+      "oneSubmissionLog": true,
+      "observedCFUNWrites": 1,
+      "CFUNByteObservationComplete": true,
+      "noManualModemRebootOrMainRestartOrDataEnableOrFenceDeletionAfterFault": true,
+      "publicQueryHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "secondsIncludingPublicQuery": 89.942,
+      "carrierCalls": 0,
+      "carrierSMS": 0,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0
+    },
+    {
+      "requestedFamily": "6",
+      "actualShippingComposeAndRestartPolicies": true,
+      "actualActiveOwnerSIGKILLAndExit137": true,
+      "ownerAutomaticallyRestartedOnce": true,
+      "originalMainUnchanged": true,
+      "originalProxyUnchanged": true,
+      "originalClaimRecoveryIntentObserved": true,
+      "originalOwnerDeathProvedByReplacement": true,
+      "oldClaimDeletedBeforeNewClaim": true,
+      "oldHostRoutingAndDNSClearedBeforeNewClaim": true,
+      "newOwnerPIDNewClaimSameSIMAndEquipment": true,
+      "newUSBGeneration": true,
+      "readyReceiptOnBothActiveClaims": true,
+      "oneSubmissionLog": true,
+      "observedCFUNWrites": 0,
+      "CFUNByteObservationComplete": false,
+      "noManualModemRebootOrMainRestartOrDataEnableOrFenceDeletionAfterFault": true,
+      "publicQueryHTTPStatus": 200,
+      "publicIPAddressFamily": 6,
+      "secondsIncludingPublicQuery": 64.393,
+      "carrierCalls": 0,
+      "carrierSMS": 0,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0
+    }
+  ],
+  "matchingPatchedModemManagerUsedForFaults": true,
+  "patchedManagerSHA256": "6b319c980e33256162ba68a4505807255eebe0f81dadde84f5b75979f61e41ac",
+  "initialIPv6NetworkFailure": {
+    "initialFreshPOSTHTTP": 502,
+    "repeatedFreshPOSTHTTP": 502,
+    "independentBoundIPv6DNSProbesTimedOut": 3,
+    "ownerFaultNotYetInjected": true,
+    "failedObservationsRetained": true
+  },
+  "separateIPv6BaselineMaintenance": {
+    "completed": true,
+    "outsideFaultWindows": true,
+    "originalProcessesPreserved": true,
+    "normalDataDisableAndClaimReleaseBeforeMaintenance": true,
+    "oneCompleteModuleReboot": true,
+    "originalEquipmentAndSIMReverified": true,
+    "nativeIMSKept1": true,
+    "noVoiceBridge": true,
+    "noManualRawIPOrHostRoutingRepair": true,
+    "automaticRecoveryAcceptance": false
+  },
+  "preflightStaleEphemeralATPortRefusedBeforeDeployment": true,
+  "verifiedStableSecondaryATAliasUsed": true,
+  "IPv6CommandByteObservationComplete": false,
+  "IPv6CommandEvidence": "One durable intent, one submission log, original USB loss and fresh active owner/public query; syscall bytes not captured",
+  "nativeComparison": {
+    "rawTerminalFramesEqual": false,
+    "knownQueryEchoOnlyDifference": true,
+    "strictlyParsedIMSSettingAndAllPDPFieldsEqual": true,
+    "noUnknownLinesOrDuplicateContextsIgnored": true,
+    "echoes": {
+      "ims": {
+        "before": 0,
+        "after": 1
+      },
+      "profiles": {
+        "before": 0,
+        "after": 1
+      }
+    },
+    "nativeAttestationBeforeStockSwitch": true,
+    "noNewHardwareReadOrWriteRequired": true
+  },
+  "stockManagerStability": {
+    "seconds": 121.07,
+    "samePID": true,
+    "automaticRestarts": 0,
+    "nativeAttestationBeforeStockSwitch": true
+  },
+  "restored": {
+    "applicationAndOwnerExitedZero": true,
+    "ownedProxyStopped": true,
+    "privateOwnerSocketAndRuntimeArchived": true,
+    "originalEquipmentSIMsRegisteredRFOn": true,
+    "nativeIMSKept1AndRegistered": true,
+    "stockManagerActive": true,
+    "stockManagerSHA256": "e1c6e899c75385544423cf96d5a67e37d516038e16c01680e3ccb5c59941a5e6",
+    "stockManagerAutomaticRestarts": 0,
+    "ownedOverrideAndExecutableRemoved": true,
+    "CTHostExactExceptRecreatedInterfaceIndex": true,
+    "CTInterfaceIndexChangedAfterAutomaticRecovery": true,
+    "PHHostExactlyPreserved": true,
+    "originalDatabaseHashPreserved": true,
+    "sharedLockInodePreserved": true,
+    "originalRunningContainerIDsPreserved": true,
+    "noDataClaim": true,
+    "noXFRMStateOrPolicy": true,
+    "noPrivateDNSFile": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "hostPCSCServiceAndSocketPreserved": true,
+    "allShippingRestartPoliciesPreserved": true,
+    "nativeIMSAndPDPDefinitionsPreserved": true,
+    "nativeResponseQueryEchoDifferenceStrictlyReconciled": true,
+    "ownedComposeContainersRemoved": true,
+    "noProjectNetworkOrVolume": true,
+    "originalStockManagerZeroRestartsAfter120Seconds": true
+  },
+  "remaining": [
+    "Legacy/unready/unknown initial Start records remain fenced",
+    "Host boot and power loss, physical hotplug and native systemd supervision cascades need separate acceptance",
+    "Carrier-bound SIP joint faults and other documented hardware boundaries remain",
+    "Physical browser audio remains deferred by the user"
+  ]
+}

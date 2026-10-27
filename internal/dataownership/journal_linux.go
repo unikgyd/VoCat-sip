@@ -38,7 +38,11 @@ type record struct {
 	EquipmentKey, PhysicalKey, Token, SIMKey, Generation, Interface string
 	PID                                                             int
 	BootID                                                          string
-	RecoveryAttempted                                               bool `json:",omitempty"`
+	RecoveryAttempted                                               bool                    `json:",omitempty"`
+	StartTicks, PIDNamespace, UserNamespace, NetNamespace           string                  `json:",omitempty"`
+	UID                                                             int                     `json:",omitempty"`
+	USBPath                                                         string                  `json:",omitempty"`
+	Host                                                            *device.DataHostReceipt `json:",omitempty"`
 }
 
 func digits(value string, min, max int) bool {
@@ -89,7 +93,11 @@ func (j Journal) Acquire(ctx context.Context, candidate modem.Candidate, equipme
 	if err != nil {
 		return nil, device.ErrDataCleanupPending
 	}
-	raw, err := json.Marshal(record{Version: 1, EquipmentKey: key, PhysicalKey: PhysicalKey(candidate), Token: hex.EncodeToString(nonce[:]), SIMKey: digest(iccid + "\x00" + imsi), Generation: candidate.USBGeneration, Interface: candidate.NetworkInterface, PID: os.Getpid(), BootID: string(bytes.TrimSpace(boot))})
+	original := record{Version: 2, EquipmentKey: key, PhysicalKey: PhysicalKey(candidate), Token: hex.EncodeToString(nonce[:]), SIMKey: digest(iccid + "\x00" + imsi), Generation: candidate.USBGeneration, Interface: candidate.NetworkInterface, PID: os.Getpid(), BootID: string(bytes.TrimSpace(boot)), UID: os.Geteuid(), USBPath: candidate.USBPath}
+	if err := captureProcessIdentity(&original); err != nil {
+		return nil, device.ErrDataCleanupPending
+	}
+	raw, err := json.Marshal(original)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +129,7 @@ func (c *claim) BeginRecovery(ctx context.Context, candidate modem.Candidate, eq
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	var original record
-	if c.released || json.Unmarshal(c.raw, &original) != nil || original.Version != 1 ||
+	if c.released || json.Unmarshal(c.raw, &original) != nil || (original.Version != 1 && original.Version != 2) ||
 		original.EquipmentKey != digest("imei:"+equipment) || original.PhysicalKey != PhysicalKey(candidate) ||
 		original.SIMKey != digest(iccid+"\x00"+imsi) || original.Generation != candidate.USBGeneration ||
 		original.Interface != candidate.NetworkInterface || original.PID != os.Getpid() {
@@ -150,6 +158,49 @@ func (c *claim) BeginRecovery(ctx context.Context, candidate modem.Candidate, eq
 	}
 	c.raw = next
 	return true, nil
+}
+
+func (c *claim) SaveHost(ctx context.Context, host device.DataHostReceipt) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var original record
+	if c.released || json.Unmarshal(c.raw, &original) != nil || original.Version != 2 || original.PID != os.Getpid() || original.RecoveryAttempted || host.Interface != original.Interface || device.ValidateDataHostReceipt(host) != nil {
+		return device.ErrDataCleanupPending
+	}
+	// Reserving the same netdev is irreversible until release; a successor
+	// cannot substitute another interface, family, or original process.
+	if original.Host != nil && (host.InterfaceIndex != original.Host.InterfaceIndex || !sameFamilies(host.Families, original.Host.Families)) {
+		return device.ErrDataCleanupPending
+	}
+	if host.Ready && (original.Host == nil || original.Host.Ready || host.DNS == nil || host.DNS.UID != uint32(original.UID)) {
+		return device.ErrDataCleanupPending
+	}
+	original.Host = &host
+	next, err := json.Marshal(original)
+	if err != nil {
+		return device.ErrDataCleanupPending
+	}
+	ok, err := c.database.CompareDataBearerClaim(ctx, c.key, c.raw, next)
+	if err != nil || !ok {
+		if stored, readErr := c.database.AppSetting(ctx, c.key); readErr == nil && bytes.Equal(stored.Value, next) {
+			c.raw = next
+		}
+		return device.ErrDataCleanupPending
+	}
+	c.raw = next
+	return nil
+}
+
+func sameFamilies(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *claim) Release(ctx context.Context) error {

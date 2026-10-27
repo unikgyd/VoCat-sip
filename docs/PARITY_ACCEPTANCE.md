@@ -327,11 +327,26 @@ environment was subsequently restored after a separate normal restart and a
 scenarios while distribution-manager reliability remains open. Runtime inputs
 were unchanged, so the preceding software gates were referenced, not rerun.
 
+The [shipping Compose active-owner follow-up](VERIFICATION_20261028_COMPOSE_OWNER_ACTIVE.md)
+adds version 2 process/namespace identity and committed host receipts. Its final
+candidate passed 2,140 Go cases (50 skips), seven real isolated kernel cases,
+35 five-iteration kernel race executions, vet and four builds. A further 200
+owner/recovery race executions are referenced with all inputs except the
+retested kernel reader unchanged. Earlier failed batches remain recorded.
+Actual active-claim owner SIGKILLs restored dual-stack/IPv4/IPv6 data plus fresh
+public queries in 51.790/89.942/64.393 seconds. Each replacement owner restarted
+once; original main/proxy survived each window. The initial IPv6 DNS failure
+required separate complete-module maintenance before its fault; syscall bytes
+were not captured for the IPv6 reset. Matching patched MM was used for faults.
+Strict payload comparison reconciled an echo-only restoration observer failure;
+all original state was restored and stock MM observed for 121.070 seconds at
+zero automatic restarts. This is qualified active-ready-record recovery.
+
 The full objective remains open. Browser microphone/speaker use is deferred
 by the human. Actual carrier-bound SIP endpoint death and fixed-PBX/carrier joint faults,
 prolonged network-loss/reconnection and other fault combinations,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
-hotplug, active-call/daemon/host crash recovery, loss of the independent data owner while it holds an active claim,
+hotplug, active-call/daemon/host crash recovery, owner loss with legacy/unready records,
 unconfigured recovery, native systemd proxy-loss dependency cascades,
 distribution-manager callback reliability and other failure combinations,
 additional scheduled-task/profile/crash combinations and external provider

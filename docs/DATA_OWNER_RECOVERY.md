@@ -1,4 +1,4 @@
-# Opt-in recovery of a lost ordinary-data QMI transport
+# Opt-in recovery of ordinary-data QMI ownership
 
 The independent data owner can optionally restart its original modem after a
 confirmed permanent failure of its own QMI socket. This requires an explicitly
@@ -41,8 +41,9 @@ reading fails; closing the transport alone does not release a service CID.
 
 Recovery requires all of the following:
 
-- The original live owner still holds its durable claim and known successful
-  WDS handle. Unknown initial Start results and cold orphan records cannot reset.
+- For a surviving owner, its durable claim and known successful WDS handle are
+  still held. Unknown initial Start results cannot reset. Recovery of a dead
+  owner requires the separate committed-receipt boundary below.
 - The original socket returned a permanent EOF/closed/reset/broken-pipe error.
   Protocol errors, generic error strings, timeouts and a disconnected packet call
   alone are insufficient. Every still-attempted family in a dual-stack owner must
@@ -76,10 +77,39 @@ process's request. A failed main-process SIM refresh therefore cannot prevent
 the original owner from observing its own lost socket. Stop and close cancel and
 join that watch before cleaning up; an unfinished join retains the capability.
 
+## Replacement after owner death
+
+The same opt-in secondary-port mapping also enables recovery of version 2
+records after the independent owner dies. Before acknowledging an active
+session, the original owner commits its exact host rules, route hashes,
+addresses and DNS file/directory identity. Configuration starts with an empty
+slot reservation and becomes pending again before reconfiguration.
+
+A replacement holds the original equipment lock and proves original process
+death using boot, start ticks, UID and PID/user/network namespaces. It never
+reconstructs the original WDS capability. Fresh original equipment/SIM, secondary
+port, RF, call and data-only policy guards bracket a single durable reset intent.
+An uncertain submission remains consumed across another replacement process.
+
+Only confirmed original USB generation loss, missing original interface, empty
+original route tables and exact original rule/DNS cleanup permit original-record
+deletion. No replacement interface is reconfigured. Changed or unknown host
+objects retain the fence. Saved data intent can then acquire a fresh session.
+The [shipping Compose active-owner cases](VERIFICATION_20261028_COMPOSE_OWNER_ACTIVE.md)
+passed real IPv4/IPv6/dual-stack owner SIGKILL recovery with the original main
+and proxy retained, subject to the documented IPv6 baseline maintenance and
+patched-manager qualifications.
+
+Use stable secondary AT aliases: an open old serial capability can cause tty
+numbers to change on enumeration. The alias must still match discovered port
+metadata and the original USB parent/generation at each write boundary.
+
 ## Boundaries
 
-This does not recover a dead independent owner or reconstruct its capability
-from disk. A consumed/uncertain restart intent, unavailable secondary port,
+Legacy records and unacknowledged/pending host configuration do not authorize
+orphan recovery. Host boot and power loss are separate; version 2 death proof
+requires the original boot and namespaces. Disable active data normally before
+changing deployment versions. A consumed/uncertain restart intent, unavailable secondary port,
 changed policy/SIM, RF-off state or unconfirmed cleanup keeps the fence intact
 and can require operator maintenance. It is not a generic reset on every network
 failure and does not authorize a restart while another protected access is
@@ -90,7 +120,7 @@ record one successful run with the original main/owner retained and an IPv6
 public query. Earlier failed phases and CFUN acknowledgments without observed
 generation change are retained there. That acceptance is separate from the
 earlier [fault-containment/manual-maintenance run](VERIFICATION_20261027_PROXY_LOSS.md)
-and does not establish recovery after active-claim owner death or proxy supervision
+and did not establish recovery after active-claim owner death or proxy supervision
 cascades. The separate [shipping Compose idle-owner case](VERIFICATION_20261027_COMPOSE_OWNER_IDLE.md)
 executes the default restart policies with no active capability at the fault, then
 verifies an explicit fresh connection under the replacement owner.
@@ -102,5 +132,6 @@ original main/owner remained alive, and each proxy fault produced one confirmed
 recovery attempt, old-generation cleanup and a fresh real public query. Matching
 patched ModemManager was used during those cases. A distribution-manager crash
 during restoration remains a failed dependency observation even though a later
-quiet startup restored the original environment. Active-owner loss, unconfigured
-recovery and native systemd cascades remain outside these accepted cases.
+quiet startup restored the original environment. Active-owner loss was outside
+those proxy cases and is covered only by the qualified version 2 follow-up
+above; unconfigured recovery and native systemd cascades remain separate.

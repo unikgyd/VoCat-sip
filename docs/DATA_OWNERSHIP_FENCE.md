@@ -28,14 +28,16 @@ just because the current process has no in-memory owner. An active owner in the
 same process retains its metadata-only policy permission; the actual modem
 operation still verifies its original SIM and physical generation.
 
-This fence does **not** restore a WDS transport after process death. An unresolved
-record remains pending and requires a separately acknowledged recovery path.
-The optional [surviving data owner](DATA_OWNER.md) now supplies acknowledged
-main-process cleanup while retaining the original transport and host capability.
-Recovery after loss of that owner and a complete durable host-resource journal
-remain open. Legacy unbound standalone controls keep
-their previous contract. IPv4 cleanup's existing host-resource limitations are
-not changed by this implementation.
+Records never reconstruct a WDS transport after process death. The optional
+[independent owner](DATA_OWNER.md) retains original capabilities across main
+process death. Version 2 additionally records process/namespace identity and a
+committed host receipt, allowing a replacement owner to acknowledge cleanup
+after separately proved owner death and original USB/netdev loss. Exact rules,
+route-table emptiness and DNS identity must pass before deleting the original
+record. No old CID/handle is adopted. See [the opt-in path](DATA_OWNER_RECOVERY.md)
+and [active-owner hardware acceptance](VERIFICATION_20261028_COMPOSE_OWNER_ACTIVE.md).
+Legacy, pending and unknown-Start records remain fenced. Unbound standalone
+controls keep their previous contract; this does not broaden their cleanup.
 
 Software and real-carrier results are recorded in
 [the data-fence acceptance](VERIFICATION_20261027_DATA_FENCE.md).

@@ -800,6 +800,9 @@ func (manager *Manager) setQMINetwork(
 		if err := guard.verify(ctx, state.dataSession, true); err != nil {
 			return NetworkResult{}, err
 		}
+		if err := beginDataHostReceipt(ctx, state.dataOwner, ipVersion); err != nil {
+			return NetworkResult{}, err
+		}
 		rawIPPath, pathErr := qmiRawIPSysfsPath(candidate.NetworkInterface)
 		if pathErr != nil {
 			return NetworkResult{}, pathErr
@@ -926,6 +929,14 @@ func (manager *Manager) setQMINetwork(
 		}
 		state.dataSession, state.dataSessionControl = session, candidate.QMIControl
 		state.dataSessionHandle = 0
+		// Reserve an empty host slot before the first Raw-IP or host write.
+		// A failed reservation must not run broad legacy cleanup on foreign
+		// state. The original transport and journal remain available to Stop.
+		state.dataOwner.hostTouched = false
+		if err := beginDataHostReceipt(ctx, state.dataOwner, ipVersion); err != nil {
+			return NetworkResult{}, err
+		}
+		state.dataOwner.hostTouched = true
 	}
 	rawIPPath, pathErr := qmiRawIPSysfsPath(candidate.NetworkInterface)
 	if pathErr != nil {
@@ -982,6 +993,17 @@ func (manager *Manager) setQMINetwork(
 }
 
 func configureQMIDataHost(ctx context.Context, state *managedDevice, candidate modem.Candidate, ipCommand, apn, ipVersion, detail string) (NetworkResult, error) {
+	result, err := configureQMIDataHostUncommitted(ctx, state, candidate, ipCommand, apn, ipVersion, detail)
+	if err != nil {
+		return result, err
+	}
+	if err := commitDataHostReceipt(ctx, state.dataOwner); err != nil {
+		return NetworkResult{}, errors.Join(ErrDataCleanupPending, err)
+	}
+	return result, nil
+}
+
+func configureQMIDataHostUncommitted(ctx context.Context, state *managedDevice, candidate modem.Candidate, ipCommand, apn, ipVersion, detail string) (NetworkResult, error) {
 	if ipVersion == "IPV6" || ipVersion == "IPV4V6" {
 		return configureQMIIPv6Host(ctx, state, candidate, ipCommand, apn, ipVersion, detail)
 	}
