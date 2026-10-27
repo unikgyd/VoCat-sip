@@ -221,8 +221,18 @@ and original modem/network/database/container state was preserved. This does not
 cover public GitHub delivery, a clean operating system or first-install hardware
 discovery/default subscription behavior.
 
+The [SIP and pure Host IMS follow-up](VERIFICATION_20261027_HOSTIMS_SIP.md)
+adds one answered Baresip PCMU-to-carrier AMR call, recipient-confirmed prompt
+hearing and speech, and actual handset 5/8 events received by the SIP endpoint.
+One authenticated SIP SMS was carrier-delivered and the human OK reply matched
+the original-SIM inbox and durable recipient plan with final SIP 200. The actual
+callback reached both ringing endpoints but was unanswered after a test-observer
+preflight failure; later observation windows had no new callback. Incoming
+answer/media acceptance remains open, and arbitrary digit-burst completeness or
+remote IVR recognition is not inferred.
+
 The full objective remains open. Actual browser microphone/speaker use,
-remote IVR recognition, carrier SIP bridging, recipient-confirmed IMS SMS round trips, physical
+remote IVR recognition, SIP carrier incoming answering/media, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
 additional scheduled-task/profile/crash combinations and external provider
 delivery still need their live scenarios. Existing

@@ -49,7 +49,8 @@ QDC507 ADB/D4/UAC voice bridge is outside this implementation target.
 | Cellular data export | Real CTNET IPv6, simultaneous IPv4/IPv6 and IPv4 HTTPS through authenticated HTTP/SOCKS5, IPv4/IPv6 public-IP queries and original data cleanup passed. |
 | Native installation | Scoped real systemd installation, failed-upgrade rollback, original administrator preservation and shared-lock retention passed. |
 | Advanced live acceptance | Pure Host IMS hold/resume, incoming automatic answer, prompt playback, web-phone PCM takeover and complete stereo recordings passed scoped carrier checks. A negotiated key submission succeeded; remote IVR recognition remains separate. |
-| Remaining acceptance | Actual browser audio, carrier softphone bridging, remote IVR recognition, USB call media and further failure/hardware/installation combinations. |
+| SIP carrier acceptance | A real Baresip PCMU extension completed an answered pure Host IMS AMR call with recipient-confirmed hearing/speech and handset 5/8 events received by SIP. One SIP-originated SMS was delivered; the human OK reply reached its authorized SIP recipient. Incoming ringing passed; SIP answering/media remains pending. |
+| Remaining acceptance | Actual browser audio, SIP carrier incoming answering/media, remote IVR recognition, USB call media and further failure/hardware/installation combinations. |
 
 The initial combined software run passed: **2,025 native Go tests, 2,020 static Go
 tests, 79 frontend tests, 132 selected race-test executions, 41 isolated kernel
@@ -116,6 +117,10 @@ request-write and successful-card-response SIGKILL checkpoints.
 The [fresh standard-installer follow-up](docs/VERIFICATION_20261027_FRESH_INSTALLER.md)
 adds empty-database administrator creation, one-time password output and
 session-preserving reinstall under explicit hardware isolation.
+The [SIP and pure Host IMS follow-up](docs/VERIFICATION_20261027_HOSTIMS_SIP.md)
+adds an answered extension-to-carrier call, handset keys received by the extension
+and a recipient-confirmed SMS/OK round trip. A callback rang both SIP endpoints
+but was unanswered; incoming answer/media acceptance remains open.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

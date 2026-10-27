@@ -58,9 +58,16 @@ SSRC 和 8 kHz 时间戳，按 20 ms 输出。每条 SIP 媒体腿仍固定到�
 IMS 后端可提供 PCMA／PCMU 或 AMR-NB 的 PCM；实际 AMR 编解码仍依赖
 [可选原生后端](AMR_MEDIA.md)，默认静态构建未启用，不能把 AMR 标签或注册绿灯
 当作可用语音。后续已补 [RFC 4733 DTMF 跨腿](SIP_DTMF.md)及显式 [USB 模组媒体](MODULE_VOICE.md)。
-没有新增 AMR-WB、RTCP、SIP INFO DTMF、保持、转接、TLS、SRTP 或公网 SBC。
+该初始阶段未新增 AMR-WB、RTCP、SIP INFO DTMF、保持、转接、TLS、SRTP 或公网 SBC。
+后续 RTCP、SIP INFO 和 IMS 保持的实现／验收分别见 [RTCP](RTCP.md)、
+[DTMF](SIP_DTMF.md)和[保持边界](IMS_CALL_HOLD.md)。
 
 ## 状态与验证边界
+
+后续 [2026-10-27 纯 Host IMS 联合实测](VERIFICATION_20261027_HOSTIMS_SIP.md)已完成
+真实 Baresip PCMU 分机到电信 AMR 通话：接听者确认听到提示音并说话，双向媒体、RTCP
+和手机 5／8 按键到达分机均有证据。该限定场景不替代远端 IVR 识别、跨网段或其他模式验收。
+以下回环与合成检查保留为此前阶段的证据。
 
 设置 API 仍为认证、CSRF 保护的 `/api/settings/sip`。新增 `carrier_enabled`、
 `carrier_lines` 和分机 `outgoing_lines`；快照深拷贝嵌套权限。
