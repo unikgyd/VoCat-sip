@@ -69,7 +69,7 @@ type sipCall struct {
 	inbound        *carrierIncoming
 	infoRequests   map[infoRequestKey]*infoReceipt
 	localSequence  atomic.Uint32
-	probeCancel    context.CancelFunc // mu; also prevents a second worker
+	probeCancel    context.CancelFunc // mu; also prevents duplicate probe startup
 	probeWork      sync.WaitGroup
 }
 type callBranch struct {

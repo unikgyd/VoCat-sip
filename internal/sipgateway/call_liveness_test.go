@@ -164,7 +164,7 @@ func TestDialogProbesIgnoreUnownedFinalResponses(t *testing.T) {
 }
 
 func TestDialogProbesEndOnlyOriginalMissingDialog(t *testing.T) {
-	for _, code := range []int{408, 481} {
+	for _, code := range []int{404, 408, 410, 481} {
 		t.Run(strconv.Itoa(code), func(t *testing.T) {
 			r := testCallRuntime(t)
 			fastDialogProbes(r)
@@ -173,7 +173,8 @@ func TestDialogProbesEndOnlyOriginalMissingDialog(t *testing.T) {
 			callee := readCallRequest(t, call.callee, sip.OPTIONS)
 			replyCallOK(t, call.caller, caller)
 			writeCall(t, call.callee, sip.NewResponseFromRequest(callee, code, "Gone", nil))
-			replyCallOK(t, call.caller, readCallRequest(t, call.caller, sip.BYE))
+			bye, _ := readDialogByeAnsweringProbes(t, call.caller, caller)
+			replyCallOK(t, call.caller, bye)
 			waitCalls(t, r, 0)
 		})
 	}
@@ -316,4 +317,83 @@ func TestDialogProbesSlowLegDoesNotPostponeOtherLeg(t *testing.T) {
 	readCallFinal(t, call.caller, 200)
 	replyCallOK(t, call.callee, readCallRequest(t, call.callee, sip.BYE))
 	waitCalls(t, r, 0)
+}
+
+func TestDialogProbesUnownedMissingTargetCannotEndLiveCall(t *testing.T) {
+	for _, code := range []int{404, 410} {
+		t.Run(strconv.Itoa(code), func(t *testing.T) {
+			for _, mutation := range []string{"source", "to-tag", "from-tag", "call-id", "sequence", "method", "duplicate-to"} {
+				t.Run(mutation, func(t *testing.T) {
+					r := testCallRuntime(t)
+					fastDialogProbes(r)
+					call := connectCall(t, r, true)
+					one := readCallRequest(t, call.caller, sip.OPTIONS)
+					two := readCallRequest(t, call.callee, sip.OPTIONS)
+					replyCallOK(t, call.caller, one)
+					forged := sip.NewResponseFromRequest(two, code, "Unowned target failure", nil)
+					switch mutation {
+					case "to-tag":
+						forged.To().Params.Add("tag", "foreign")
+					case "from-tag":
+						forged.From().Params.Add("tag", "foreign")
+					case "call-id":
+						forged.RemoveHeader("Call-ID")
+						id := sip.CallIDHeader("foreign")
+						forged.AppendHeader(&id)
+					case "sequence":
+						forged.CSeq().SeqNo++
+					case "method":
+						forged.CSeq().MethodName = sip.INFO
+					case "duplicate-to":
+						forged.AppendHeader(sip.HeaderClone(forged.To()))
+					}
+					if mutation == "source" {
+						writeCall(t, newWireClient(t, r), forged)
+					} else {
+						writeCall(t, call.callee, forged)
+					}
+					replyCallOK(t, call.callee, two)
+					// A forged failure must not terminate the original live dialog. Both next
+					// probes, not a cleanup BYE, must arrive and remain bound to that dialog.
+					nextOne := readCallRequest(t, call.caller, sip.OPTIONS)
+					nextTwo := readCallRequest(t, call.callee, sip.OPTIONS)
+					assertOriginalProbe(t, nextOne, call.incoming, call.answer, true)
+					assertOriginalProbe(t, nextTwo, call.outgoing, call.remoteAnswer, false)
+					replyCallOK(t, call.caller, nextOne)
+					replyCallOK(t, call.callee, nextTwo)
+					calls := r.status().Calls
+					if len(calls) != 1 || calls[0].Phase != "active" {
+						t.Fatal("unowned missing-target response ended original call")
+					}
+					writeCall(t, call.caller, dialogRequest(t, call.incoming, call.answer, sip.BYE, true, 3))
+					readCallFinal(t, call.caller, 200)
+					bye, _ := readDialogByeAnsweringProbes(t, call.callee, nextTwo)
+					replyCallOK(t, call.callee, bye)
+					waitCalls(t, r, 0)
+				})
+			}
+		})
+	}
+}
+
+func TestDialogProbesMissingTargetNeverAdoptsNewRegistration(t *testing.T) {
+	r := testCallRuntime(t)
+	fastDialogProbes(r)
+	call := connectCall(t, r, true)
+	replacement := registerMessagePeer(t, r, "1002")
+	one := readCallRequest(t, call.caller, sip.OPTIONS)
+	two := readCallRequest(t, call.callee, sip.OPTIONS)
+	replyCallOK(t, call.caller, one)
+	writeCall(t, call.callee, sip.NewResponseFromRequest(two, 404, "Old target removed", nil))
+	bye, last := readDialogByeAnsweringProbes(t, call.caller, one)
+	if bye.CSeq().SeqNo <= last {
+		t.Fatal("original cleanup reused sequence")
+	}
+	replyCallOK(t, call.caller, bye)
+	waitCalls(t, r, 0)
+	replacement.conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	buffer := make([]byte, 2048)
+	if _, err := replacement.conn.Read(buffer); err == nil {
+		t.Fatal("abandoned original dialog was rebound to a newer registration")
+	}
 }

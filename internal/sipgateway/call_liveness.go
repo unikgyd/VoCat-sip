@@ -110,12 +110,14 @@ func (c *sipCall) probeDialog(ctx context.Context, target dialogProbeTarget) err
 	if err != nil {
 		return err
 	}
-	// RFC 3261 12.2.1.2: timeout or a missing dialog terminates that dialog.
-	// Other final responses (including unsupported OPTIONS or a challenge) prove
-	// a response to this exact original transaction. Never follow their Contacts,
-	// authenticate a retry, or feed their optional SDP back into call media.
-	if response.StatusCode == 408 || response.StatusCode == 481 {
-		return errors.New("original SIP dialog no longer available")
+	// Timeout/missing-dialog replies terminate the original dialog. A matched
+	// 404/410 also invalidates its pinned target: a restarted UA can answer
+	// OPTIONS while its old Contact no longer exists. A newer registration
+	// cannot adopt this call. Other replies never redirect, authenticate a
+	// retry, or feed optional SDP back into media.
+	switch response.StatusCode {
+	case 404, 408, 410, 481:
+		return errors.New("original SIP target or dialog no longer available")
 	}
 	return nil
 }

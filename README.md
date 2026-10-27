@@ -155,6 +155,11 @@ now passed 2,128 Go cases, 245 selected race executions and actual Linux interna
 caller/callee process-death cleanup in about 60 seconds; the old-build control
 still required manual end after 80 seconds. Carrier-bound endpoint faults remain
 separate live work.
+The [registered-endpoint and network follow-up](docs/VERIFICATION_20261028_SIP_SESSION_FAULTS.md)
+fixes stale-target 404/410 handling and passed 2,130 Go cases, 255 selected race
+executions and five actual Linux scenarios: caller/callee restart, zero inbound
+RTP with same-call media recovery, silent UDP loss and a fresh call surviving the
+prior cleanup window. The old 80-second restart failure is retained.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

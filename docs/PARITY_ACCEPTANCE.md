@@ -291,9 +291,20 @@ remained active across independent default OPTIONS rounds. Both fixtures were
 fully restored. Original carrier cleanup is regression-tested with synthetic
 backends; these internal calls do not establish a new carrier-fault result.
 
+The [registered-endpoint restart and network follow-up](VERIFICATION_20261028_SIP_SESSION_FAULTS.md)
+retains an actual 80-second restart failure with matched old-target 404 replies.
+Its repair passed 2,130 Go cases, 255 selected race executions, kernel/vet checks
+and four builds. Actual caller/callee Baresip replacement now cleared the old
+call in about 28 seconds; a 68.569-second capture had zero G.711 with healthy
+SIP probes and recovered the same call's media. Silent all-UDP loss cleared in
+about 60 seconds and promptly restored peers acknowledged the original BYE.
+A fresh call stayed active past the prior 32-second drain; all owned rules and
+fixtures plus original host state were restored. These are registered internal
+endpoint cases, not fixed-PBX or carrier-call fault acceptance.
+
 The full objective remains open. Browser microphone/speaker use is deferred
-by the human. Actual carrier-bound SIP endpoint death, peer restart with a prior
-live dialog, network-loss and other fault combinations,
+by the human. Actual carrier-bound SIP endpoint death, fixed-PBX/Asterisk restart,
+prolonged network-loss/reconnection and other fault combinations,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner while it holds an active claim,
 unconfigured/default-supervision proxy-loss and other failure combinations,

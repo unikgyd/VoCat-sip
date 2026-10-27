@@ -1,0 +1,3054 @@
+{
+  "schema": 1,
+  "date": "2026-10-28",
+  "timezone": "Asia/Taipei",
+  "scope": "Confirmed old-target absence after actual registered endpoint restart, zero-RTP session survival, all-UDP loss and later-call isolation",
+  "sourceBaselineRevision": "a59b3b5b5be80a79445aa2ba5097ac4621ab8acb",
+  "implementationChanged": true,
+  "frozenManifestSHA256": "960acf3802bded2c726f7d0c44d5ca7e3f4251b169096b2fd6e1294c67ed2280",
+  "frozenArchiveInputs": 1932,
+  "inputAudit": {
+    "frozenManifestSHA256": "960acf3802bded2c726f7d0c44d5ca7e3f4251b169096b2fd6e1294c67ed2280",
+    "frozenInputs": 1932,
+    "allFrozenInputsMatch": true,
+    "frontendInputs": 868,
+    "allFrontendInputsUnchanged": true,
+    "implementationAndRegressionsCompletedBeforeCombinedRun": true,
+    "noProductEditsDuringCombinedRunOrActualTests": true
+  },
+  "implementation": {
+    "matchedFatalProbeStatuses": [
+      404,
+      408,
+      410,
+      481
+    ],
+    "originalSourceDialogAndSequenceValidationRetained": true,
+    "newRegistrationDoesNotAdoptOldCall": true,
+    "missingMediaAloneDoesNotEndCall": true,
+    "intervalSeconds": 30,
+    "transactionTimeoutSeconds": 32
+  },
+  "software": {
+    "started": 1793122226.9216392,
+    "sourceBaseline": "a59b3b5b5be80a79445aa2ba5097ac4621ab8acb",
+    "manifestSHA256": "960acf3802bded2c726f7d0c44d5ca7e3f4251b169096b2fd6e1294c67ed2280",
+    "contractManifestSHA256": "235f9dd816d375be23726fee26c43193d3cac6edeed804a378a8b0f44f7fddff",
+    "results": [
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 202.751,
+        "tests": {
+          "pass": 2130,
+          "fail": 0,
+          "skip": 48
+        }
+      },
+      {
+        "label": "data-kernel",
+        "exit": 0,
+        "seconds": 1.268,
+        "tests": {
+          "pass": 3,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 6.757
+      },
+      {
+        "label": "recovery-and-sip-race",
+        "exit": 0,
+        "seconds": 321.859,
+        "tests": {
+          "pass": 255,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 9.645
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 9.162
+      },
+      {
+        "label": "386",
+        "exit": 0,
+        "seconds": 9.661
+      },
+      {
+        "label": "arm",
+        "exit": 0,
+        "seconds": 9.699
+      }
+    ],
+    "artifacts": {
+      "amd64": "fdc79ff4358285f8a0ad79ca230f9ef39ce1eb018ce5ffbf27ddacc317d729d0",
+      "arm64": "0feacbcf78157ddf753d2cb9277cdf69e23a05bb05d98a8d976e2633aa86f623",
+      "386": "689970311ef13e3cf59d38321a1f72cf33c2ce45b05da5a9d67156544d8caa82",
+      "arm": "ff77d96bde7bad83e1ee47aa0146d84d7bbdd52ba9c50e869d095d6df481d910"
+    },
+    "completed": 1793122798.1814358
+  },
+  "retainedBeforeFix": {
+    "schema": 1,
+    "date": "2026-10-28",
+    "scope": "Retained pre-fix actual registered Baresip restart, no-RTP and network-loss observations",
+    "sourceRevision": "a59b3b5b5be80a79445aa2ba5097ac4621ab8acb",
+    "artifactSHA256": "796fb281c83990f1fadae7cbbbc498905de21c2061bfdca88564fd5b91c4593e",
+    "cases": [
+      {
+        "case": "callee-restart",
+        "result": {
+          "case": "callee-restart",
+          "sameCheckedArtifact": true,
+          "actualBaresipChildReplaced": true,
+          "parentAndNetworkPreserved": true,
+          "newClientHasNoOriginalDialog": true,
+          "originalGatewayCallActiveWhenReplacementReady": true,
+          "automaticCallClearWithinWindow": false,
+          "observationSeconds": 80,
+          "observedSecondsAfterRestart": 80.189,
+          "manualCleanupRequired": true,
+          "gatewayNeverRestarted": true,
+          "carrierCalls": 0,
+          "SMS": 0
+        },
+        "packetSummary": {
+          "case": "callee-restart",
+          "capturedSeconds": 82.55,
+          "SIPMessages": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "ACK",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "INVITE",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "REGISTER",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 404 OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 481 BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 100 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "ACK",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "response 200 REGISTER",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "response 401 REGISTER",
+              "packets": 1
+            }
+          ],
+          "RTPStreams": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "payloadType": 0,
+              "packets": 4127
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "payloadType": 8,
+              "packets": 106
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "payloadType": 0,
+              "packets": 106
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "payloadType": 8,
+              "packets": 4127
+            }
+          ],
+          "RTCP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 200,
+              "packets": 16
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 17
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 200,
+              "packets": 4
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 201,
+              "packets": 17
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 202,
+              "packets": 21
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 200,
+              "packets": 23
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 202,
+              "packets": 23
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 203,
+              "packets": 1
+            }
+          ],
+          "invalidRTCP": 0,
+          "SDPCodecs": [
+            "PCMA",
+            "PCMU",
+            "telephone-event"
+          ],
+          "ICMP": [
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "type": 3,
+              "code": 3,
+              "packets": 86
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            }
+          ],
+          "postCrashRTP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "payloadType": 0,
+              "packets": 4022
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "payloadType": 8,
+              "packets": 4022
+            }
+          ],
+          "postCrashICMP": [
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "type": 3,
+              "code": 3,
+              "packets": 86
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            }
+          ],
+          "postCrashSIP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "REGISTER",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 404 OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 481 BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "response 200 REGISTER",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "response 401 REGISTER",
+              "packets": 1
+            }
+          ],
+          "actualFailedNetworkSyscalls": {}
+        },
+        "originalDialogAttestation": {
+          "case": "callee-restart",
+          "originalAcceptedSIPDialogs": 2,
+          "uniqueOriginalDialogOPTIONS": {
+            "endpoint1": 2,
+            "endpoint2": 2
+          },
+          "matchedFinalOPTIONSResponses": {
+            "endpoint1": {
+              "200": 2
+            },
+            "endpoint2": {
+              "404": 2
+            }
+          },
+          "unansweredOriginalDialogProbes": {},
+          "allGatewayOPTIONSAndBYEPinnedToOriginalDialogAndSource": true,
+          "allNewLocalSequencesStrictlyIncrease": true,
+          "allProbeRequestsBodylessAndCredentialFree": true,
+          "gatewayBYESequences": {
+            "endpoint2": [
+              4
+            ]
+          },
+          "postCrashNoManualHangup": null
+        },
+        "explicitFinalCleanup": true
+      },
+      {
+        "case": "no-rtp",
+        "result": {
+          "case": "no-rtp",
+          "passCase": true,
+          "actualNamespaceMediaDrop": true,
+          "quietSeconds": 68.567,
+          "originalCallAndCountersStableWithoutInboundRTP": true,
+          "sameOriginalCallMediaRecovered": true,
+          "normalHangupCleared": true,
+          "sameCheckedAMD64Artifact": true,
+          "hardwareHidden": true,
+          "carrierCalls": 0,
+          "SMS": 0,
+          "gatewayNeverRestarted": true,
+          "bothEndpointSlotsCleared": true,
+          "filterRestoration": [
+            {
+              "index": 2,
+              "kind": "media",
+              "samePinnedNamespace": true,
+              "ownedRulesetUnchangedBeforeRemoval": true,
+              "originalNamespaceRulesetRestored": true,
+              "droppedPackets": 3614,
+              "droppedBytes": 720316
+            },
+            {
+              "index": 1,
+              "kind": "media",
+              "samePinnedNamespace": true,
+              "ownedRulesetUnchangedBeforeRemoval": true,
+              "originalNamespaceRulesetRestored": true,
+              "droppedPackets": 3648,
+              "droppedBytes": 726736
+            }
+          ],
+          "packetAttestationPending": true,
+          "seconds": 75.389
+        },
+        "packetSummary": {
+          "case": "no-rtp",
+          "capturedSeconds": 74.886,
+          "SIPMessages": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "ACK",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "INVITE",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 100 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "ACK",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 2
+            }
+          ],
+          "RTPStreams": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "payloadType": 0,
+              "packets": 141
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "payloadType": 8,
+              "packets": 158
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "payloadType": 0,
+              "packets": 158
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "payloadType": 8,
+              "packets": 141
+            }
+          ],
+          "RTCP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 200,
+              "packets": 4
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 201,
+              "packets": 16
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 202,
+              "packets": 20
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 200,
+              "packets": 5
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 201,
+              "packets": 13
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 202,
+              "packets": 18
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 203,
+              "packets": 1
+            }
+          ],
+          "invalidRTCP": 0,
+          "SDPCodecs": [
+            "PCMA",
+            "PCMU",
+            "telephone-event"
+          ],
+          "ICMP": [
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            }
+          ],
+          "postCrashRTP": [],
+          "postCrashICMP": [],
+          "postCrashSIP": [],
+          "actualFailedNetworkSyscalls": {}
+        },
+        "originalDialogAttestation": {
+          "case": "no-rtp",
+          "originalAcceptedSIPDialogs": 2,
+          "uniqueOriginalDialogOPTIONS": {
+            "endpoint1": 2,
+            "endpoint2": 2
+          },
+          "matchedFinalOPTIONSResponses": {
+            "endpoint1": {
+              "200": 2
+            },
+            "endpoint2": {
+              "200": 2
+            }
+          },
+          "unansweredOriginalDialogProbes": {},
+          "allGatewayOPTIONSAndBYEPinnedToOriginalDialogAndSource": true,
+          "allNewLocalSequencesStrictlyIncrease": true,
+          "allProbeRequestsBodylessAndCredentialFree": true,
+          "gatewayBYESequences": {
+            "endpoint2": [
+              4
+            ]
+          },
+          "postCrashNoManualHangup": null
+        },
+        "explicitFinalCleanup": false,
+        "filterPacketAttestation": {
+          "case": "no-rtp",
+          "capturedWindowSeconds": 68.566,
+          "capturedG711RTPPackets": 0,
+          "OPTIONSFromGateway": {
+            "endpoint1": 2,
+            "endpoint2": 2
+          },
+          "matched200OPTIONSResponsesByRole": {
+            "endpoint1": 2,
+            "endpoint2": 2
+          },
+          "zeroEndpoint2UDPWhilePathDropped": null,
+          "allFilterRestorationsAcknowledged": true,
+          "noBoundedFinalHangup": true,
+          "noBoundedPeerHangup": true
+        }
+      },
+      {
+        "case": "network-loss",
+        "result": {
+          "case": "network-loss",
+          "passCase": true,
+          "actualNamespaceAllUDPDrop": true,
+          "observationSeconds": 80,
+          "automaticEndSeconds": 59.929,
+          "automaticCallClearWithinWindow": true,
+          "noManualHangupSubmitted": true,
+          "sameCheckedAMD64Artifact": true,
+          "hardwareHidden": true,
+          "carrierCalls": 0,
+          "SMS": 0,
+          "gatewayNeverRestarted": true,
+          "bothEndpointSlotsCleared": true,
+          "filterRestoration": [
+            {
+              "index": 2,
+              "kind": "all-udp",
+              "samePinnedNamespace": true,
+              "ownedRulesetUnchangedBeforeRemoval": true,
+              "originalNamespaceRulesetRestored": true,
+              "droppedPackets": 6027,
+              "droppedBytes": 1206487
+            }
+          ],
+          "packetAttestationPending": true,
+          "seconds": 63.192
+        },
+        "packetSummary": {
+          "case": "network-loss",
+          "capturedSeconds": 62.523,
+          "SIPMessages": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "ACK",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "INVITE",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "REGISTER",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 100 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 REGISTER",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 REGISTER",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "ACK",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 11
+            }
+          ],
+          "RTPStreams": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "payloadType": 0,
+              "packets": 3101
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "payloadType": 8,
+              "packets": 125
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "payloadType": 0,
+              "packets": 114
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "payloadType": 8,
+              "packets": 3101
+            }
+          ],
+          "RTCP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 200,
+              "packets": 12
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 13
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 200,
+              "packets": 3
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 201,
+              "packets": 11
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 202,
+              "packets": 14
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 200,
+              "packets": 17
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 202,
+              "packets": 17
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 203,
+              "packets": 1
+            }
+          ],
+          "invalidRTCP": 0,
+          "SDPCodecs": [
+            "PCMA",
+            "PCMU",
+            "telephone-event"
+          ],
+          "ICMP": [
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "type": 3,
+              "code": 3,
+              "packets": 6
+            }
+          ],
+          "postCrashRTP": [],
+          "postCrashICMP": [],
+          "postCrashSIP": [],
+          "actualFailedNetworkSyscalls": {}
+        },
+        "originalDialogAttestation": {
+          "case": "network-loss",
+          "originalAcceptedSIPDialogs": 2,
+          "uniqueOriginalDialogOPTIONS": {
+            "endpoint1": 2,
+            "endpoint2": 1
+          },
+          "matchedFinalOPTIONSResponses": {
+            "endpoint1": {
+              "200": 2
+            }
+          },
+          "unansweredOriginalDialogProbes": {
+            "endpoint2": 1
+          },
+          "allGatewayOPTIONSAndBYEPinnedToOriginalDialogAndSource": true,
+          "allNewLocalSequencesStrictlyIncrease": true,
+          "allProbeRequestsBodylessAndCredentialFree": true,
+          "gatewayBYESequences": {
+            "endpoint2": [
+              3
+            ],
+            "endpoint1": [
+              3
+            ]
+          },
+          "postCrashNoManualHangup": null
+        },
+        "explicitFinalCleanup": false,
+        "filterPacketAttestation": {
+          "case": "network-loss",
+          "capturedWindowSeconds": 59.729,
+          "capturedG711RTPPackets": 5952,
+          "OPTIONSFromGateway": {
+            "endpoint1": 2,
+            "endpoint2": 11
+          },
+          "matched200OPTIONSResponsesByRole": {
+            "endpoint1": 2
+          },
+          "zeroEndpoint2UDPWhilePathDropped": true,
+          "allFilterRestorationsAcknowledged": true,
+          "noBoundedFinalHangup": true,
+          "noBoundedPeerHangup": true
+        }
+      }
+    ],
+    "restoration": {
+      "allFourOwnedContainersRemoved": true,
+      "ownedInternalNetworkRemoved": true,
+      "originalUserRunningContainerIDsPreserved": true,
+      "applicationExitedZero": true,
+      "applicationNotRestarted": true,
+      "stockManagerSamePIDDuringLANBusiness": true,
+      "stockManagerAutomaticRestarts": 0,
+      "CTInterfaceExactlyPreservedDuringLANBusiness": true,
+      "PHInterfaceExactlyPreservedDuringLANBusiness": true,
+      "rules4ExactlyPreserved": true,
+      "rules6ExactlyPreserved": true,
+      "defaultRoutesPreserved": true,
+      "rootDatabaseHashPreserved": true,
+      "sharedServerLockInodePreserved": true,
+      "noXFRMStateOrPolicy": true,
+      "carrierCalls": 0,
+      "SMS": 0
+    },
+    "carrierCalls": 0,
+    "SMS": 0,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0
+  },
+  "afterFix": {
+    "schema": 1,
+    "date": "2026-10-28",
+    "sourceBaseline": "a59b3b5b5be80a79445aa2ba5097ac4621ab8acb",
+    "artifactSHA256": "fdc79ff4358285f8a0ad79ca230f9ef39ce1eb018ce5ffbf27ddacc317d729d0",
+    "scope": "Actual hardware-hidden Linux registered Baresip restart, no inbound RTP, all-UDP loss and subsequent call survival across the prior drain",
+    "caseCount": 5,
+    "answeredInternalSIPCalls": 5,
+    "cases": [
+      {
+        "case": "callee-restart",
+        "result": {
+          "case": "callee-restart",
+          "sameCheckedArtifact": true,
+          "actualBaresipChildReplaced": true,
+          "parentAndNetworkPreserved": true,
+          "newClientHasNoOriginalDialog": true,
+          "originalGatewayCallActiveWhenReplacementReady": true,
+          "automaticCallClearWithinWindow": true,
+          "observationSeconds": 80,
+          "observedSecondsAfterRestart": 28.193,
+          "manualCleanupRequired": false,
+          "gatewayNeverRestarted": true,
+          "carrierCalls": 0,
+          "SMS": 0
+        },
+        "originalDialogAttestation": {
+          "case": "callee-restart",
+          "originalAcceptedSIPDialogs": 2,
+          "uniqueOriginalDialogOPTIONS": {
+            "endpoint2": 1,
+            "endpoint1": 1
+          },
+          "matchedFinalOPTIONSResponses": {
+            "endpoint2": {
+              "404": 1
+            },
+            "endpoint1": {
+              "200": 1
+            }
+          },
+          "unansweredOriginalDialogProbes": {},
+          "allGatewayOPTIONSAndBYEPinnedToOriginalDialogAndSource": true,
+          "allNewLocalSequencesStrictlyIncrease": true,
+          "allProbeRequestsBodylessAndCredentialFree": true,
+          "gatewayBYESequences": {
+            "endpoint2": [
+              3
+            ],
+            "endpoint1": [
+              2
+            ]
+          },
+          "postCrashNoManualHangup": null
+        },
+        "terminationAttestation": {
+          "originalTargetAbsenceReplyCaptured": true,
+          "noEndpointOriginatedBYE": true,
+          "noManualHangupSubmitted": true,
+          "survivingEndpointBYEAnd200": true
+        },
+        "packetSummary": {
+          "case": "callee-restart",
+          "capturedSeconds": 30.032,
+          "SIPMessages": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "ACK",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "INVITE",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "REGISTER",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 404 OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 481 BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 100 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "ACK",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "response 200 REGISTER",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "response 401 REGISTER",
+              "packets": 1
+            }
+          ],
+          "RTPStreams": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "payloadType": 0,
+              "packets": 1501
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "payloadType": 8,
+              "packets": 107
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "payloadType": 0,
+              "packets": 107
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "payloadType": 8,
+              "packets": 1500
+            }
+          ],
+          "RTCP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 200,
+              "packets": 6
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 7
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 200,
+              "packets": 3
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 201,
+              "packets": 5
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 202,
+              "packets": 8
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 200,
+              "packets": 7
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 202,
+              "packets": 7
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 203,
+              "packets": 1
+            }
+          ],
+          "invalidRTCP": 0,
+          "SDPCodecs": [
+            "PCMA",
+            "PCMU",
+            "telephone-event"
+          ],
+          "ICMP": [
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "type": 3,
+              "code": 3,
+              "packets": 33
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "type": 3,
+              "code": 3,
+              "packets": 2
+            }
+          ],
+          "postCrashRTP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "payloadType": 0,
+              "packets": 1395
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "payloadType": 8,
+              "packets": 1394
+            }
+          ],
+          "postCrashICMP": [
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "type": 3,
+              "code": 3,
+              "packets": 33
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "type": 3,
+              "code": 3,
+              "packets": 2
+            }
+          ],
+          "postCrashSIP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "REGISTER",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 404 OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 481 BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "response 200 REGISTER",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "response 401 REGISTER",
+              "packets": 1
+            }
+          ],
+          "actualFailedNetworkSyscalls": {}
+        },
+        "boundedFinalHangupSubmitted": false
+      },
+      {
+        "case": "caller-restart",
+        "result": {
+          "case": "caller-restart",
+          "sameCheckedArtifact": true,
+          "actualBaresipChildReplaced": true,
+          "parentAndNetworkPreserved": true,
+          "newClientHasNoOriginalDialog": true,
+          "originalGatewayCallActiveWhenReplacementReady": true,
+          "automaticCallClearWithinWindow": true,
+          "observationSeconds": 80,
+          "observedSecondsAfterRestart": 28.231,
+          "manualCleanupRequired": false,
+          "gatewayNeverRestarted": true,
+          "carrierCalls": 0,
+          "SMS": 0
+        },
+        "originalDialogAttestation": {
+          "case": "caller-restart",
+          "originalAcceptedSIPDialogs": 2,
+          "uniqueOriginalDialogOPTIONS": {
+            "endpoint1": 1,
+            "endpoint2": 1
+          },
+          "matchedFinalOPTIONSResponses": {
+            "endpoint1": {
+              "404": 1
+            },
+            "endpoint2": {
+              "200": 1
+            }
+          },
+          "unansweredOriginalDialogProbes": {},
+          "allGatewayOPTIONSAndBYEPinnedToOriginalDialogAndSource": true,
+          "allNewLocalSequencesStrictlyIncrease": true,
+          "allProbeRequestsBodylessAndCredentialFree": true,
+          "gatewayBYESequences": {
+            "endpoint2": [
+              3
+            ],
+            "endpoint1": [
+              2
+            ]
+          },
+          "postCrashNoManualHangup": null
+        },
+        "terminationAttestation": {
+          "originalTargetAbsenceReplyCaptured": true,
+          "noEndpointOriginatedBYE": true,
+          "noManualHangupSubmitted": true,
+          "survivingEndpointBYEAnd200": true
+        },
+        "packetSummary": {
+          "case": "caller-restart",
+          "capturedSeconds": 30.029,
+          "SIPMessages": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "ACK",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "INVITE",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "REGISTER",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 404 OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 481 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 100 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 REGISTER",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 REGISTER",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "ACK",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 1
+            }
+          ],
+          "RTPStreams": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "payloadType": 0,
+              "packets": 106
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "payloadType": 8,
+              "packets": 1501
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "payloadType": 0,
+              "packets": 1501
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "payloadType": 8,
+              "packets": 106
+            }
+          ],
+          "RTCP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 200,
+              "packets": 6
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 7
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 200,
+              "packets": 9
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 202,
+              "packets": 9
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 200,
+              "packets": 4
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 201,
+              "packets": 5
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 202,
+              "packets": 9
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 203,
+              "packets": 1
+            }
+          ],
+          "invalidRTCP": 0,
+          "SDPCodecs": [
+            "PCMA",
+            "PCMU",
+            "telephone-event"
+          ],
+          "ICMP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "type": 3,
+              "code": 3,
+              "packets": 33
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            }
+          ],
+          "postCrashRTP": [
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "payloadType": 8,
+              "packets": 1394
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "payloadType": 0,
+              "packets": 1394
+            }
+          ],
+          "postCrashICMP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "type": 3,
+              "code": 3,
+              "packets": 33
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            }
+          ],
+          "postCrashSIP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "REGISTER",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 404 OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 481 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 REGISTER",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 REGISTER",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 1
+            }
+          ],
+          "actualFailedNetworkSyscalls": {}
+        },
+        "boundedFinalHangupSubmitted": false
+      },
+      {
+        "case": "no-rtp",
+        "result": {
+          "case": "no-rtp",
+          "passCase": true,
+          "actualNamespaceMediaDrop": true,
+          "quietSeconds": 68.569,
+          "originalCallAndCountersStableWithoutInboundRTP": true,
+          "sameOriginalCallMediaRecovered": true,
+          "normalHangupCleared": true,
+          "sameCheckedAMD64Artifact": true,
+          "hardwareHidden": true,
+          "carrierCalls": 0,
+          "SMS": 0,
+          "gatewayNeverRestarted": true,
+          "bothEndpointSlotsCleared": true,
+          "filterRestoration": [
+            {
+              "index": 2,
+              "kind": "media",
+              "samePinnedNamespace": true,
+              "ownedRulesetUnchangedBeforeRemoval": true,
+              "originalNamespaceRulesetRestored": true,
+              "droppedPackets": 3618,
+              "droppedBytes": 720752
+            },
+            {
+              "index": 1,
+              "kind": "media",
+              "samePinnedNamespace": true,
+              "ownedRulesetUnchangedBeforeRemoval": true,
+              "originalNamespaceRulesetRestored": true,
+              "droppedPackets": 3650,
+              "droppedBytes": 727136
+            }
+          ],
+          "packetAttestationPending": false,
+          "seconds": 75.337
+        },
+        "originalDialogAttestation": {
+          "case": "no-rtp",
+          "originalAcceptedSIPDialogs": 2,
+          "uniqueOriginalDialogOPTIONS": {
+            "endpoint2": 2,
+            "endpoint1": 2
+          },
+          "matchedFinalOPTIONSResponses": {
+            "endpoint2": {
+              "200": 2
+            },
+            "endpoint1": {
+              "200": 2
+            }
+          },
+          "unansweredOriginalDialogProbes": {},
+          "allGatewayOPTIONSAndBYEPinnedToOriginalDialogAndSource": true,
+          "allNewLocalSequencesStrictlyIncrease": true,
+          "allProbeRequestsBodylessAndCredentialFree": true,
+          "gatewayBYESequences": {
+            "endpoint2": [
+              4
+            ]
+          },
+          "postCrashNoManualHangup": null
+        },
+        "terminationAttestation": {
+          "normalCallerBYEAnd200OnBothLegs": true,
+          "noBoundedFinalCleanupNeeded": true
+        },
+        "packetSummary": {
+          "case": "no-rtp",
+          "capturedSeconds": 74.869,
+          "SIPMessages": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "ACK",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "INVITE",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 100 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "ACK",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 2
+            }
+          ],
+          "RTPStreams": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "payloadType": 0,
+              "packets": 140
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "payloadType": 8,
+              "packets": 158
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "payloadType": 0,
+              "packets": 158
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "payloadType": 8,
+              "packets": 140
+            }
+          ],
+          "RTCP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 200,
+              "packets": 4
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 201,
+              "packets": 16
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 202,
+              "packets": 20
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 200,
+              "packets": 5
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 201,
+              "packets": 16
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 202,
+              "packets": 21
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 203,
+              "packets": 1
+            }
+          ],
+          "invalidRTCP": 0,
+          "SDPCodecs": [
+            "PCMA",
+            "PCMU",
+            "telephone-event"
+          ],
+          "ICMP": [
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            }
+          ],
+          "postCrashRTP": [],
+          "postCrashICMP": [],
+          "postCrashSIP": [],
+          "actualFailedNetworkSyscalls": {}
+        },
+        "boundedFinalHangupSubmitted": false,
+        "filterPacketAttestation": {
+          "case": "no-rtp",
+          "capturedWindowSeconds": 68.569,
+          "capturedG711RTPPackets": 0,
+          "OPTIONSFromGateway": {
+            "endpoint2": 2,
+            "endpoint1": 2
+          },
+          "matched200OPTIONSResponsesByRole": {
+            "endpoint2": 2,
+            "endpoint1": 2
+          },
+          "zeroEndpoint2UDPWhilePathDropped": null,
+          "allFilterRestorationsAcknowledged": true,
+          "noBoundedFinalHangup": true,
+          "noBoundedPeerHangup": true
+        }
+      },
+      {
+        "case": "network-loss",
+        "result": {
+          "case": "network-loss",
+          "passCase": true,
+          "actualNamespaceAllUDPDrop": true,
+          "observationSeconds": 80,
+          "automaticEndSeconds": 59.945,
+          "automaticCallClearWithinWindow": true,
+          "noManualHangupSubmitted": true,
+          "sameCheckedAMD64Artifact": true,
+          "hardwareHidden": true,
+          "carrierCalls": 0,
+          "SMS": 0,
+          "gatewayNeverRestarted": true,
+          "bothEndpointSlotsCleared": true,
+          "filterRestoration": [
+            {
+              "index": 2,
+              "kind": "all-udp",
+              "samePinnedNamespace": true,
+              "ownedRulesetUnchangedBeforeRemoval": true,
+              "originalNamespaceRulesetRestored": true,
+              "droppedPackets": 6031,
+              "droppedBytes": 1207287
+            }
+          ],
+          "packetAttestationPending": false,
+          "seconds": 63.17
+        },
+        "originalDialogAttestation": {
+          "case": "network-loss",
+          "originalAcceptedSIPDialogs": 2,
+          "uniqueOriginalDialogOPTIONS": {
+            "endpoint1": 2,
+            "endpoint2": 1
+          },
+          "matchedFinalOPTIONSResponses": {
+            "endpoint1": {
+              "200": 2
+            }
+          },
+          "unansweredOriginalDialogProbes": {
+            "endpoint2": 1
+          },
+          "allGatewayOPTIONSAndBYEPinnedToOriginalDialogAndSource": true,
+          "allNewLocalSequencesStrictlyIncrease": true,
+          "allProbeRequestsBodylessAndCredentialFree": true,
+          "gatewayBYESequences": {
+            "endpoint2": [
+              3
+            ],
+            "endpoint1": [
+              3
+            ]
+          },
+          "postCrashNoManualHangup": null
+        },
+        "terminationAttestation": {
+          "automaticGatewayBYE": true,
+          "bothEndpointsAcknowledgedBYEAfterPathRestored": true,
+          "noEndpointOriginatedBYE": true,
+          "noManualHangupSubmitted": true
+        },
+        "packetSummary": {
+          "case": "network-loss",
+          "capturedSeconds": 62.521,
+          "SIPMessages": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "ACK",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "INVITE",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 100 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "ACK",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 2
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 11
+            }
+          ],
+          "RTPStreams": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "payloadType": 0,
+              "packets": 3101
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "payloadType": 8,
+              "packets": 122
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "payloadType": 0,
+              "packets": 112
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "payloadType": 8,
+              "packets": 3101
+            }
+          ],
+          "RTCP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 200,
+              "packets": 12
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 13
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 200,
+              "packets": 3
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 201,
+              "packets": 12
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 202,
+              "packets": 15
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 200,
+              "packets": 16
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 202,
+              "packets": 16
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 203,
+              "packets": 1
+            }
+          ],
+          "invalidRTCP": 0,
+          "SDPCodecs": [
+            "PCMA",
+            "PCMU",
+            "telephone-event"
+          ],
+          "ICMP": [
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "type": 3,
+              "code": 3,
+              "packets": 6
+            }
+          ],
+          "postCrashRTP": [],
+          "postCrashICMP": [],
+          "postCrashSIP": [],
+          "actualFailedNetworkSyscalls": {}
+        },
+        "boundedFinalHangupSubmitted": false,
+        "filterPacketAttestation": {
+          "case": "network-loss",
+          "capturedWindowSeconds": 59.745,
+          "capturedG711RTPPackets": 5956,
+          "OPTIONSFromGateway": {
+            "endpoint1": 2,
+            "endpoint2": 11
+          },
+          "matched200OPTIONSResponsesByRole": {
+            "endpoint1": 2
+          },
+          "zeroEndpoint2UDPWhilePathDropped": true,
+          "allFilterRestorationsAcknowledged": true,
+          "noBoundedFinalHangup": true,
+          "noBoundedPeerHangup": true
+        }
+      },
+      {
+        "case": "caller-bye-after-session-faults",
+        "result": {
+          "case": "caller-bye",
+          "passCase": true,
+          "realBaresip": true,
+          "sameCheckedAMD64Artifact": true,
+          "hardwareHidden": true,
+          "carrierCalls": 0,
+          "SMS": 0,
+          "gatewayCallsCleared": true,
+          "endpointCallsCleared": true,
+          "applicationNotRestarted": true,
+          "seconds": 35.713,
+          "packetAttestationPending": false
+        },
+        "originalDialogAttestation": {
+          "case": "caller-bye-after-session-faults",
+          "originalAcceptedSIPDialogs": 2,
+          "uniqueOriginalDialogOPTIONS": {
+            "endpoint2": 1,
+            "endpoint1": 1
+          },
+          "matchedFinalOPTIONSResponses": {
+            "endpoint2": {
+              "200": 1
+            },
+            "endpoint1": {
+              "200": 1
+            }
+          },
+          "unansweredOriginalDialogProbes": {},
+          "allGatewayOPTIONSAndBYEPinnedToOriginalDialogAndSource": true,
+          "allNewLocalSequencesStrictlyIncrease": true,
+          "allProbeRequestsBodylessAndCredentialFree": true,
+          "gatewayBYESequences": {
+            "endpoint2": [
+              3
+            ]
+          },
+          "postCrashNoManualHangup": null
+        },
+        "terminationAttestation": {
+          "normalCallerBYEAnd200OnBothLegs": true,
+          "noBoundedFinalCleanupNeeded": true,
+          "freshCallSpannedPriorRetiredBranchDrain": true
+        },
+        "packetSummary": {
+          "case": "caller-bye-after-session-faults",
+          "capturedSeconds": 35.23,
+          "SIPMessages": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "ACK",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "INVITE",
+              "packets": 2
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "method": "response 200 OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "OPTIONS",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 100 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 180 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 200 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "method": "response 401 INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "ACK",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "BYE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "INVITE",
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "method": "OPTIONS",
+              "packets": 1
+            }
+          ],
+          "RTPStreams": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "payloadType": 0,
+              "packets": 1761
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "payloadType": 8,
+              "packets": 1761
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "payloadType": 0,
+              "packets": 1761
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "payloadType": 8,
+              "packets": 1761
+            }
+          ],
+          "RTCP": [
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 200,
+              "packets": 7
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 8
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint1",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 200,
+              "packets": 7
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 202,
+              "packets": 8
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "endpoint2",
+              "destination": "gateway",
+              "packetType": 204,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 200,
+              "packets": 9
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 202,
+              "packets": 9
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "packetType": 203,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 200,
+              "packets": 9
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 202,
+              "packets": 9
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "packetType": 203,
+              "packets": 1
+            }
+          ],
+          "invalidRTCP": 0,
+          "SDPCodecs": [
+            "PCMA",
+            "PCMU",
+            "telephone-event"
+          ],
+          "ICMP": [
+            {
+              "source": "gateway",
+              "destination": "endpoint1",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            },
+            {
+              "source": "gateway",
+              "destination": "endpoint2",
+              "type": 3,
+              "code": 3,
+              "packets": 1
+            }
+          ],
+          "postCrashRTP": [],
+          "postCrashICMP": [],
+          "postCrashSIP": [],
+          "actualFailedNetworkSyscalls": {}
+        },
+        "boundedFinalHangupSubmitted": false
+      }
+    ],
+    "freshCallStillActiveSecondsAfterPriorEndedSample": 38.32,
+    "priorRetiredBranchGraceSeconds": 32,
+    "restoration": {
+      "allFourOwnedContainersRemoved": true,
+      "ownedInternalNetworkRemoved": true,
+      "originalUserRunningContainerIDsPreserved": true,
+      "applicationExitedZero": true,
+      "applicationNotRestarted": true,
+      "stockManagerSamePIDDuringLANBusiness": true,
+      "stockManagerAutomaticRestarts": 0,
+      "CTInterfaceExactlyPreservedDuringLANBusiness": true,
+      "PHInterfaceExactlyPreservedDuringLANBusiness": true,
+      "rules4ExactlyPreserved": true,
+      "rules6ExactlyPreserved": true,
+      "defaultRoutesPreserved": true,
+      "rootDatabaseHashPreserved": true,
+      "sharedServerLockInodePreserved": true,
+      "noXFRMStateOrPolicy": true,
+      "carrierCalls": 0,
+      "SMS": 0
+    },
+    "finalGlobalAttestation": {
+      "bothOriginalEquipmentAndSIMsRegisteredRFOn": true,
+      "stockManagerExecutablePreserved": true,
+      "stockManagerAutomaticRestarts": 0,
+      "bothFixtureStagesRestored": true,
+      "noOwnedContainersOrNetworks": true,
+      "noXFRMStateOrPolicy": true
+    },
+    "carrierCalls": 0,
+    "SMS": 0,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "limitations": [
+      "Registered Baresip endpoint cases do not establish fixed-PBX/Asterisk restart or carrier-call fault acceptance.",
+      "No-RTP was produced by FD-pinned endpoint-namespace DROP rules; physical microphone/speaker quality was not graded.",
+      "The network-loss endpoint was reconnected promptly after gateway cleanup, allowing its original BYE retransmission; prolonged disconnection remains separate.",
+      "Browser audio remains deferred by human request; no carrier call or modem maintenance performed."
+    ]
+  },
+  "accepted": [
+    "Actual callee and caller Baresip restart automatically clears the old original dialog on its matched 404",
+    "Actual 68.569-second zero-G711 capture with two successful probe rounds per endpoint; same original call recovers media",
+    "Actual all-UDP drop with no endpoint UDP response; automatic cleanup in 59.945s and original BYE acknowledged after prompt reconnect",
+    "Fresh original call stays active 38.320s beyond prior ended sample, crossing 32s retired-branch drain",
+    "Complete frozen software checks, original host/SIM state and owned namespace-rule restoration"
+  ],
+  "remaining": [
+    "Actual new-build carrier-bound endpoint fault scenarios, beyond internal SIP and prior synthetic carrier checks",
+    "Fixed PBX/Asterisk restart and extended network disconnection/reconnection combinations",
+    "Browser audio remains deferred by human; these headless packet tests do not grade physical microphone/speaker hearing",
+    "Other open hardware/data-owner/daemon/task/profile/provider cases in PARITY_ACCEPTANCE.md"
+  ]
+}

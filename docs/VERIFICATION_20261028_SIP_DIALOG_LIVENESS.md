@@ -130,3 +130,13 @@ separate. Physical browser audio stays deferred at the human's request. The
 [full acceptance matrix](PARITY_ACCEPTANCE.md) and overall goal remain open.
 Raw packets, credentials, addresses, subscriber data and private logs stay outside
 Git; only sanitized results are committed.
+
+## Later registered-endpoint and media/network follow-up
+
+The [subsequent repair and actual cases](VERIFICATION_20261028_SIP_SESSION_FAULTS.md)
+retain a quick-restart failure where the new UA returned 404 to the old target.
+The classifier now treats matched 404/410 as old-target absence. Actual registered
+caller/callee replacement, no inbound RTP with same-call media recovery, silent
+UDP loss and a later call crossing old cleanup passed on that new checked build.
+The original report remains scoped to its earlier artifact; fixed-PBX and carrier
+faults still require their own scenarios.
