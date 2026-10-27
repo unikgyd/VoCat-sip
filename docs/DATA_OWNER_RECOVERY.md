@@ -94,3 +94,13 @@ and does not establish recovery after active-claim owner death or proxy supervis
 cascades. The separate [shipping Compose idle-owner case](VERIFICATION_20261027_COMPOSE_OWNER_IDLE.md)
 executes the default restart policies with no active capability at the fault, then
 verifies an explicit fresh connection under the replacement owner.
+
+The [shipping Compose active-proxy follow-up](VERIFICATION_20261028_COMPOSE_PROXY_ACTIVE.md)
+subsequently verified this explicit opt-in under default Compose restart,
+health and dependency settings for real IPv4, IPv6 and dual-stack data. The
+original main/owner remained alive, and each proxy fault produced one confirmed
+recovery attempt, old-generation cleanup and a fresh real public query. Matching
+patched ModemManager was used during those cases. A distribution-manager crash
+during restoration remains a failed dependency observation even though a later
+quiet startup restored the original environment. Active-owner loss, unconfigured
+recovery and native systemd cascades remain outside these accepted cases.

@@ -166,6 +166,11 @@ Asterisk SHA-256/MD5 call/SMS interoperability. Two silent dialogs survived 67
 seconds; bidirectional PBX restart and process-loss cleanup completed in about
 30 and 62 seconds, respectively. These use synthetic carrier backends; real
 carrier-bound fault combinations remain separate acceptance.
+The [shipping Compose data-recovery follow-up](docs/VERIFICATION_20261028_COMPOSE_PROXY_ACTIVE.md)
+passed real IPv4, IPv6 and dual-stack proxy loss with explicitly configured
+original-owner recovery and default restart/health settings. It used the matching
+patched ModemManager. The distribution manager crashed once during restoration;
+the original environment was subsequently restored, and that failure is retained.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

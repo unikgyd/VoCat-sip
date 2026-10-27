@@ -314,12 +314,26 @@ Carrier/SMS backends were synthetic; this is fixed-PBX protocol/process evidence
 with real carrier-bound joint faults still open. Initial product and fixture
 failures are retained separately.
 
+The [shipping Compose active-proxy follow-up](VERIFICATION_20261028_COMPOSE_PROXY_ACTIVE.md)
+then passed actual CT IPv4, IPv6 and dual-stack proxy loss with the existing
+explicit original-owner recovery mapping. Default restart/health/dependency
+settings remained in effect. Recovery and real public queries took 56.954,
+56.383 and 39.751 seconds; the original main/owner survived all cases and the
+proxy restarted once per case. Matching patched ModemManager was used. Returning
+to the distribution service produced one SIGSEGV/automatic restart and failed
+the first restoration audit. That failure/core remains recorded; the original
+environment was subsequently restored after a separate normal restart and a
+120-second stable observation. This accepts the qualified Compose recovery
+scenarios while distribution-manager reliability remains open. Runtime inputs
+were unchanged, so the preceding software gates were referenced, not rerun.
+
 The full objective remains open. Browser microphone/speaker use is deferred
 by the human. Actual carrier-bound SIP endpoint death and fixed-PBX/carrier joint faults,
 prolonged network-loss/reconnection and other fault combinations,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner while it holds an active claim,
-unconfigured/default-supervision proxy-loss and other failure combinations,
+unconfigured recovery, native systemd proxy-loss dependency cascades,
+distribution-manager callback reliability and other failure combinations,
 additional scheduled-task/profile/crash combinations and external provider
 delivery still need their live scenarios. Existing
 profile management does not establish provisioning/download/delete of a

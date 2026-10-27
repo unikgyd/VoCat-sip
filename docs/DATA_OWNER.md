@@ -135,3 +135,11 @@ SIGKILL recovery for IPv4, IPv6 and dual stack. It also records controlled
 restoration of the earlier failed phase and the separate maintenance reboot
 needed for initial IPv6 reachability. Neither result establishes owner/proxy
 process-loss recovery.
+
+The later [shipping Compose active-proxy run](VERIFICATION_20261028_COMPOSE_PROXY_ACTIVE.md)
+exercised unchanged default restart/health/dependency settings with an explicit
+secondary-port recovery mapping. Actual IPv4, IPv6 and dual-stack proxy SIGKILLs
+recovered with the original main and owner retained. The fault cases used matching
+patched ModemManager; one distribution-manager restoration crash is retained,
+with the original environment subsequently restored. Owner death, unconfigured
+recovery and native systemd dependency cascades remain separate acceptance.

@@ -65,3 +65,9 @@ both SIMs.
 Active-claim owner death, proxy-loss supervision cascades, daemon/host failure
 and power-loss/orphan-resource restoration remain separate scenarios. The
 earlier surviving-owner proxy recovery cannot establish those guarantees.
+
+The subsequent [active-proxy follow-up](VERIFICATION_20261028_COMPOSE_PROXY_ACTIVE.md)
+adds default Compose supervision with explicit opt-in recovery for three real
+data-family cases. The original owner survived; its death and native systemd
+cascades remain open. A distribution-manager restoration SIGSEGV is retained
+alongside the successful final environment restoration.
