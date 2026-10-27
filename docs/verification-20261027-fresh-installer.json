@@ -1,0 +1,143 @@
+{
+  "schema": 1,
+  "date": "2026-10-27",
+  "scope": "Standard systemd installer from an absent database, random administrator and session-preserving forced reinstall on the NAS; real hardware hidden by an explicit service drop-in; checked release transport fixture",
+  "artifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+  "sourceRevision": "3afe3f7583af4d6aaffc3040fe660b7daf2900fa",
+  "fixtureHashes": {
+    "installer": "fd08e6acf24b7d34d92bebc8ceffa774fafb6d061a4230ba8bf531af10345713",
+    "dropin": "e22cce2499e188e80b23272cc940a83f6fe2bf121bfb500e94c79d776dc61e23"
+  },
+  "firstInstall": {
+    "standardInstallerExitZero": true,
+    "sourceInstallerUnmodified": true,
+    "standardPathsAndGeneratedUnitUsed": true,
+    "additionalHardwareIsolationDropin": true,
+    "controlledCheckedReleaseTransport": true,
+    "databaseInitiallyAbsent": true,
+    "noDatabaseSeed": true,
+    "randomAdministratorCreated": true,
+    "initialPasswordShownOnce": true,
+    "passwordNotInEnvironment": true,
+    "anonymousDeviceHTTP401": true,
+    "generatedPasswordLoginHTTP200": true,
+    "authenticatedSessionHTTP200": true,
+    "hardwareInventoryEmpty": true,
+    "mainServiceActive": true,
+    "automaticRestarts": 0,
+    "installedArtifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+    "AMRUnavailableWarningReported": true
+  },
+  "reinstall": {
+    "standardInstallerExitZero": true,
+    "originalAdministratorExactlyPreserved": true,
+    "originalPasswordStillWorks": true,
+    "noNewInitialPasswordPrinted": true,
+    "preReinstallSessionPreserved": true,
+    "noPasswordInEnvironment": true,
+    "newServiceInvocation": true,
+    "automaticRestarts": 0,
+    "successfulCandidateBackupRemoved": true,
+    "installedArtifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044"
+  },
+  "AMRDependencyRemediation": {
+    "artifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+    "initialRequiredAMRCheckExit": 1,
+    "initialAMRNBAvailable": false,
+    "installerMissingAMRWarningObserved": true,
+    "onlyPlannedPackageInstalled": true,
+    "installedPackage": "libopencore-amrnb0",
+    "finalRequiredAMRCheckExit": 0,
+    "finalAMRNBAvailable": true,
+    "finalAMRWBAvailable": false,
+    "noModemOrCarrierOperation": true,
+    "diagnosticOnlyNotNativeCarrierCallAcceptance": true
+  },
+  "restoration": {
+    "applicationExitedZero": true,
+    "installationPathsUnitsAndEnablementRemoved": true,
+    "originalEquipmentSIMsRegisteredRFOn": true,
+    "originalManagerPIDAndRestartsUnchanged": true,
+    "USBGenerationsUnchanged": true,
+    "bothOriginalHostNetworkSnapshotsExactlyUnchanged": true,
+    "originalDatabaseHashPreserved": true,
+    "serverLockInodePreserved": true,
+    "originalRunningContainerIDsPreserved": true,
+    "noXFRMState": true,
+    "packageAdditions": 3,
+    "packageUpdates": 0,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "carrierCallsOrSMSRequested": false,
+    "firmwareWritesOrModemRebootsRequested": false
+  },
+  "retainedDependencyAdditions": {
+    "libccid": "1.7.1-1",
+    "libopencore-amrnb0": "0.1.6-1build2",
+    "pcscd": "2.4.1-1"
+  },
+  "dependencyUpdates": {},
+  "hardwareIsolation": {
+    "PrivateDevices": true,
+    "blockedPaths": [
+      "/run/dbus/system_bus_socket",
+      "/run/pcscd",
+      "/sys/bus/usb/devices",
+      "/sys/class/tty",
+      "/sys/class/usbmisc",
+      "/sys/class/net"
+    ]
+  },
+  "credentialFiles": {
+    "databaseMode": "0600",
+    "environmentMode": "0600",
+    "privateArchiveDirectoryMode": "0700"
+  },
+  "harnessFindings": [
+    "The initial observer queried users instead of the canonical admins table, then needed a JSON representation of the binary password hash. The already successful first installer was not replayed; the same installation was read after both observer repairs.",
+    "The empty device-list response is an object with a devices array. The corrected observer checked that array rather than the envelope.",
+    "systemctl daemon-reload cleared cached PID/time fields within ExecStart metadata even though the original ModemManager PID and NRestarts were unchanged. Final attestation uses those live properties and the original executable, rather than equality of transient ExecStart display metadata."
+  ],
+  "limits": [
+    "The public GitHub transport was a local checked-byte fixture; Internet release publication/download was not exercised.",
+    "The application used an explicit hardware-isolation drop-in and empty inventory. No fresh-install modem auto-discovery, per-SIM default behavior or carrier connection is claimed.",
+    "The existing NAS supplied systemd, QMI and other host prerequisites; this is not a fresh operating-system image or OpenWrt/procd acceptance.",
+    "AMR-NB diagnostic readiness passed after installing the requested distribution library. No new native carrier audio call was made; AMR-WB remains unavailable in this artifact.",
+    "The three named prerequisite packages were retained. Application paths, service enablement and test drop-in were removed; package rollback is not claimed.",
+    "Browser audio/EULA, remote IVR, carrier SIP bridging, human SMS replies, owner/proxy/machine loss and other open hardware scenarios remain separate acceptance."
+  ],
+  "privacy": {
+    "passwordsHashesCredentialsSubscriberIdentitiesAndRawInstallerLogsExcluded": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "carrierCallsOrSMSRequested": false
+  },
+  "retainedPCSCServiceState": {
+    "pcscd.socket": {
+      "active": "active",
+      "enabled": "enabled"
+    },
+    "pcscd.service": {
+      "active": "inactive",
+      "enabled": "indirect"
+    }
+  },
+  "softwareEvidence": {
+    "newSuiteExecution": false,
+    "matchedImplementationTestFrontendScriptAndModulePaths": 1774,
+    "previousChecks": "verification-20261027-esim-tasks.json",
+    "unchangedFrontendPaths": 868,
+    "previousGoPassed": 2096,
+    "previousGoFailed": 0,
+    "previousGoSkipped": 50,
+    "previousSelectedRacePassed": 15,
+    "previousKernelPassed": 3,
+    "previousFrontendPassed": 82,
+    "previousLinuxBuilds": [
+      "amd64",
+      "arm64",
+      "386",
+      "armv7"
+    ]
+  }
+}

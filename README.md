@@ -113,6 +113,9 @@ the original profile and preferences without replaying the interrupted task.
 The [clock and EnableProfile boundary follow-up](docs/VERIFICATION_20261027_ESIM_BOUNDARIES.md)
 adds real scheduled profile dispatch and automatic recovery after separate
 request-write and successful-card-response SIGKILL checkpoints.
+The [fresh standard-installer follow-up](docs/VERIFICATION_20261027_FRESH_INSTALLER.md)
+adds empty-database administrator creation, one-time password output and
+session-preserving reinstall under explicit hardware isolation.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

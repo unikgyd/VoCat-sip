@@ -209,6 +209,18 @@ claimed. Uninjected observer failures, a card-toolkit-busy task and final origin
 host restoration are retained separately. Other card/transport failure points
 remain untested.
 
+The [fresh standard-installer follow-up](VERIFICATION_20261027_FRESH_INSTALLER.md)
+now combines the unmodified installer with an absent database and real native
+service startup under an explicit hardware-isolation drop-in. Random first-admin
+creation, one-time password output, authenticated access and forced reinstall
+preserving the exact administrator/password/session passed. The same checked
+binary gained native AMR-NB diagnostic readiness after the installer-recommended
+distribution library was installed. Three prerequisite packages were retained,
+with no existing package upgrades; the temporary application was cleanly removed
+and original modem/network/database/container state was preserved. This does not
+cover public GitHub delivery, a clean operating system or first-install hardware
+discovery/default subscription behavior.
+
 The full objective remains open. Actual browser microphone/speaker use,
 remote IVR recognition, carrier SIP bridging, recipient-confirmed IMS SMS round trips, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
