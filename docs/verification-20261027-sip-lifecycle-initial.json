@@ -1,0 +1,159 @@
+{
+  "schema": 1,
+  "sourceRevision": "165b50d3eb9f72eca4c0d7761c4a86d6c010283f",
+  "artifactSHA256": "cf7c11fedba7aa58435180fda225fd44692d5294a22956f55e14171deccfdc20",
+  "implementationChanged": false,
+  "browserTestDeferredAtHumanRequest": true,
+  "browserAttemptFailedBeforeCarrierDial": "Requested device not found",
+  "browserPhysicalAudioAccepted": false,
+  "carrierOutgoingCalls": 0,
+  "carrierIncomingCalls": 1,
+  "carrierSMS": 0,
+  "pureHostIMS": true,
+  "humanConfirmedHandsetHangup": true,
+  "recipientHearingConfirmation": "Not separately confirmed in this phase",
+  "incomingAnswerAndACKObserved": true,
+  "SIPGatewayInitiatedBYEAndEndpoint200": true,
+  "noEndpointBYEBeforeCarrierTermination": true,
+  "otherRingingEndpointCancelled": true,
+  "receivedHandsetRTPDigit8": true,
+  "bidirectionalPCMA": true,
+  "carrierCodec": "AMR",
+  "sourceWAVSeconds": 300,
+  "answeredCarrierSeconds": 16.363,
+  "recordingComplete": true,
+  "recordingDroppedSamples": 0,
+  "fullPerCallResourceCleanupAccepted": false,
+  "retainedMediaRoutesAfterHangup": 1,
+  "retainedMediaRouteReleasedDuringOriginalSessionStop": true,
+  "observerFailure": "Observer required an empty carrier history; ended call remained because original media-route cleanup was retained",
+  "boundedObserverFinalHangupResponse": "No active call; no signaling action performed",
+  "packetSummary": {
+    "linkType": 1,
+    "packetCount": 1270,
+    "streams": [
+      {
+        "sourcePort": 26148,
+        "destinationPort": 41352,
+        "payloadType": 8,
+        "packets": 939
+      },
+      {
+        "sourcePort": 41352,
+        "destinationPort": 26148,
+        "payloadType": 8,
+        "packets": 301
+      },
+      {
+        "sourcePort": 41352,
+        "destinationPort": 26148,
+        "payloadType": 101,
+        "packets": 30
+      }
+    ],
+    "SDPConfirmedPCMA": true,
+    "SDPConfirmedTelephoneEvent8000": true,
+    "receivedRTPEventDigits": [
+      8
+    ],
+    "RTPEventEndPackets": 9,
+    "RTCPPackets": [
+      {
+        "sourcePort": 26149,
+        "destinationPort": 50409,
+        "packetType": 200,
+        "packets": 3
+      },
+      {
+        "sourcePort": 26149,
+        "destinationPort": 50409,
+        "packetType": 202,
+        "packets": 4
+      },
+      {
+        "sourcePort": 26149,
+        "destinationPort": 50409,
+        "packetType": 203,
+        "packets": 1
+      },
+      {
+        "sourcePort": 26149,
+        "destinationPort": 50409,
+        "packetType": 204,
+        "packets": 1
+      },
+      {
+        "sourcePort": 50409,
+        "destinationPort": 26149,
+        "packetType": 200,
+        "packets": 5
+      },
+      {
+        "sourcePort": 50409,
+        "destinationPort": 26149,
+        "packetType": 201,
+        "packets": 1
+      },
+      {
+        "sourcePort": 50409,
+        "destinationPort": 26149,
+        "packetType": 202,
+        "packets": 6
+      },
+      {
+        "sourcePort": 50409,
+        "destinationPort": 26149,
+        "packetType": 203,
+        "packets": 1
+      }
+    ],
+    "invalidCapturedRTCP": 0,
+    "SIPForkLegs": [
+      {
+        "endpoint": 1,
+        "originalINVITECount": 1,
+        "dialogCount": 1,
+        "messages": {
+          "toEndpoint INVITE": 1,
+          "fromEndpoint response 180 INVITE": 1,
+          "toEndpoint CANCEL": 1,
+          "fromEndpoint response 200 CANCEL": 1,
+          "fromEndpoint response 487 INVITE": 1,
+          "toEndpoint ACK": 1
+        }
+      },
+      {
+        "endpoint": 2,
+        "originalINVITECount": 1,
+        "dialogCount": 1,
+        "messages": {
+          "toEndpoint INVITE": 1,
+          "fromEndpoint response 180 INVITE": 1,
+          "fromEndpoint response 200 INVITE": 1,
+          "toEndpoint ACK": 1,
+          "toEndpoint BYE": 1,
+          "fromEndpoint response 200 BYE": 1
+        }
+      }
+    ]
+  },
+  "restoration": {
+    "originalEquipmentSIMsRegisteredRFOn": true,
+    "originalNativeIMSAndPDPProfilesRestored": true,
+    "CTHostPreservedExceptInterfaceIndex": true,
+    "PHHostExactlyPreserved": true,
+    "rootDatabaseHashPreserved": true,
+    "sharedLockInodePreserved": true,
+    "originalRunningContainerIDsPreserved": true,
+    "stockManagerExecutableRestored": true,
+    "stockManagerAutomaticRestarts": 0,
+    "ownedManagerOverrideAndExecutableRemoved": true,
+    "noHostIMSClaim": true,
+    "noXFRMStateOrPolicy": true,
+    "applicationExitedZero": true,
+    "SIPContainersStopped": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0
+  },
+  "followup": "Implement bounded original-route cleanup retry, run combined frozen checks, then repeat actual SIP acceptance"
+}

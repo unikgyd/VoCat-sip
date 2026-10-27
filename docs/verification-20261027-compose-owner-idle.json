@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "date": "2026-10-27",
+  "scope": "Shipping Docker Compose idle data-owner death/restart and subsequent explicit fresh data connection",
+  "sourceRevision": "165b50d3eb9f72eca4c0d7761c4a86d6c010283f",
+  "implementationChanged": false,
+  "softwareSuitesRerun": false,
+  "previousSoftwareReport": "verification-20261027-proxy-auto.json",
+  "selectedInputs": {
+    "selectedFrozenInputs": 1784,
+    "frontendInputs": 868,
+    "allSelectedInputsMatch": true
+  },
+  "artifactSHA256": "cf7c11fedba7aa58435180fda225fd44692d5294a22956f55e14171deccfdc20",
+  "composeVersion": "5.6.0",
+  "shippingComposeFilesSHA256": {
+    "docker-compose.yml": "4c417c4fd6e50143d6252c2ca681da45b1e633b1e98f33771e84a6c7682566bc",
+    "compose.data-owner.yaml": "c7c02224dea1a455f98d17e5a5f5de803fc852293c69e1f113fb5b124b2ff768"
+  },
+  "fault": {
+    "actualIdleOwnerSIGKILLAndExit137": true,
+    "actualShippingComposeExecution": true,
+    "defaultUnlessStoppedRestartPreserved": true,
+    "ownerAutomaticallyRestartedExactlyOnce": true,
+    "originalMainAndProxyProcessesUnchanged": true,
+    "originalMainAndProxyRestartCountsZero": true,
+    "newOwnerSameCheckedBinary": true,
+    "newOwnerSocketRecreated0600": true,
+    "originalSingletonLockInodeRetained": true,
+    "mainDataRemainedDisabled": true,
+    "USBGenerationUnchanged": true,
+    "noManualRestartOrModemReset": true,
+    "seconds": 13.835,
+    "noDataClaimObservedDuringIdleFault": true,
+    "noHostIMSClaimBeforeAndAfterFault": true,
+    "HostIMSAndVoWiFiDisabledInFixture": true
+  },
+  "postFaultExplicitData": {
+    "explicitNewEnable": true,
+    "newOwnerClaim": true,
+    "sameOriginalUSBGeneration": true,
+    "noOldCapabilityAdopted": true,
+    "publicQueryHTTPStatus": 200,
+    "publicIPAddressFamily": 6
+  },
+  "postData": {
+    "originalMainAndProxyStillUnchangedAfterData": true,
+    "restartedOwnerStillSameProcessAfterData": true,
+    "sameOriginalEquipmentAndSIMClaimKeys": true,
+    "noHostIMSClaim": true
+  },
+  "restoration": {
+    "applicationAndOwnerExitedZero": true,
+    "ownedProxyStopped": true,
+    "privateOwnerSocketAndRuntimeArchived": true,
+    "originalEquipmentSIMsRegisteredRFOn": true,
+    "nativeIMSKept1AndRegistered": true,
+    "stockManagerActive": true,
+    "stockManagerSHA256": "e1c6e899c75385544423cf96d5a67e37d516038e16c01680e3ccb5c59941a5e6",
+    "stockManagerAutomaticRestarts": 0,
+    "ownedOverrideAndExecutableRemoved": true,
+    "CTHostExactlyPreserved": true,
+    "CTInterfaceIndexPreserved": true,
+    "PHHostExactlyPreserved": true,
+    "originalDatabaseHashPreserved": true,
+    "sharedLockInodePreserved": true,
+    "originalRunningContainerIDsPreserved": true,
+    "noDataClaim": true,
+    "noXFRMStateOrPolicy": true,
+    "noPrivateDNSFile": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "hostPCSCServiceAndSocketPreserved": true,
+    "allShippingRestartPoliciesPreserved": true
+  },
+  "allNativeIMSProfileAndUSBRecordsPreserved": true,
+  "ownedComposeVolumes": 0,
+  "ownedComposeNetworks": 0,
+  "finalContainers": {
+    "vocat-compose-owner-idle-main-20261027": {
+      "state": "exited",
+      "exit": 0,
+      "restarts": 0
+    },
+    "vocat-compose-owner-idle-owner-20261027": {
+      "state": "exited",
+      "exit": 0,
+      "restarts": 1
+    },
+    "vocat-compose-owner-idle-proxy-20261027": {
+      "state": "exited",
+      "exit": 0,
+      "restarts": 0
+    }
+  },
+  "carrierCalls": 0,
+  "carrierSMS": 0,
+  "limitations": [
+    "Idle owner only; no active claim/capability when killed",
+    "Fresh data enable was explicit; no automatic active-data recovery claimed",
+    "Host IMS claim checked before and after fault, not continuously",
+    "Existing local image with read-only checked binary; no public release image delivery/build acceptance",
+    "Active-claim owner death, proxy supervision cascades, daemon/host/power-loss restoration remain open"
+  ]
+}

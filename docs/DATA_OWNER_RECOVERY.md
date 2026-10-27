@@ -90,4 +90,7 @@ record one successful run with the original main/owner retained and an IPv6
 public query. Earlier failed phases and CFUN acknowledgments without observed
 generation change are retained there. That acceptance is separate from the
 earlier [fault-containment/manual-maintenance run](VERIFICATION_20261027_PROXY_LOSS.md)
-and does not establish recovery after owner death or with default supervision.
+and does not establish recovery after active-claim owner death or proxy supervision
+cascades. The separate [shipping Compose idle-owner case](VERIFICATION_20261027_COMPOSE_OWNER_IDLE.md)
+executes the default restart policies with no active capability at the fault, then
+verifies an explicit fresh connection under the replacement owner.

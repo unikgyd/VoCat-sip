@@ -257,9 +257,23 @@ with original main/owner retained and no manual reset/restart/new enable after
 the fault. Two earlier failed hardware phases and their controlled restoration
 remain recorded. This does not accept owner death or default supervision cascades.
 
+The [shipping Compose idle-owner follow-up](VERIFICATION_20261027_COMPOSE_OWNER_IDLE.md)
+adds actual default-policy execution, idle owner SIGKILL/exit 137 and exactly one
+automatic restart. Main/proxy remained unchanged. A subsequent explicit fresh
+data enable used the replacement owner and returned a real IPv6 public query;
+full original state was restored. No active claim existed at the fault, so
+active-data owner death and proxy supervision cascades remain open. Runtime
+inputs were unchanged and the prior combined software checks were not rerun.
+
+The [SIP handset-hangup follow-up](VERIFICATION_20261027_SIP_LIFECYCLE.md)
+confirms gateway BYE/endpoint 200 after human handset termination, with other-leg
+CANCEL and complete recording. One media route remained until original session
+stop; full per-call cleanup failed and requires repair/retest. Physical browser
+audio is deferred by human request after a pre-dial missing-device error.
+
 The full objective remains open. Actual browser microphone/speaker use,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
-hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
+hotplug, active-call/daemon/host crash recovery, loss of the independent data owner while it holds an active claim,
 unconfigured/default-supervision proxy-loss and other failure combinations,
 additional scheduled-task/profile/crash combinations and external provider
 delivery still need their live scenarios. Existing
