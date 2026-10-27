@@ -41,17 +41,33 @@ private authorized-SIM file when one is configured. `VOCAT_DATABASE_PATH` must
 be a literal absolute filesystem path. The standard environment uses
 `/opt/vocat/data/vocat.db`.
 
-Install `deploy/vocat-data-owner.service` as
+Install `deploy/vocat-qmi-proxy.service` as
+`/etc/systemd/system/vocat-qmi-proxy.service`, `deploy/vocat-data-owner.service` as
 `/etc/systemd/system/vocat-data-owner.service` and `deploy/vocat-data-owner.conf`
 as `/etc/systemd/system/vocat.service.d/data-owner.conf`. Reload systemd, enable
 and start `vocat-data-owner`, then restart `vocat` normally so its existing data
 capability drains before switching backends. The drop-in enables
 `VOCAT_DATA_OWNER_SOCKET=/run/vocat/data-owner.sock` for the main service. The
-owner unit sets the matching socket path. The existing installer does not yet
-enable this optional two-service layout automatically.
+owner unit sets the matching socket path. Its shared QMI transport runs in the
+separate proxy unit, ordered before both clients. `vocat qmi-proxy` replaces its
+process with the installed libqmi proxy using `--no-exit`; this preserves its
+systemd cgroup and avoids an idle exit. The existing installer does not yet
+enable this optional layout automatically.
+
+The proxy's `ExecStartPost` checks its actual shared socket before either client
+starts. The same check gates both Compose clients on a healthy proxy container.
+
+An automatically launched proxy can belong to the HTTP service's cgroup.
+Systemd's default control-group cleanup then kills that proxy when the main
+process dies, disconnecting even a surviving owner's original WDS transport.
+A detached process group does not prevent this. The dedicated unit prevents
+that lifecycle coupling. The launcher refuses an already serving proxy rather
+than adopting or stopping it. Drain existing clients and arrange supervision of
+their original proxy before changing layouts; another application's proxy must
+not be killed to enable VoCat.
 
 For upgrades, drain and stop the main service first, then stop the owner, replace
-the shared binary, and start the owner before the main service. Restarting only
+the shared binary, and start the proxy, then the owner, then the main service. Restarting only
 the main service does not reload the independently running owner's executable.
 
 ## Docker deployment
@@ -62,8 +78,8 @@ Build the candidate and start the provided override together with the base file:
 docker compose -f docker-compose.yml -f compose.data-owner.yaml up -d --build
 ```
 
-The override adds a separate owner container and shares the database, namespace
-and lock mounts. Apply any custom database or authorized-SIM environment/file
+The override adds separate owner and proxy containers and shares the database,
+namespace and lock mounts between both clients. Apply any custom database or authorized-SIM environment/file
 mounts to both services. Restart the main container independently when exercising
 main-process recovery; recreating both containers terminates the surviving owner.
 
@@ -77,6 +93,11 @@ Host IMS has its own [confirmed active-process case](VERIFICATION_20261027_HOSTI
 machine/power loss remains separate acceptance. Existing IPv4 host-resource
 ownership limitations are not changed by moving the original manager into a
 surviving process.
+
+Losing the QMI proxy also loses the original transport. The journal and shared
+instance lock stay retained when original cleanup cannot be confirmed. Starting
+a fresh proxy does not restore that capability. Such a failure needs controlled
+operator recovery and cannot be counted as automatic main-process recovery.
 
 See [the data fence](DATA_OWNERSHIP_FENCE.md) and
 [main-process crash acceptance](VERIFICATION_20261027_DATA_OWNER.md) for the

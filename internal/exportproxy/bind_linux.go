@@ -41,15 +41,11 @@ func exportRouteMark(networkInterface string) uint32 {
 func boundResolver(networkInterface string) *net.Resolver {
 	dialer := boundDialer(networkInterface)
 	return &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
-		var lastError error
+		servers := make([]string, 0, 4)
 		for _, server := range exportRouteDNSServers(networkInterface) {
-			connection, err := dialer.DialContext(ctx, network, net.JoinHostPort(server, "53"))
-			if err == nil {
-				return connection, nil
-			}
-			lastError = err
+			servers = append(servers, net.JoinHostPort(server, "53"))
 		}
-		return nil, lastError
+		return newDNSRaceConn(ctx, network, servers, dialer.DialContext)
 	}}
 }
 

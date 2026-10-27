@@ -117,6 +117,7 @@ func runDataOwner(logger *slog.Logger, args []string) error {
 	journal := newDataClaimJournal(database)
 	server, err := dataowner.Listen(dataowner.ServerOptions{
 		SocketPath: socket, InstanceLockPath: "/run/vocat/vocat-server.lock", DatabasePath: cfg.DatabasePath,
+		Logger: logger,
 		Idle: func(ctx context.Context, id string) error {
 			pending, err := journal.Pending(ctx, modem.Candidate{ID: id})
 			if err != nil || pending {

@@ -1,0 +1,301 @@
+{
+  "date": "2026-10-27",
+  "scope": "Unmodified native main/owner systemd units; real DNS availability repair and bounded recovery acceptance",
+  "sourceBaseline": "557b2b67f051e54d0e79634d3cb5a68750ac05c7",
+  "sourceManifestSHA256": "9f404438fe1f1ff357dcc04183a2ad0afd7953dcc0dd1ca92c087b1de36843b0",
+  "artifacts": {
+    "amd64": "68633c86bbc334a0a8a41a036d68ec9aae5150df2597ceb8bfeceb192a237b86",
+    "arm64": "056b5624a0e290db60324babe7dd966236f31b3590f2909de547f1e95a3dd1a9"
+  },
+  "software": [
+    {
+      "label": "go",
+      "exit": 0,
+      "seconds": 188.966,
+      "tests": {
+        "pass": 2081,
+        "fail": 0,
+        "skip": 50
+      }
+    },
+    {
+      "label": "data-kernel",
+      "exit": 0,
+      "seconds": 1.37,
+      "tests": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    {
+      "label": "vet",
+      "exit": 0,
+      "seconds": 6.906
+    },
+    {
+      "label": "race",
+      "exit": 0,
+      "seconds": 34.408,
+      "tests": {
+        "pass": 75,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    {
+      "label": "amd64",
+      "exit": 0,
+      "seconds": 12.692
+    },
+    {
+      "label": "arm64",
+      "exit": 0,
+      "seconds": 14.909
+    }
+  ],
+  "additionalReleaseBuilds": [
+    {
+      "architecture": "386",
+      "flavor": "native",
+      "exit": 0,
+      "executedOnHardware": false,
+      "sha256": "c0a2135e708f8281aaf69d4736c3fe8159468c6eb7c128e3baf6fc3792b3fbde"
+    },
+    {
+      "architecture": "armv7",
+      "flavor": "native",
+      "exit": 0,
+      "executedOnHardware": false,
+      "sha256": "ba9ca4a826ae9bca72a61941b6ed7ba2ccdb063a0e3ff41998c14a028f1e04ba"
+    }
+  ],
+  "actualNativeUnitsExecuted": true,
+  "shippedUnitSHA256": {
+    "vocat.service": "661ead1e3b8c86facce8f2bf23ccf18f2ff3a78a7f9d1ab877dbdb184fe932d0",
+    "vocat-data-owner.service": "ffc9e46c4f74feee407af493268994c450e59d7c59193cefb200b82804c0012c",
+    "vocat-data-owner.conf": "44c08afaf2b5206e5a756d17112a09371efe923ae2969872ef493cac509ab81d"
+  },
+  "sameCheckedArtifactInBothProcesses": true,
+  "standardInstallerAutomaticallyEnablesOwner": false,
+  "retainedInitialCandidate": {
+    "deployedAMD64SHA256": "85505d858fc4ad0bfa648bd98c93d0675829e934f0c62f8680e9822e27189335",
+    "nativeIPv4Case": {
+      "ipMode": "4",
+      "actualSIGKILL": true,
+      "systemdRecordedCodeKilledStatus9": true,
+      "automaticMainRestart": true,
+      "mainPIDAndInvocationChanged": true,
+      "originalOwnerPIDAndInvocationUnchanged": true,
+      "originalHostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "oldClaimDeletedNewClaimCreated": true,
+      "sameOriginalSIMAndUSBGeneration": true,
+      "hostCleanupObservedBeforeReconnect": true,
+      "originalModemManagerUnchanged": true,
+      "noNewEnableOrRestartRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "recoveryAndPublicQuerySeconds": 28.914,
+      "mainAutomaticRestartDelta": 1,
+      "ownerAutomaticRestartDelta": 0,
+      "transientFailedStatusSamples": 7
+    },
+    "initialIPv6PublicIPHTTPStatus": 502,
+    "initialDualPublicIPHTTPStatus": 502,
+    "IPv6CrashOwnershipReconnectedButPublicIPStillFailed": true,
+    "IPv6CrashNotCountedAsComplete": true,
+    "carrierDNSResponsePattern": [
+      false,
+      false,
+      true,
+      true
+    ],
+    "allOriginalStateRestoredBeforeCorrection": true
+  },
+  "fixedCarrierDNSControls": [
+    {
+      "ordinal": 0,
+      "family": 6,
+      "carrierProvided": true,
+      "response": false,
+      "success": false
+    },
+    {
+      "ordinal": 1,
+      "family": 6,
+      "carrierProvided": true,
+      "response": false,
+      "success": false
+    },
+    {
+      "ordinal": 2,
+      "family": 4,
+      "carrierProvided": true,
+      "response": true,
+      "success": true,
+      "answers": 2,
+      "rcode": 0
+    },
+    {
+      "ordinal": 3,
+      "family": 4,
+      "carrierProvided": true,
+      "response": true,
+      "success": true,
+      "answers": 2,
+      "rcode": 0
+    }
+  ],
+  "fixedDualPublicQuery": {
+    "httpStatus": 200,
+    "detected": true,
+    "sameOriginalOwnedSession": true,
+    "packetCounts": {
+      "4": {
+        "DNSOutbound": 8,
+        "DNSInbound": 8,
+        "TCP443Outbound": 11,
+        "TCP443Inbound": 9
+      },
+      "6": {
+        "DNSOutbound": 8,
+        "DNSInbound": 0,
+        "TCP443Outbound": 2,
+        "TCP443Inbound": 0
+      }
+    },
+    "publicIPAddressFamily": 4
+  },
+  "nativeRecoveryCases": [
+    {
+      "ipMode": "4",
+      "actualSIGKILL": true,
+      "systemdRecordedCodeKilledStatus9": true,
+      "automaticMainRestart": true,
+      "mainPIDAndInvocationChanged": true,
+      "originalOwnerPIDAndInvocationUnchanged": true,
+      "originalHostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "oldClaimDeletedNewClaimCreated": true,
+      "sameOriginalSIMAndUSBGeneration": true,
+      "hostCleanupObservedBeforeReconnect": true,
+      "originalModemManagerUnchanged": true,
+      "noNewEnableOrRestartRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "recoveryAndPublicQuerySeconds": 62.218,
+      "mainAutomaticRestartDelta": 1,
+      "ownerAutomaticRestartDelta": 0,
+      "transientFailedStatusSamples": 134,
+      "transientStatusReasons": [
+        "no delegated original data session"
+      ]
+    },
+    {
+      "ipMode": "dual",
+      "actualSIGKILL": true,
+      "systemdRecordedCodeKilledStatus9": true,
+      "automaticMainRestart": true,
+      "mainPIDAndInvocationChanged": true,
+      "originalOwnerPIDAndInvocationUnchanged": true,
+      "originalHostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "oldClaimDeletedNewClaimCreated": true,
+      "sameOriginalSIMAndUSBGeneration": true,
+      "hostCleanupObservedBeforeReconnect": true,
+      "originalModemManagerUnchanged": true,
+      "noNewEnableOrRestartRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "recoveryAndPublicQuerySeconds": 29.875,
+      "mainAutomaticRestartDelta": 1,
+      "ownerAutomaticRestartDelta": 0,
+      "transientFailedStatusSamples": 6,
+      "transientStatusReasons": [
+        "no delegated original data session"
+      ]
+    }
+  ],
+  "independentWindowsProxyClient": {
+    "started": 1793063253.2402492,
+    "client": "Windows Python 3.10",
+    "requestedBodyLimit": 65536,
+    "tests": {
+      "wrongHTTPAuthenticationRejected": true,
+      "httpHTTPS": {
+        "httpStatus": 200,
+        "bodyBytes": 225,
+        "tlsVerified": true,
+        "bodySHA256": "e79b2c8bf68b28fd8a475097a566941aa2ffae7b9535b978150b05d801f1df6b"
+      },
+      "wrongSOCKSAuthenticationRejected": true,
+      "socks5HTTPS": {
+        "httpStatus": 200,
+        "bodyBytes": 226,
+        "tlsVerified": true,
+        "bodySHA256": "380a75f6806aaf55e3b9dc439563a7bd3b843d3e4377ca5f95702346a1f77198"
+      }
+    },
+    "cleanup": {
+      "activeDataOffGuard409": true,
+      "bothOwnProxyListenersDeleted": true,
+      "originalProxyConfigurationRestored": true,
+      "sameCellularConnectionPreserved": true
+    },
+    "heldTunnelsClosed": true,
+    "completed": 1793063260.651712
+  },
+  "pendingSingleStackIPv6": {
+    "accepted": false,
+    "publicQuery": {
+      "httpStatus": 502,
+      "detected": false,
+      "sameOriginalOwnedSession": true,
+      "packetCounts": {
+        "4": {
+          "DNSOutbound": 0,
+          "DNSInbound": 0,
+          "TCP443Outbound": 0,
+          "TCP443Inbound": 0
+        },
+        "6": {
+          "DNSOutbound": 16,
+          "DNSInbound": 0,
+          "TCP443Outbound": 0,
+          "TCP443Inbound": 0
+        }
+      },
+      "errorCode": "public_ip_lookup_failed"
+    },
+    "literalTCPControl": {
+      "independentLiteralDiagnostic": true,
+      "modemCaptureProvidedDiagnosticAddress": true,
+      "actualSocketModemInterfaceBound": true,
+      "actualSocketRouteMarked": true,
+      "productDNSAcceptanceClaimed": false,
+      "tcpConnected": false,
+      "reason": "modem-bound literal IPv6 TCP timed out"
+    },
+    "reason": "No IPv6 DNS responses or literal TCP connection on the actual modem-bound path; no automatic modem reset attempted"
+  },
+  "firmwareWrites": false,
+  "modemResets": false,
+  "carrierCallsOrMobileSMS": false,
+  "ownerProcessCrashRecoveryProven": false,
+  "machineOrPowerLossRecoveryProven": false,
+  "restoration": {
+    "bothNativeServicesExitedZero": true,
+    "bothOriginalSIMEquipmentPairsRegisteredRFOn": true,
+    "originalManagerBinaryAndServiceRestored": true,
+    "finalManagerAutomaticRestarts": 0,
+    "originalDatabaseByteIdentical": true,
+    "originalRunningContainerIDsUnchanged": true,
+    "originalInterfaceRulesDefaultsMTUFlagsAndIPv6SettingsRestored": true,
+    "noRemainingDataOrHostIMSClaims": true,
+    "noHostXFRM": true,
+    "cloneDatabaseIntegrity": "ok",
+    "originalServerLockInodePreserved": true,
+    "ownedNativePathsUnitsSocketAndTemporaryManagerFilesRemoved": true
+  }
+}

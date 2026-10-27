@@ -1,0 +1,176 @@
+{
+  "date": "2026-10-27",
+  "scope": "Single approved modem maintenance, retained native IPv6 main-crash failure, independent QMI proxy correction",
+  "maintenanceArtifactSHA256": "68633c86bbc334a0a8a41a036d68ec9aae5150df2597ceb8bfeceb192a237b86",
+  "maintenance": {
+    "time": 1793064297.8216667,
+    "singleApprovedReboot": true,
+    "sameOriginalEquipmentAndSIM": true,
+    "usbGenerationChanged": true,
+    "nativeIMSMode1Registered": true,
+    "noNativeIMSSettingWrite": true,
+    "transientUSBDisappearanceInterruptedObserver": true,
+    "readOnlyObserverResumedWithoutReplayingCommand": true
+  },
+  "nativeIMSSettingWrites": false,
+  "approvedRebootCommandsIssued": 1,
+  "additionalRecoveryRebootAuthorized": false,
+  "IPv6PublicQueryAfterApprovedReboot": {
+    "httpStatus": 200,
+    "detected": true,
+    "sameOriginalOwnedSession": true,
+    "packetCounts": {
+      "4": {
+        "DNSOutbound": 0,
+        "DNSInbound": 0,
+        "TCP443Outbound": 1,
+        "TCP443Inbound": 0
+      },
+      "6": {
+        "DNSOutbound": 8,
+        "DNSInbound": 8,
+        "TCP443Outbound": 1,
+        "TCP443Inbound": 0
+      }
+    },
+    "publicIPAddressFamily": 6
+  },
+  "retainedNativeIPv6Crash": {
+    "actualSIGKILL": true,
+    "systemdRecordedKilledStatus9": true,
+    "recoveryAccepted": false,
+    "automaticRecoveryObserverTimedOutSeconds": 180,
+    "originalOwnerProcessSurvived": true,
+    "originalProxyTransportLost": true,
+    "originalHostGlobalAddressesRemoved": true,
+    "originalPrivateClaimRetained": true,
+    "originalInstanceLockRetained": true,
+    "mainRetryLoopStoppedForDiagnosis": true,
+    "noClaimOrFenceForced": true
+  },
+  "noModemQMICgroupControl": {
+    "realSystemdControlGroup": true,
+    "proxyInitiallyAbsent": true,
+    "detachedProxySameMainServiceCgroup": true,
+    "mainActuallySIGKILLed": true,
+    "proxyAlsoTerminated": true,
+    "noQMIRequestsOrModemOperations": true,
+    "noProxyListenerRemains": true
+  },
+  "correctedSource": {
+    "sourceBaseline": "557b2b67f051e54d0e79634d3cb5a68750ac05c7",
+    "sourceManifestSHA256": "37a01d8466bd56481c3bdb59fc1b35ecd68189bd3bb59254d7a869d651f7ab64",
+    "artifacts": {
+      "amd64": "50b058b1fa2b7ba0b5b4ff18637b5470fa18c2b8af8a9b211c154c44746e0959",
+      "arm64": "4b436095683eb8cb47a658e79c827162145d82c2d6051090520ca13e4257208f"
+    },
+    "software": [
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 247.465,
+        "tests": {
+          "pass": 2081,
+          "fail": 0,
+          "skip": 50
+        }
+      },
+      {
+        "label": "data-kernel",
+        "exit": 0,
+        "seconds": 1.32,
+        "tests": {
+          "pass": 3,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 6.544
+      },
+      {
+        "label": "race",
+        "exit": 0,
+        "seconds": 35.12,
+        "tests": {
+          "pass": 75,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 3.227
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 3.335
+      }
+    ],
+    "additionalReleaseBuilds": [
+      {
+        "architecture": "386",
+        "flavor": "native",
+        "exit": 0,
+        "executedOnHardware": false,
+        "sha256": "807827304de1492c9e7f31081cd7ada0a8cb82e73e3b83cf7d4454987c043074"
+      },
+      {
+        "architecture": "armv7",
+        "flavor": "native",
+        "exit": 0,
+        "executedOnHardware": false,
+        "sha256": "3f862100e15fcd914be858aed8c3c27aa6412fc05943244d18315a465c2480b9"
+      }
+    ],
+    "shipping": {
+      "compose": {
+        "exit": 0,
+        "sameImage": true,
+        "sameSocket": true,
+        "sharedDatabaseAndLocks": true,
+        "hostNamespaces": true,
+        "independentProxyReadinessGatesBothClients": true
+      },
+      "systemdSyntaxExit": 0,
+      "actualNativeOwnerUnitExecuted": false
+    },
+    "isolatedProxyLauncher": {
+      "isolatedNetworkNamespace": true,
+      "noQMIRequestsOrModemOperations": true,
+      "launchExecReplacedOriginalPID": true,
+      "realLibqmiProxyStarted": true,
+      "socketReadinessPassed": true,
+      "existingProxyRefusedWithoutReplacement": true,
+      "independentClientSIGKILLPreservedProxy": true,
+      "absentProxyReadinessFailed": true,
+      "coldCarrierRecoveryClaimed": false
+    },
+    "coldNativeCarrierRecoveryAccepted": false,
+    "coldComposeCarrierRecoveryAccepted": false
+  },
+  "retainedHarnessIssues": [
+    "USB temporarily disappeared immediately after reboot; read-only continuation confirmed the single acknowledged command without replay",
+    "Serial-read and continuation substring/indent errors occurred before native setup; no reboot replay",
+    "An intermediate software archive omitted generated web/dist and failed package setup; complete final archive was rechecked",
+    "The first isolated proxy-client fixture embedded a NUL in argv; corrected chr(0) fixture passed in a fresh namespace",
+    "Profile comparison normalized AT echo and parsed CGDCONT rows; exact parsed original profiles matched"
+  ],
+  "currentRestoration": {
+    "completed": false,
+    "reason": "Original owner retains pending packet cleanup after proxy loss; additional controlled recovery needs separate operator authorization",
+    "originalCTSIMEquipmentAndNativeIMS1RegisteredReadBack": true,
+    "originalCTProfilesUnchanged": true,
+    "originalDatabaseByteIdentical": true,
+    "originalRunningContainerIDsUnchanged": true,
+    "originalOwnerAndClaimPreserved": true,
+    "temporaryNativeServicesAndPatchedManagerStillPresent": true,
+    "independentDITOOriginalSIMEquipmentRegisteredRFOn": true,
+    "independentDITOTestInhibitorReleased": true
+  },
+  "carrierCallsOrMobileSMS": false
+}

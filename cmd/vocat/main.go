@@ -367,6 +367,11 @@ func main() {
 			logger.Error("data owner stopped", "error", err)
 			os.Exit(1)
 		}
+	case "qmi-proxy":
+		if err := runQMIProxy(rest); err != nil {
+			logger.Error("QMI proxy stopped", "error", err)
+			os.Exit(1)
+		}
 	case "update":
 		if err := update.Run(logger, rest); err != nil {
 			logger.Error("update failed", "error", err)

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -26,6 +27,7 @@ type Driver interface {
 }
 type ServerOptions struct {
 	SocketPath, InstanceLockPath, DatabasePath string
+	Logger                                     *slog.Logger
 	Factory                                    func(context.Context, Open) (Driver, error)
 	Idle                                       func(context.Context, string) error
 }
@@ -210,12 +212,17 @@ func (s *Server) handle(ctx context.Context, p *peer) {
 		return
 	}
 	defer func() {
+		lastError := ""
 		for {
 			cleanup, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			err := driver.Close(cleanup)
 			cancel()
 			if err == nil {
 				break
+			}
+			if s.opts.Logger != nil && err.Error() != lastError {
+				s.opts.Logger.Warn("original data cleanup pending; capability and instance lock retained", "error", err)
+				lastError = err.Error()
 			}
 			// No expiry, descriptor transfer or fresh-client stop. Server shutdown
 			// may time out, but the durable journal still prevents takeover.

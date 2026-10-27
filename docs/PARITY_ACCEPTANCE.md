@@ -116,6 +116,16 @@ enable request. The authorized native IMS mode change was restored to `1,1`,
 and both original SIM pairs, profiles, database and host environment were verified.
 Transient cleanup failures and two corrected harness assumptions remain recorded.
 
+The [native owner and DNS follow-up](VERIFICATION_20261027_NATIVE_OWNER_DNS.md)
+adds actual unmodified native main/owner units, complete IPv4 and dual-stack/IPv4
+SIGKILL recovery, real DNS-failure reproduction/repair and independent Windows
+HTTP/SOCKS HTTPS. The DNS snapshot passed 2,081 Go cases, 75 race executions,
+three kernel cases, vet and four builds. An approved single modem reboot restored
+IPv6 reachability while retaining native IMS `1,1`. Its subsequent cold-transport
+IPv6 crash failed: the proxy was lost while the original owner remained fenced.
+The dedicated proxy layout is implemented; cold live recovery and restoration
+of that failed phase remain open. Earlier native passes do not cover this failure.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,

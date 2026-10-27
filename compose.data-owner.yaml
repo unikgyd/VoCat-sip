@@ -1,13 +1,39 @@
 # docker compose -f docker-compose.yml -f compose.data-owner.yaml up -d --build
-# Both services use the same candidate image and shared persistent volume.
+# All services use the same candidate image. Both clients share persistent state.
 services:
   vocat:
     environment:
       VOCAT_DATA_OWNER_SOCKET: /run/vocat/data-owner.sock
     depends_on:
+      vocat-qmi-proxy:
+        condition: service_healthy
       vocat-data-owner:
         condition: service_started
+  vocat-qmi-proxy:
+    image: ghcr.io/mengmengcode/vocat:latest
+    pull_policy: missing
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vocat-qmi-proxy
+    entrypoint: ["/opt/vocat/bin/vocat", "qmi-proxy"]
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    privileged: true
+    user: "0:0"
+    volumes:
+      - /dev:/dev
+      - /sys:/sys:ro
+    healthcheck:
+      test: ["CMD", "/opt/vocat/bin/vocat", "qmi-proxy", "--check"]
+      interval: 5s
+      timeout: 7s
+      retries: 5
   vocat-data-owner:
+    depends_on:
+      vocat-qmi-proxy:
+        condition: service_healthy
     image: ghcr.io/mengmengcode/vocat:latest
     pull_policy: missing
     build:

@@ -1,7 +1,9 @@
 [Unit]
 Description=vocat original QMI data owner
 After=network-online.target
+After=vocat-qmi-proxy.service
 Wants=network-online.target
+Requires=vocat-qmi-proxy.service
 
 [Service]
 Type=exec

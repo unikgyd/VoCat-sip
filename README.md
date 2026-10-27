@@ -74,6 +74,10 @@ Loss of the owner itself remains separate acceptance.
 The [Host IMS process-recovery follow-up](docs/VERIFICATION_20261027_HOSTIMS_PROCESS.md)
 also passed one active-main SIGKILL case with the original host namespace and
 ModemManager preserved; the authorized native IMS setting was restored afterward.
+The [native owner and DNS follow-up](docs/VERIFICATION_20261027_NATIVE_OWNER_DNS.md)
+adds real systemd IPv4/dual-stack recovery and a verified cellular DNS repair.
+A subsequent IPv6 crash exposed loss of an automatically launched QMI proxy;
+the independent proxy layout is implemented, with cold live acceptance pending.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

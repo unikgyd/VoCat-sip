@@ -67,6 +67,9 @@ IPv4／IPv6／双栈自动恢复与原网络清理，见[完整记录](VERIFICAT
 原电信卡的 Host IMS 也完成一次保持宿主网络与原 ModemManager 的主进程 SIGKILL，
 约 45.8 秒自动恢复真实注册；原生 IMS 设置已恢复，见[实测记录](VERIFICATION_20261027_HOSTIMS_PROCESS.md)。
 数据所有者自身崩溃、MM／主机重启和断电恢复仍另列验收。
+新增[原生数据所有者与 DNS 验收](VERIFICATION_20261027_NATIVE_OWNER_DNS.md)：真实 systemd
+IPv4／双栈 IPv4 恢复及蜂窝 DNS 修复已通过；随后 IPv6 崩溃测试发现自动启动的 QMI
+代理会随主服务退出。已补独立代理服务与启动就绪检查，冷启动实机验收和该失败现场恢复仍待完成。
 
 完整差异见[能力并集清单](FEATURE_UNION.md)，接入边界见[独立接入说明](INDEPENDENT_ACCESS.md)，
 源码、缓存和运行文件的提交规则见[仓库约定](REPOSITORY.md)。原许可、地区准入和授权检查保持。
