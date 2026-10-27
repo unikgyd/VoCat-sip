@@ -6,6 +6,11 @@ source revision, retained failures and skips. Windows runtime code remains the
 mature reference, and Linux-specific features are retained. The suite's success
 does not complete the hardware/carrier scenarios listed below.
 
+QDC507 acceptance follows pure Host IMS in the current VoWin implementation.
+The deprecated ADB/D4/UAC bridge is excluded from that target. A module-mode
+call, USB PCM, audible ADB-routed tones or module SMS must not be credited as
+Host IMS carrier media or SMS delivery.
+
 The verification snapshot records the actual Git revision, complete source
 hash manifest, toolchains, native dependencies, test commands, skips, failures
 and build artifacts. Historical green snapshots cannot satisfy this ledger.
@@ -155,8 +160,16 @@ module, one CT module call rang and cleared, and the original Philippines SIM
 completed Wi-Fi IMS registration/shutdown with zero calls/SMS. No SMS delivery
 or answered carrier-media result is inferred from these observations.
 
+The [pure Host IMS follow-up](VERIFICATION_20261027_PURE_HOSTIMS.md) removes the
+deprecated QDC507 ADB bridge from the target and fixes missing SIM-owned SMSC
+reading. Its candidate passed 2,086 Go cases, 120 selected race executions, three
+kernel cases, vet and four builds. On the original CT SIM it registered and sent
+one IMS SMS, with a later carrier status 0 and `delivered` state. The earlier
+module/ADB assisted calls and module SMS are excluded from Host IMS acceptance.
+No answered pure Host IMS call or recipient reply is claimed.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
-hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
+hold/DTMF/media/recording/playback/takeover, recipient-confirmed IMS SMS round trips, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
 scheduled call/SMS and task-restart recovery, and external provider
 delivery still need their live scenarios. Existing

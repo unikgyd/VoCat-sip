@@ -7,6 +7,12 @@ Create `/run/vocat` as root with mode 0700 before starting a container. Do not r
 two services against the same hardware or use an independent QMI client while
 a line owns its bearer.
 
+QDC507 follows the current VoWin Host IMS design: the host owns the IMS bearer,
+authentication, SIP dialogs and RTP/AMR media. The former QDC507 ADB/D4/UAC voice
+bridge is deprecated and is not a prerequisite or a fallback for this path.
+Select cellular mode and default route `host_ims` explicitly; AT/USB calls or
+module-submitted SMS cannot establish Host IMS carrier acceptance.
+
 Legacy AT operation also needs a single serial-port owner. In the NAS lab,
 ModemManager competing for the EC20 AT port caused command timeouts. A dedicated
 `mmcli --inhibit-device=<verified device UID>` process temporarily released only

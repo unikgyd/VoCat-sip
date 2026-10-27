@@ -33,6 +33,9 @@ Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制�
 本 fork 作为 Linux 客户端，参考成熟的 [VoWin](https://github.com/unikgyd/VoWin) 补齐能力，
 同时保留现有 Linux 功能。通话与音频、多模组与恢复、管理与通知三个方向均在范围内。
 
+QDC507 按 VoWin 当前方案使用纯 **Host IMS**，由主机负责 IMS 会话、短信与 RTP／AMR
+媒体。旧 QDC507 ADB／D4／UAC 语音桥接已废弃，不属于本次 Linux 补齐目标。
+
 | 方向 | 当前源码状态 |
 | --- | --- |
 | 通话与音频 | 已接入网页电话、同物理设备 USB PCM、SIP 分机／peer、RFC 4733 按键。 |
@@ -40,7 +43,7 @@ Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制�
 | 独立接入 | 已实现按 ICCID 保存蜂窝／Wi-Fi 意愿、默认选路、原会话归属、分别重连和界面；统一软件测试与构建已通过。 |
 | 管理 | 保留 eSIM、USSD、网络／代理、任务、短信 API 和通知；已接逐卡启动、Host IMS 实时身份、原数据会话／传输清理、任务持久恢复、Host IMS 交接及共存模式的数据／代理控制。 |
 | 高级通话 | 已接 IMS 保持／恢复、legacy SIP INFO、按卡延时接听、留言导入／播放、网页接管、录音及独立 RTCP／媒体统计；已验证的软件范围见验收记录。 |
-| Linux 实机 | NAS 上 QDC507／电信 Host IMS 与 EC20／DITO VoWiFi 已同时注册；电信实拨收到振铃并协商 AMR，本次无人接听。 |
+| Linux 实机 | QDC507／电信 Host IMS 与 EC20／DITO VoWiFi 已同时注册；最新纯 Host IMS 短信收到状态码 0 的运营商送达报告，Host IMS 接通音频仍待验收。 |
 | 后续实测 | 已通过真实 Baresip 分机双向媒体／转码、RTCP 和按键、局域网 MESSAGE 确认／防重、物理 USB PCM 读写、已安装 eSIM 配置往返切换及四种留言格式导入的分项检查。 |
 | 蜂窝数据出口 | 电信 CTNET 的 IPv6、IPv4V6 和 IPv4 已通过 HTTP／SOCKS5 认证代理的真实 HTTPS、IPv4／IPv6 公网地址查询及原数据资源清理。 |
 | 原生安装 | 限定场景下的真实 systemd 安装、失败升级回滚、原管理员保留和共享锁保留已通过。 |
@@ -80,6 +83,11 @@ IPv4／双栈 IPv4 恢复及蜂窝 DNS 修复已通过；随后 IPv6 崩溃测�
 记录误阻拦线路／任务的问题，真实手动与定时注册、三种数据恢复及 VoWiFi 连接均通过。
 电信卡一条短信获模块接受，一次模块拨号振铃后清理；短信送达和接通媒体仍未确认。
 菲律宾卡未拨号、未发短信。
+
+新增[纯 Host IMS 复测](VERIFICATION_20261027_PURE_HOSTIMS.md)：已更正 QDC507 目标并补上
+原卡 UIM 的短信中心读取。冻结候选通过 2,086 项 Go 用例、120 次相关并发检查、内核检查、
+vet 和四种构建；一条纯 Host IMS 短信获 IMS 接受，并收到运营商送达报告。此前 module／
+ADB 音频和模块短信均不计入 Host IMS 验收，接通音频仍待实测。
 
 完整差异见[能力并集清单](FEATURE_UNION.md)，接入边界见[独立接入说明](INDEPENDENT_ACCESS.md)，
 源码、缓存和运行文件的提交规则见[仓库约定](REPOSITORY.md)。原许可、地区准入和授权检查保持。

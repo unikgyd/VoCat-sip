@@ -228,10 +228,14 @@ func (t *cardTransaction) readIdentity(ctx context.Context) (CardIdentity, error
 	if adErr != nil && adErr != ErrSIMIdentity {
 		return CardIdentity{}, adErr
 	}
+	smsc, err := t.readSMSCenter(ctx)
+	if err != nil {
+		return CardIdentity{}, err
+	}
 	if err := t.closeChannel(ctx); err != nil {
 		return CardIdentity{}, err
 	}
-	identity := CardIdentity{subscriber: vowifi.SIMIdentity{ICCID: binding.ICCID, IMSI: imsi, IMEI: binding.Equipment, HomeMCC: imsi[:3]}, slot: t.card.Slot}
+	identity := CardIdentity{subscriber: vowifi.SIMIdentity{ICCID: binding.ICCID, IMSI: imsi, IMEI: binding.Equipment, HomeMCC: imsi[:3], SMSC: smsc}, slot: t.card.Slot}
 	if mncLength == 2 || mncLength == 3 {
 		identity.subscriber.HomeMNC = imsi[3 : 3+mncLength]
 	}

@@ -1,5 +1,10 @@
 # Linux USB 模组语音
 
+QDC507 的当前产品目标是纯 Host IMS。VoWin 旧 ADB／D4／UAC 桥接方案已由用户明确
+废弃，本文件描述的兼容 USB module 路径不用于补齐或验收 QDC507 Host IMS。
+其主机 SIP、RTP／AMR 与 IMS 短信须按 [Host IMS 集成](HOST_IMS_APPLICATION.md)
+和[部署边界](HOST_IMS_DEPLOYMENT.md)单独验证。
+
 显式选择 `ims_mode=module` 后，支持的模组可通过本模组 USB Audio 的双向 PCM 接入网页
 电话和 SIP 分机／peer。Telegram 控制同一通话，不采集 Telegram 端音频。VoWiFi 和
 Host IMS 仍使用原来的会话控制器。没有配对 UAC 的旧 AT 调用接口保留为信令工具，

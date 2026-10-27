@@ -76,6 +76,15 @@ message permissions and quotas still apply; an SMS-ready contact is not
 permission to send a message. Incoming IMS delivery callbacks are shared by
 the access modes, preserving history, subscription identity and notifications.
 
+Host IMS reads the SMS service-centre address from record 1 of the original
+USIM's EF_SMSP over its owned UIM logical channel. The address accompanies the
+card identity; an empty initial record can also be re-read through the same
+prepared access owner before sending. The optional file can be absent without
+preventing voice registration. Malformed addresses are not guessed, and
+transport uncertainty, cancellation or changed provisioning cannot return an
+address from a replacement SIM. No legacy AT or ADB reader is used. The record
+layout follows [TS 31.102 section 4.2.27](https://www.etsi.org/deliver/etsi_ts/131100_131199/131102/11.10.00_60/ts_131102v111000p.pdf).
+
 Mode changes refuse active calls or pending signaling, stop the previous owner,
 require a synchronous cleanup ACK, then persist and start the selected mode.
 Cleanup failure returns a conflict and does not silently adopt or start another

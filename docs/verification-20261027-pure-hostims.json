@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "scope": "QDC507 pure Host IMS; deprecated ADB/D4/UAC route excluded",
+  "source": {
+    "baseline": "17312c26e74fad665941d6740f491b9da47a0c2b",
+    "manifestSHA256": "9fe924cac95046173357b24fe605417e6067ff30aaa2293d977dfffaff688d58",
+    "frozenFiles": 1880,
+    "finalRuntimeAndEmbeddedFilesMatched": 1282,
+    "implementationCompletedBeforeCombinedChecks": true
+  },
+  "software": {
+    "checks": [
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 190.256,
+        "tests": {
+          "pass": 2086,
+          "fail": 0,
+          "skip": 50
+        }
+      },
+      {
+        "label": "data-kernel",
+        "exit": 0,
+        "seconds": 1.318,
+        "tests": {
+          "pass": 3,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 6.647
+      },
+      {
+        "label": "sim-race",
+        "exit": 0,
+        "seconds": 13.442,
+        "tests": {
+          "pass": 120,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 14.139
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 16.188
+      },
+      {
+        "label": "386",
+        "exit": 0,
+        "seconds": 16.358
+      },
+      {
+        "label": "arm",
+        "exit": 0,
+        "seconds": 15.349
+      }
+    ],
+    "artifactsSHA256": {
+      "amd64": "a0b31e7bf9457d32cb7054289c121c4905c5198f01282f42143b2d1b17f39031",
+      "arm64": "0ec2b35e677136ad2b59d5f8a2659e1745c95556ed126fb89ee97af227605f62",
+      "386": "419d133866692bc43dccf3a31c05261545a9a99d8a8975c455f34c0604cc274f",
+      "arm": "f942e6ee5555fc6932a447c3b270142f43e16ef90925f24bce1865a2ea625404"
+    }
+  },
+  "live": {
+    "previousArtifactSHA256": "f8ab0847c407a081da369da87ae667f64a068e056700ae500b5ba31d70d96750",
+    "checkedArtifactSHA256": "a0b31e7bf9457d32cb7054289c121c4905c5198f01282f42143b2d1b17f39031",
+    "hostIMSRegistration": true,
+    "registrationAttempt": 1,
+    "explicitHostIMSDefaultRoute": true,
+    "firstSMSRequest": {
+      "httpStatus": 502,
+      "errorCode": "ims_sms_submission_failed",
+      "beforePartSubmission": true,
+      "retained": true,
+      "automaticReplay": false
+    },
+    "newCandidateSMS": {
+      "httpStatus": 202,
+      "onlyAuthorizedDestination": true,
+      "onlyOriginalCTSIM": true,
+      "noPhilippinesSubmission": true,
+      "configuredRoute": "host_ims",
+      "noRetry": true,
+      "parts_total": 1,
+      "parts_attempted": 1,
+      "parts_accepted": 1,
+      "submission_accepted": true,
+      "delivery_confirmed": false,
+      "delivery_state": "accepted_by_ims",
+      "submission_state": "accepted_by_ims",
+      "outcome": "accepted_unconfirmed",
+      "transport": "ims"
+    },
+    "smscSource": "sim",
+    "asynchronousDelivery": {
+      "deliveryState": "delivered",
+      "carrierStatusCodes": [
+        0
+      ],
+      "initialHTTPResponseDeliveryConfirmed": false,
+      "recipientReplyObserved": false,
+      "originalEquipmentAndSIMVerified": true,
+      "noPhilippinesSubmission": true
+    },
+    "recipientReplyObserved": false,
+    "pureHostIMSCallsPlaced": 0,
+    "answeredHostIMSAudioVerified": false,
+    "deprecatedModuleAudioExcluded": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0
+  },
+  "restoration": {
+    "bothApplicationsExitedZero": true,
+    "hostIMSClaimsCleared": true,
+    "securityAndPDNCleanupAcknowledged": true,
+    "nativeIMS1Registered": true,
+    "bothOriginalSIMsRegisteredRFOn": true,
+    "originalProfilesRetained": true,
+    "hostNetworkAndRawIPRestored": true,
+    "originalModemManagerRestored": true,
+    "temporaryManagerFilesRemoved": true,
+    "originalDatabaseAndLockPreserved": true,
+    "originalContainerIDsPreserved": true,
+    "privateADBServerStopped": true,
+    "noADBVoiceProductChanges": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0
+  },
+  "retainedHarnessObservations": [
+    "Legacy refresh rejected HTTP 409 by intended Host IMS ownership guard; metadata bootstrap used without repeated firmware writes.",
+    "Premature login got connection refused before replacement listener readiness; no enable/business request was sent."
+  ],
+  "limits": [
+    "No answered pure Host IMS carrier media, hold, DTMF, recording or playback acceptance.",
+    "No recipient-confirmed IMS SMS reply.",
+    "Other lifecycle and hardware scenarios remain in the acceptance ledger."
+  ]
+}

@@ -23,6 +23,9 @@ type fakeUIM struct {
 	opened, closed, released, auths                                          int
 	appKinds                                                                 []string
 	response                                                                 []byte
+	smsp                                                                     []byte
+	smspErr                                                                  error
+	smspUncertain                                                            bool
 	authErr                                                                  error
 	authEntered, authRelease                                                 chan struct{}
 	onAuth                                                                   func()
@@ -120,6 +123,18 @@ func (s *fakeUIMSession) APDU(_ context.Context, slot, channel byte, command []b
 				return []byte{0x6a, 0x82}, nil
 			}
 			raw = []byte{0, 0, 0, f.adMNC}
+		case 0x6f42:
+			if f.smspErr != nil {
+				f.uncertain = f.smspUncertain
+				return nil, f.smspErr
+			}
+			if len(f.smsp) == 0 {
+				return []byte{0x6a, 0x82}, nil
+			}
+			if command[1] != 0xb2 || command[2] != 1 || command[3] != 4 {
+				return nil, ErrSIMIdentity
+			}
+			raw = append([]byte(nil), f.smsp...)
 		default:
 			return nil, ErrSIMIdentity
 		}

@@ -31,6 +31,10 @@ The goal is the union of both clients' capabilities, with most implementation wo
 in VoCat-sip. The original [research and evaluation license](LICENSE) and runtime
 authorization checks remain in force.
 
+QDC507 uses pure **Host IMS**, following the current VoWin design. Its carrier
+calls, SMS and RTP/AMR audio run through the host IMS owner. The deprecated
+QDC507 ADB/D4/UAC voice bridge is outside this implementation target.
+
 ## Development status — 2026-10-27
 
 | Area | Current source status |
@@ -40,7 +44,7 @@ authorization checks remain in force.
 | Independent access | Per-ICCID cellular/Wi-Fi preferences, default routing, session ownership, reconnect controls and UI are implemented. Combined software tests and builds passed. |
 | Management | eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained. Per-SIM startup, live Host IMS identity, owned data/transfer cleanup, durable task restoration, Host IMS handover and coexistence-aware proxy/data controls are integrated. |
 | Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported playback, browser takeover, recording and separate RTCP/statistics are integrated. See the verification record for the tested software scope. |
-| Live Linux acceptance | QDC507/China Telecom Host IMS and EC20/DITO VoWiFi registered simultaneously on the NAS. The authorized Host IMS call reached ringing and negotiated AMR; no answer was received. |
+| Live Linux acceptance | QDC507/China Telecom Host IMS and EC20/DITO VoWiFi registered simultaneously. The latest pure Host IMS SMS received carrier delivery status 0; answered Host IMS audio remains unverified. |
 | Further live acceptance | Real Baresip extension media/transcoding, RTCP and DTMF, LAN MESSAGE confirmation/deduplication, physical USB PCM I/O, an existing eSIM profile round trip and four prompt import formats passed their scoped checks. |
 | Cellular data export | Real CTNET IPv6, simultaneous IPv4/IPv6 and IPv4 HTTPS through authenticated HTTP/SOCKS5, IPv4/IPv6 public-IP queries and original data cleanup passed. |
 | Native installation | Scoped real systemd installation, failed-upgrade rollback, original administrator preservation and shared-lock retention passed. |
@@ -89,6 +93,12 @@ The [voice-idle and carrier follow-up](docs/VERIFICATION_20261027_CALL_IDLE.md)
 fixes non-voice CLCC classification and adds successful manual/clock registration,
 fresh native recovery, Wi-Fi IMS connectivity, one accepted CT SMS and one ringing
 module call. Recipient delivery and answered carrier media remain unconfirmed.
+
+The [pure Host IMS follow-up](docs/VERIFICATION_20261027_PURE_HOSTIMS.md) corrects
+the QDC507 scope and adds SIM-owned SMSC reading. Its frozen candidate passed
+2,086 Go cases, 120 selected race executions, kernel checks, vet and four builds.
+One pure Host IMS SMS was accepted and received a carrier delivery report.
+Earlier module/ADB audio and module SMS are excluded from Host IMS acceptance.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the
