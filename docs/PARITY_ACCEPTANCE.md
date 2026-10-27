@@ -126,6 +126,15 @@ IPv6 crash failed: the proxy was lost while the original owner remained fenced.
 The dedicated proxy layout is implemented; cold live recovery and restoration
 of that failed phase remain open. Earlier native passes do not cover this failure.
 
+The [independent native follow-up](VERIFICATION_20261027_NATIVE_INDEPENDENT.md)
+then executed the protected proxy unit in a separate real namespace, verified
+its survival of a disposable systemd client's actual SIGKILL, and preserved an
+already serving host proxy. A fresh database also completed real administrator
+bootstrap, authenticated API/static-asset checks and two orderly native service
+runs with the original password and session preserved. Hardware/host D-Bus were
+explicitly hidden. This closes that scoped bootstrap check; standard empty-host
+installer execution, public release delivery and cold carrier recovery remain open.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,

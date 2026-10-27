@@ -78,6 +78,9 @@ The [native owner and DNS follow-up](docs/VERIFICATION_20261027_NATIVE_OWNER_DNS
 adds real systemd IPv4/dual-stack recovery and a verified cellular DNS repair.
 A subsequent IPv6 crash exposed loss of an automatically launched QMI proxy;
 the independent proxy layout is implemented, with cold live acceptance pending.
+The [independent native follow-up](docs/VERIFICATION_20261027_NATIVE_INDEPENDENT.md)
+adds actual protected proxy-unit execution and fresh administrator/server bootstrap,
+including credentials and sessions preserved across an orderly restart.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

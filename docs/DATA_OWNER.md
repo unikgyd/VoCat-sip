@@ -102,3 +102,9 @@ operator recovery and cannot be counted as automatic main-process recovery.
 See [the data fence](DATA_OWNERSHIP_FENCE.md) and
 [main-process crash acceptance](VERIFICATION_20261027_DATA_OWNER.md) for the
 executed checks, retained initial failure and hardware boundaries.
+
+The [independent native follow-up](VERIFICATION_20261027_NATIVE_INDEPENDENT.md)
+also executed the new proxy unit's actual protection/readiness settings and a
+disposable systemd client SIGKILL in a private network namespace. A real already
+serving host proxy was refused without replacement. Those checks do not accept
+the still-pending cold carrier recovery scenario.
