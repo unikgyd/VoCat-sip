@@ -110,6 +110,9 @@ The [installed-profile task follow-up](docs/VERIFICATION_20261027_ESIM_TASKS.md)
 fixes eUICC management-AID selection and cold task-recovery identity observation.
 A real registration/profile round trip and a separate post-switch SIGKILL restored
 the original profile and preferences without replaying the interrupted task.
+The [clock and EnableProfile boundary follow-up](docs/VERIFICATION_20261027_ESIM_BOUNDARIES.md)
+adds real scheduled profile dispatch and automatic recovery after separate
+request-write and successful-card-response SIGKILL checkpoints.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

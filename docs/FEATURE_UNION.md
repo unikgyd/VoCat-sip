@@ -62,7 +62,7 @@ CTNET IPv4／IPv6／双栈连接、日志释放、公网 IP 查询与原环境�
 | 状态与按需诊断 | Windows 灯态、逐卡 IKE 原因与诊断包 | Go 已有逐模组模式／IKE 状态、按需详情；本次修复 Host IMS 来电误标 VoWiFi，键盘能力取真实 SDP，不取“已注册”猜测 |
 | eSIM、USSD、AT 工具 | 两端已有实现，Go 包含多种设备驱动 | 保留 Go `esim_api.go`／`ussd.go`／`device` 工具；各固件／PCSC／QMI 兼容与并发独占需继续核对 |
 | 网络、代理与流量管理 | Go 自有供网、出口代理、流量和 Web 管理 | 新源码将 HTTP／SOCKS 与公网 IP 查询绑定到已确认的原卡数据会话，停止／任务／换卡前取消并等待传输；共存 Wi-Fi 保留数据开关，代理区分监听与可供网，软件套件已通过，实机互通另验收。Windows 是否需要等效供网／代理控制仍另列反向核对 |
-| 自动任务和多通知渠道 | Go 自有保活任务、时区、任务记录与重试 | 保留 Linux 功能；新增同模组任务独占、原呼叫结束确认、数据库恢复日志、重启后只恢复环境、Host IMS 任务交接和排队补投；本轮补齐 API／界面的显式 Host IMS 短信／通话任务选择和 schema 33 迁移，已实测定时 IMS 短信送达、通话任务结束与原策略恢复、SIGKILL 后无重放恢复，验收见[通话与任务补充](VERIFICATION_20261027_HOSTIMS_CALL_TASKS.md)。后续已修正管理 AID 误用与冷启动身份快照阻塞，已安装配置的注册／回切及切卡后 SIGKILL 自动恢复原配置、偏好和日志已通过[实测](VERIFICATION_20261027_ESIM_TASKS.md)。Windows 多渠道／任务管理等效能力另列反向核对，见[任务边界](AUTOMATIC_TASKS.md) |
+| 自动任务和多通知渠道 | Go 自有保活任务、时区、任务记录与重试 | 保留 Linux 功能；新增同模组任务独占、原呼叫结束确认、数据库恢复日志、重启后只恢复环境、Host IMS 任务交接和排队补投；本轮补齐 API／界面的显式 Host IMS 短信／通话任务选择和 schema 33 迁移，已实测定时 IMS 短信送达、通话任务结束与原策略恢复、SIGKILL 后无重放恢复，验收见[通话与任务补充](VERIFICATION_20261027_HOSTIMS_CALL_TASKS.md)。后续已修正管理 AID 误用与冷启动身份快照阻塞，已安装配置的注册／回切及切卡后 SIGKILL 自动恢复原配置、偏好和日志已通过[实测](VERIFICATION_20261027_ESIM_TASKS.md)。后续[定时与 LPA 边界实测](VERIFICATION_20261027_ESIM_BOUNDARIES.md)补上真实时钟切卡、完整请求写入后及卡片成功响应后的主进程强杀恢复。Windows 多渠道／任务管理等效能力另列反向核对，见[任务边界](AUTOMATIC_TASKS.md) |
 | 发布与回滚 | Windows 轻量包；Go 多架构嵌入 Web、Docker／systemd | 最终新源码／新前端一起构建；安装、升级、受控回滚及双模组实网仍独立于软件测试 |
 
 ## 实施顺序与通过条件

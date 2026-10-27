@@ -198,6 +198,17 @@ The prior AID failure, fixture failure and AID-only cold-recovery failure remain
 artifact-specific evidence; no LPA-commit interruption or clock profile dispatch
 is inferred from the passing cases.
 
+A separate [clock and EnableProfile boundary follow-up](VERIFICATION_20261027_ESIM_BOUNDARIES.md)
+now establishes real scheduled profile dispatch and two distinct main-process
+SIGKILL checkpoints. Original-profile recovery was verified in 22.682 seconds
+after a complete request write and 84.726 seconds after an observed successful
+card response, before UART-reader application consumption. Both interrupted runs
+stayed failed without business replay. The same implementation was used, all
+1,774 selected input paths still matched, and no new software-suite execution is
+claimed. Uninjected observer failures, a card-toolkit-busy task and final original
+host restoration are retained separately. Other card/transport failure points
+remain untested.
+
 The full objective remains open. Actual browser microphone/speaker use,
 remote IVR recognition, carrier SIP bridging, recipient-confirmed IMS SMS round trips, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,

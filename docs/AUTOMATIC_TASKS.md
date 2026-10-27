@@ -122,3 +122,11 @@ The [installed-profile task follow-up](VERIFICATION_20261027_ESIM_TASKS.md)
 records these AID/cold-start fixes, a real registration/profile round trip and
 a separate post-switch main-process SIGKILL with automatic original-profile
 restoration. Interrupted runs remain failed and business actions are not replayed.
+
+The [clock and EnableProfile boundary follow-up](VERIFICATION_20261027_ESIM_BOUNDARIES.md)
+adds a real future clock-dispatched profile task and separate crashes after the
+complete UART request write and after the card success response, before the
+application UART reader resumed. Original profile/EID, all six projection fields
+and durable preferences were reverified; interrupted runs stayed failed. A full
+kernel write alone does not prove card acceptance. Existing bounded CAT-busy LPA
+retries are distinct from automatic-task attempts and post-restart business replay.

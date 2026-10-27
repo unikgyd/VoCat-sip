@@ -126,8 +126,10 @@ temporary manager files were removed. Original database hash, server-lock inode
 and running-container IDs were preserved. No maintenance modem reboot was
 requested. The Philippines SIM made zero calls and sent zero SMS.
 
-This does not establish real clock dispatch for profile-switch tasks, interruption
-inside an LPA commit, disposable-profile provisioning, another eUICC/reader,
+A later [clock and EnableProfile boundary follow-up](VERIFICATION_20261027_ESIM_BOUNDARIES.md)
+adds separately scoped real clock dispatch and request/response-boundary recovery.
+The cases in this report do not establish real clock dispatch for profile-switch
+tasks, interruption inside an LPA commit, disposable-profile provisioning, another eUICC/reader,
 active-call/daemon/host crash recovery, physical hotplug or independent data-owner
 loss. Actual browser devices, carrier SIP interoperability and external-provider
 delivery also remain separate acceptance. The distribution ModemManager UAF

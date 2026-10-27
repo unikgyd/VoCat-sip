@@ -1,0 +1,364 @@
+{
+  "schema": 1,
+  "date": "2026-10-27",
+  "artifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+  "baseline": "e73156c8ba023807bdf09a8073b72105c7527e8c",
+  "cases": {
+    "realClockProfileTask": {
+      "case": "clock",
+      "artifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+      "realClockDispatch": true,
+      "manualRunRequested": false,
+      "oneRun": true,
+      "attempts": 1,
+      "runStatus": "success",
+      "originalProfileEIDAndPolicyRestored": true,
+      "allSixTaskProjectionFieldsRestored": true,
+      "originalEquipmentAndSIMReverified": true,
+      "journalCleared": true,
+      "otherLineOriginalUSBAndManagerUnchanged": true,
+      "PHUSBGenerationUnchanged": true,
+      "outboundSMSUnchanged": true,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0,
+      "seconds": 223.997,
+      "actualSIGKILL": false,
+      "automaticSupervisorRestart": false,
+      "verifiedRecoverySeconds": null,
+      "clockStartLatenessSeconds": 2,
+      "durablePreferenceAudit": {
+        "allDurableTelephonyPoliciesUnchanged": true,
+        "existingCardPreferencesUnchanged": true,
+        "addedCardRowsOnlyKnownTarget": true,
+        "newTargetCardCreated": false,
+        "outboundSMSUnchanged": true,
+        "allSixTaskProjectionFieldsRestored": true
+      }
+    },
+    "requestWriteBoundarySIGKILL": {
+      "case": "commit",
+      "artifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+      "realClockDispatch": false,
+      "manualRunRequested": true,
+      "oneRun": true,
+      "attempts": 1,
+      "runStatus": "failed",
+      "originalProfileEIDAndPolicyRestored": true,
+      "allSixTaskProjectionFieldsRestored": true,
+      "originalEquipmentAndSIMReverified": true,
+      "journalCleared": true,
+      "otherLineOriginalUSBAndManagerUnchanged": true,
+      "PHUSBGenerationUnchanged": true,
+      "outboundSMSUnchanged": true,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0,
+      "seconds": 24.026,
+      "actualSIGKILL": true,
+      "automaticSupervisorRestart": true,
+      "verifiedRecoverySeconds": 22.682,
+      "clockStartLatenessSeconds": null,
+      "durablePreferenceAudit": {
+        "allDurableTelephonyPoliciesUnchanged": true,
+        "existingCardPreferencesUnchanged": true,
+        "addedCardRowsOnlyKnownTarget": true,
+        "newTargetCardCreated": false,
+        "outboundSMSUnchanged": true,
+        "allSixTaskProjectionFieldsRestored": true
+      },
+      "checkpoint": {
+        "fullUARTWriteAcknowledged": true,
+        "requestBytes": 66,
+        "threadsStopped": 10,
+        "onlyWriterResumedForOneWrite": true,
+        "allThreadsStoppedBeforeAndAfterWrite": true,
+        "responseConsumerNotResumed": true,
+        "syscallEvents": 13711
+      },
+      "dockerEvidence": {
+        "oneExit137": true,
+        "sameContainerID": true,
+        "newMainPID": true,
+        "restartCountDelta": 1,
+        "actions": [
+          {
+            "action": "die",
+            "exitCode": "137"
+          },
+          {
+            "action": "start",
+            "exitCode": null
+          }
+        ],
+        "eventArchiveNote": "Captured immediately after this case; a later replay of the daemon event window was empty. The original archive is retained."
+      },
+      "cardCommitOutcomeAtKill": "Unobserved: a complete kernel UART write does not establish card acceptance."
+    },
+    "successfulCardResponseBoundarySIGKILL": {
+      "case": "bpfa",
+      "artifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+      "realClockDispatch": false,
+      "manualRunRequested": true,
+      "oneRun": true,
+      "attempts": 1,
+      "runStatus": "failed",
+      "originalProfileEIDAndPolicyRestored": true,
+      "allSixTaskProjectionFieldsRestored": true,
+      "originalEquipmentAndSIMReverified": true,
+      "journalCleared": true,
+      "otherLineOriginalUSBAndManagerUnchanged": true,
+      "PHUSBGenerationUnchanged": true,
+      "outboundSMSUnchanged": true,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0,
+      "seconds": 105.774,
+      "actualSIGKILL": true,
+      "automaticSupervisorRestart": true,
+      "verifiedRecoverySeconds": 84.726,
+      "clockStartLatenessSeconds": null,
+      "durablePreferenceAudit": {
+        "allDurableTelephonyPoliciesUnchanged": true,
+        "existingCardPreferencesUnchanged": true,
+        "addedCardRowsOnlyKnownTarget": true,
+        "newTargetCardCreated": false,
+        "outboundSMSUnchanged": true,
+        "allSixTaskProjectionFieldsRestored": true
+      },
+      "checkpoint": {
+        "fullUARTWriteAcknowledged": true,
+        "requestBytes": 66,
+        "successfulEnableProfileResponseObserved": true,
+        "responseTransportSW9000": true,
+        "cardEnableResult": 0,
+        "UARTReaderNotResumedAfterSuccessfulRead": true,
+        "allThreadsStoppedAtKill": true,
+        "threadsStoppedAtAck": 11,
+        "observer": "PID-scoped eBPF ksys_read return probe",
+        "noPerSyscallThreadStops": true,
+        "durableJournalPhase": "switching",
+        "originalProjectionStillPublished": true
+      },
+      "dockerEvidence": {
+        "actualDie137": true,
+        "sameContainerID": true,
+        "newMainPID": true,
+        "restartCountDelta": 1,
+        "actions": [
+          {
+            "action": "die",
+            "exitCode": "137"
+          },
+          {
+            "action": "start",
+            "exitCode": null
+          }
+        ],
+        "originalContainerIDCheckedAgainstEvents": true
+      },
+      "targetEnableProfileUARTWritesBeforeKill": 10,
+      "automaticTaskAttemptsAreNotUARTWriteCount": true,
+      "boundedCATBusyRetryExplanation": "Source-based inference from the ten target writes and existing LPA retry policy; intermediate card-result responses were not individually retained."
+    }
+  },
+  "retainedUninjectedCases": {
+    "ptraceResponseWindowMiss": {
+      "successResponseBoundaryObserved": false,
+      "faultInjected": false,
+      "processRestarted": false,
+      "taskStatus": "failed",
+      "attempts": 1,
+      "originalProfileFreshlyVerified": true,
+      "originalPolicyRestored": true,
+      "journalCleared": true,
+      "failedRunExportedBeforeOwnedTaskDeletion": true,
+      "classification": "observer window missed; serial GET RESPONSE returned CME ERROR 0; root cause not established",
+      "durablePreferenceAudit": {
+        "allDurableTelephonyPoliciesUnchanged": true,
+        "existingCardPreferencesUnchanged": true,
+        "addedCardRowsOnlyKnownTarget": true,
+        "newTargetCardCreated": false,
+        "outboundSMSUnchanged": true,
+        "allSixTaskProjectionFieldsRestored": true
+      }
+    },
+    "observerNamespaceCollision": {
+      "faultInjected": false,
+      "processRestarted": false,
+      "taskStatus": "success",
+      "attempts": 1,
+      "originalProfileFreshlyVerified": true,
+      "originalPolicyRestored": true,
+      "journalCleared": true,
+      "runExportedBeforeOwnedTaskDeletion": true,
+      "observerHarnessError": "namespace collision replaced HTTP response dictionary; observer cancelled without kill",
+      "seconds": 156,
+      "durablePreferenceAudit": {
+        "allDurableTelephonyPoliciesUnchanged": true,
+        "existingCardPreferencesUnchanged": true,
+        "addedCardRowsOnlyKnownTarget": true,
+        "newTargetCardCreated": false,
+        "outboundSMSUnchanged": true,
+        "allSixTaskProjectionFieldsRestored": true
+      }
+    },
+    "cardToolkitBusyAndObserverLengthMismatch": {
+      "faultInjected": false,
+      "processRestarted": false,
+      "taskStatus": "failed",
+      "attempts": 1,
+      "originalProfileFreshlyVerified": true,
+      "allSixTaskProjectionFieldsRestored": true,
+      "journalCleared": true,
+      "runExportedBeforeOwnedTaskDeletion": true,
+      "cardEnableResult": 5,
+      "error": "card application toolkit busy",
+      "observerHarnessError": "request length expected CRLF while application writes CR only; no target request matched",
+      "durablePreferenceAudit": {
+        "allDurableTelephonyPoliciesUnchanged": true,
+        "existingCardPreferencesUnchanged": true,
+        "addedCardRowsOnlyKnownTarget": true,
+        "newTargetCardCreated": false,
+        "outboundSMSUnchanged": true,
+        "allSixTaskProjectionFieldsRestored": true
+      }
+    }
+  },
+  "simulatorChecks": [
+    {
+      "fullUARTWriteAcknowledged": true,
+      "requestBytes": 29,
+      "threadsStopped": 2,
+      "onlyWriterResumedForOneWrite": true,
+      "allThreadsStoppedBeforeAndAfterWrite": true,
+      "responseConsumerNotResumed": true,
+      "syscallEvents": 9,
+      "syntheticPTYOnly": true,
+      "noModemAccess": true,
+      "noResponseConsumed": true,
+      "label": "ptraceWrite"
+    },
+    {
+      "fullUARTWriteAcknowledged": true,
+      "requestBytes": 29,
+      "threadsStopped": 7,
+      "onlyWriterResumedForOneWrite": true,
+      "allThreadsStoppedBeforeAndAfterWrite": true,
+      "responseConsumerNotResumed": true,
+      "syscallEvents": 259,
+      "syntheticPTYOnly": true,
+      "noModemAccess": true,
+      "noResponseConsumed": true,
+      "dynamicCloneThreadsCovered": true,
+      "label": "ptraceDynamicThreads"
+    },
+    {
+      "fullUARTWriteAcknowledged": true,
+      "requestBytes": 29,
+      "threadsStoppedBeforeAndAfterRequestWrite": 7,
+      "onlyWriterResumedForOneWrite": true,
+      "targetRequestWritesObserved": 1,
+      "successfulEnableProfileResponseObserved": true,
+      "responseTransportSW9000": true,
+      "cardEnableResult": 0,
+      "UARTReaderNotResumedAfterSuccessfulRead": true,
+      "allThreadsStoppedAtKill": true,
+      "threadsStoppedAtAck": 7,
+      "syscallEvents": 276,
+      "syntheticPTYOnly": true,
+      "noModemAccess": true,
+      "noResponseConsumed": true,
+      "dynamicCloneThreadsCovered": true,
+      "label": "ptraceCardResponse"
+    },
+    {
+      "fullUARTWriteAcknowledged": true,
+      "requestBytes": 29,
+      "successfulEnableProfileResponseObserved": true,
+      "responseTransportSW9000": true,
+      "cardEnableResult": 0,
+      "UARTReaderNotResumedAfterSuccessfulRead": true,
+      "allThreadsStoppedAtKill": true,
+      "threadsStoppedAtAck": 7,
+      "observer": "PID-scoped eBPF ksys_read return probe",
+      "noPerSyscallThreadStops": true,
+      "syntheticPTYOnly": true,
+      "noModemAccess": true,
+      "noResponseConsumed": true,
+      "dynamicCloneThreadsCovered": true,
+      "label": "eBPFCompleteResponse"
+    },
+    {
+      "fullUARTWriteAcknowledged": true,
+      "requestBytes": 29,
+      "successfulEnableProfileResponseObserved": true,
+      "responseTransportSW9000": true,
+      "cardEnableResult": 0,
+      "UARTReaderNotResumedAfterSuccessfulRead": true,
+      "allThreadsStoppedAtKill": true,
+      "threadsStoppedAtAck": 7,
+      "observer": "PID-scoped eBPF ksys_read return probe",
+      "noPerSyscallThreadStops": true,
+      "syntheticPTYOnly": true,
+      "noModemAccess": true,
+      "noResponseConsumed": true,
+      "dynamicCloneThreadsCovered": true,
+      "label": "eBPFSplitResponse"
+    }
+  ],
+  "restoration": {
+    "applicationExitedZero": true,
+    "originalInstalledProfilesStatesAndEIDRestored": true,
+    "originalEquipmentSIMsUSBAndRegistrationReverified": true,
+    "originalSIMsRFOn": true,
+    "bothUSBGenerationsUnchanged": true,
+    "CTNativeIMS11AndPDPDefinitionsUnchanged": true,
+    "hostLinkMTUAddressesRulesDefaultsAndIPv6Restored": true,
+    "claimsXFRMTasksAndRecoveryEmpty": true,
+    "ownedTaskRunsExportedBeforeDeletion": true,
+    "originalManagerBinaryRestored": true,
+    "restoredManagerAutomaticRestarts": 0,
+    "ownedManagerFilesRemoved": true,
+    "rootDatabaseHashPreserved": true,
+    "serverLockInodePreservedAndAvailable": true,
+    "originalRunningContainerIDsPreserved": true,
+    "outboundSMSUnchanged": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "carrierCallsOrSMSRequested": false,
+    "profileDownloadOrDeleteRequested": false,
+    "maintenanceModemRebootRequested": false
+  },
+  "scope": "Real clock dispatch of an installed-profile task and two distinct original-main-process SIGKILL boundaries around EnableProfile; existing EC20/eUICC only",
+  "softwareEvidence": {
+    "newSoftwareOrFrontendExecution": false,
+    "reference": "verification-20261027-esim-tasks.json",
+    "frozenManifestSHA256": "1827cd13aeae00541db75fe7d8093ea719d94ce68fafea6d61e00f8db4e0c36b",
+    "matchedImplementationTestFrontendScriptAndModulePaths": 1774,
+    "unchangedFrontendPaths": 868,
+    "previousGoPass": 2096,
+    "previousGoFail": 0,
+    "previousGoSkip": 50,
+    "previousSelectedRacePass": 15,
+    "previousKernelPass": 3,
+    "previousFrontendPass": 82,
+    "previousVetExit": 0,
+    "previousLinuxBuilds": [
+      "amd64",
+      "arm64",
+      "386",
+      "armv7"
+    ]
+  },
+  "limits": [
+    "Only the original EC20 and its two existing profiles were exercised; no profile download/delete or disposable provisioning.",
+    "Request-write and successful-response boundaries are separate checkpoints; neither covers every internal card or transport failure point.",
+    "The inactive CT metadata line and original manager/USB generations were preserved; no active other-line call was exercised.",
+    "A matching temporary patched ModemManager was used and then removed; the distribution daemon UAF remains a separate limitation.",
+    "Actual browser microphone/speaker, remote IVR recognition, carrier SIP bridging, recipient-confirmed IMS SMS round trips, physical hotplug, active-call/daemon/host failure, independent data-owner loss and other task/profile/reader/provider combinations remain open."
+  ],
+  "privacy": {
+    "rawIdentitiesProfileNamesDestinationsCredentialsUARTTracesAndPrivateHarnessesExcluded": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "carrierCallsOrSMSRequested": false
+  }
+}
