@@ -133,6 +133,8 @@
         "terminationRetry": true,
         "SIGKILLRequired": true
       }
-    }
-  }
+    },
+    "scope": "Initial v1 five-minute deployment only; subsequent answered hardware acceptance is recorded separately."
+  },
+  "subsequentHardwareAcceptance": "verification-20261028-sip-followup.json"
 }

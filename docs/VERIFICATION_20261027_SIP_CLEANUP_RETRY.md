@@ -40,7 +40,7 @@ namespaces with isolated sysfs and `/run`. No intermediate targeted test runs
 were made between implementation edits. The checked amd64 artifact is
 `d10c0246324e1084d2a24853521a3272785c2e90f9b4ca51acad82de04c3f10a`.
 
-## Actual deployment, pending call acceptance and restoration
+## Initial deployment window and restoration
 
 That exact artifact was deployed against the original CT pure Host IMS fixture
 and registered successfully. Two real Baresip endpoints registered, with carrier
@@ -49,12 +49,12 @@ optional IPv4-table observation failed because this IPv6-only fixture has no
 IPv4 FIB table; the observer was corrected to select from existing tables before
 business began. This was a fixture observation failure, not a carrier call.
 
-No callback arrived during the bounded five-minute observation. This candidate
-therefore made no carrier call/SMS and has **no repaired per-call hardware
-acceptance**. The earlier failure is retained; actual retry count was not traced.
-The prepared endpoint-death scenario was not executed. A real answered SIP call
-must still prove original journal and kernel-route restoration before stopping
-the whole IMS session.
+No callback arrived during the bounded five-minute observation. This initial deployment
+therefore made no carrier call/SMS and provided **no repaired per-call hardware
+acceptance in that window**. The earlier failure is retained; actual retry count was not traced.
+The prepared endpoint-death scenario was not executed in that initial phase.
+The subsequent answered hardware result is recorded below; this initial
+no-callback window remains part of the evidence.
 
 Owned endpoints/gateway and Host IMS were stopped normally. The original native
 IMS/PDP, SIM registrations, stock manager, host network, database, lock and running
@@ -65,3 +65,19 @@ One owned rollback `mmcli` inhibitor survived its earlier SIGTERM. After exact
 PID/start/command verification, a bounded termination retry still needed SIGKILL
 for that helper alone. Final auditing confirmed no owned inhibitor remained,
 both original SIMs registered, and the stock manager stayed at zero restarts.
+
+## Subsequent answered hardware acceptance
+
+The [2026-10-28 local-date follow-up](VERIFICATION_20261028_SIP_FOLLOWUP.md)
+used the same checked artifact without product changes. A real answered CT
+pure Host IMS callback confirmed PCMA/AMR media, digit 8, handset termination,
+winning-leg BYE/200, other-leg cancellation and complete recording with zero
+dropped samples. The original claim journal exactly matched its pre-call value
+before session stop; its last media route disappeared about 1.8 seconds after
+the first ended API sample. The kernel held exactly the four original journal
+signaling routes, with no media host route. The pre-call kernel table snapshot
+was unusable because its observer compared string table identifiers with an
+integer; this limits literal before/after kernel snapshot comparison. Retry
+attempts themselves were not instrumented. Native IMS 1/registered and the full
+original environment were restored. Separate actual Linux endpoint-death cases
+still require explicit cleanup and are not accepted as automatic recovery.

@@ -146,8 +146,12 @@ per-call media-route cleanup case. Physical browser audio was deferred at the
 human's request; no browser carrier dial was submitted.
 The [bounded media cleanup candidate](docs/VERIFICATION_20261027_SIP_CLEANUP_RETRY.md)
 passed 2,118 Go cases, 125 selected race executions, kernel/vet checks and four
-builds. It registered on the original line, but its five-minute callback window
-had no new call; repaired per-call cleanup still needs hardware acceptance.
+builds. Its [answered callback follow-up](docs/VERIFICATION_20261028_SIP_FOLLOWUP.md)
+now confirms handset BYE propagation, digit 8, complete recording and original
+per-call media-route cleanup before session stop. Real Linux endpoint tests also
+passed caller/callee BYE and ringing CANCEL. Abrupt endpoint process death left
+both calls active throughout a 30-second observation and required explicit
+cleanup; automatic recovery for that scenario remains open.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

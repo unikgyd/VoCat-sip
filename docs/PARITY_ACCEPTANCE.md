@@ -270,12 +270,19 @@ confirms gateway BYE/endpoint 200 after human handset termination, with other-le
 CANCEL and complete recording. One media route remained until original session
 stop; full per-call cleanup failed. The [bounded retry candidate](VERIFICATION_20261027_SIP_CLEANUP_RETRY.md)
 passed 2,118 Go cases, 125 selected race executions, kernel/vet checks and four
-builds. Its actual deployment registered, but no call arrived in the five-minute
-callback window, so repaired per-call resource cleanup remains unaccepted. Physical browser
-audio is deferred by human request after a pre-dial missing-device error.
+builds. Its initial five-minute callback window had no call; that record is
+retained. The [subsequent answered callback](VERIFICATION_20261028_SIP_FOLLOWUP.md)
+confirmed handset termination, digit 8, complete recording and original journal
+restoration before session stop. The kernel contained exactly the four original
+journal signaling routes with no media host route; an unusable pre-call table
+snapshot is disclosed. Real Linux caller/callee BYE and ringing CANCEL also
+passed. Abrupt caller/callee process death kept each call active for the full
+30-second observation; explicit healthy-endpoint cleanup was required. No fatal
+network syscall was observed, so a media I/O-error fix is not established by
+these cases. Physical browser audio remains deferred by human request.
 
 The full objective remains open. Browser microphone/speaker use is deferred
-by the human. Repaired SIP per-call resource cleanup,
+by the human. Automatic termination after abrupt SIP endpoint death,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner while it holds an active claim,
 unconfigured/default-supervision proxy-loss and other failure combinations,
