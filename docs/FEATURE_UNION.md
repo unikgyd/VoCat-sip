@@ -50,9 +50,9 @@ CTNET IPv4／IPv6／双栈连接、日志释放、公网 IP 查询与原环境�
 | 保持与恢复 | Windows `ImsCallManager.HoldAsync/ResumeAsync` 通过 re-INVITE | 已写入精确 IMS 对话的出站 re-INVITE、ACK／迟到回复处理、媒体方向与网页保持／恢复入口；纯 Host IMS 同一通话已实测 held／恢复确认及恢复后的短音听感，见[高级通话验收](VERIFICATION_20261027_HOSTIMS_ADVANCED.md)与[保持边界](IMS_CALL_HOLD.md) |
 | 自动接听与留言播放 | Windows `CallMessagePlayback`、`AutoAnswerMessageRequests`、来电延时设置 | 已接按 ICCID 保存、5–120 秒延时、文件导入／试听、统一应答仲裁、ACK／模块确认、PCM 播放、原通话挂断和网页接管；纯 Host IMS 回拨已实测延时接听、ACK 确认、提示音播放和原通话 PCM 接管，见[实测](VERIFICATION_20261027_HOSTIMS_ADVANCED.md)；实际浏览器按钮／设备链路仍待验收，见[实现边界](AUTO_ANSWER.md) |
 | 通话录音 | Windows `CallExperienceSettings.SaveCallRecordings`、录音目录、最近 20 通保留与通话媒体保存 | 已接 Wi-Fi／Host IMS 与原 USB 通话 PCM 旁路录音、双声道 WAV、启停／保留／容量设置、试听／下载／删除及中断恢复；纯 Host IMS 出呼和来电已生成完整录音，提示音／接收 PCM 抽样匹配，实际运营商 WAV 的隔离 API 鉴权、范围读取、设置和副本删除已通过，见[实测](VERIFICATION_20261027_HOSTIMS_ADVANCED.md)与[录音边界](CALL_RECORDINGS.md) |
-| RTCP 与媒体质量观察 | VoSharp `RtpSession` 的独立控制端口、接收报告与来源约束 | 新源码已接 IMS／Host IMS 和 SIP 网关的独立 RTCP、SDP 控制端口、SR／RR／SDES／BYE、丢包／抖动／RTT、本通话来源核验及原承载清理；软件套件已通过，实机互通另验收，见[RTCP 边界](RTCP.md) |
+| RTCP 与媒体质量观察 | VoSharp `RtpSession` 的独立控制端口、接收报告与来源约束 | 新源码已接 IMS／Host IMS 和 SIP 网关的独立 RTCP、SDP 控制端口、SR／RR／SDES／BYE、丢包／抖动／RTT、本通话来源核验及原承载清理；软件套件已通过；后续真实 SIP 外呼／入呼均有独立 RTCP 证据，见[联合实测](VERIFICATION_20261027_HOSTIMS_SIP.md)与[回拨复测](VERIFICATION_20261027_HOSTIMS_SIP_INCOMING.md)，其余组合仍另验收，见[RTCP 边界](RTCP.md) |
 | SIP 内线与来显 | VoSharp SIP gateway；Go 自有 B2BUA | Go 已接 Registrar、Digest、内线群振首接和双向 G.711；软电话实机与高级对话功能仍待验收 |
-| SIP 运营商入呼／外呼 | 两端已有逐线权限、选线和呼叫归属 | Go 已接 IMS、显式 USB module＋PCM 和 RFC 4733 跨腿；新源码已接 SIP INFO 与 RTCP，保持／恢复的 IMS 路径已实现；后续真实 PCMU 分机经纯 Host IMS AMR 外呼、双向语音与按键回传已通过[联合实测](VERIFICATION_20261027_HOSTIMS_SIP.md)；真实回拨已群振但未接听，入呼接听／媒体仍待复测 |
+| SIP 运营商入呼／外呼 | 两端已有逐线权限、选线和呼叫归属 | Go 已接 IMS、显式 USB module＋PCM 和 RFC 4733 跨腿；新源码已接 SIP INFO 与 RTCP，保持／恢复的 IMS 路径已实现；后续真实 PCMU 分机经纯 Host IMS AMR 外呼、双向语音与按键回传已通过[联合实测](VERIFICATION_20261027_HOSTIMS_SIP.md)；首次未接听的记录保留；随后 PCMA 入呼接听、双向语音、按键 8、另一腿取消与分机 BYE 清理已通过[回拨复测](VERIFICATION_20261027_HOSTIMS_SIP_INCOMING.md)，手机主动挂断另验收 |
 | 可选 Asterisk peer | 双向独立凭据、分方向通话／短信权限 | Go 固定 peer 与本地 Registrar 共存；隔离互通已有历史证据，生产／跨网段媒体验收另列 |
 | 原卡短信与回复绑定 | Windows `SipMessages`、SQLite 准入与来源收据 | Go 已有 MO 防重、MT 队列、canonical 快照和原 SIM 回复；一次真实 SIP 发件已获得运营商送达及手机确认，人工 OK 回复匹配原 SIM 入库和唯一授权分机 SIP 200，见[联合实测](VERIFICATION_20261027_HOSTIMS_SIP.md) |
 | 分段与验证码 API | Windows `SmsApiService`／`SmsVerificationCodeExtractor` | Go `smsapi`／`smsquery` 已实现；短信 MESSAGE 可见分段不同于 UDH 透明重组；真实调用端和误判反馈待验收 |
@@ -69,7 +69,7 @@ CTNET IPv4／IPv6／双栈连接、日志释放、公网 IP 查询与原环境�
 
 **2026-10-26 当前开发候选：** 已按要求先实现，再完成本轮统一软件测试与构建。
 结果、跳过项和保留失败见上方记录；早先快照不替代此次结果。后续真实 PCMU 软电话／
-运营商外呼及短信闭环已有上述联合实测；其他固件／SIM 生命周期、SIP 入呼接听／媒体、
+运营商外呼、PCMA 入呼及短信闭环已有上述联合实测；其他固件／SIM 生命周期、SIP 挂断／故障场景、
 其他互通组合、USB 音频和部署仍须单独验收。
 
 1. **通话按键、来电通知和轮询隔离。** 已纳入 RTP 回环、调用链／通话归属、

@@ -9,11 +9,14 @@ The recipient confirmed receipt and replied OK; the original SIM's inbox row
 and durable SIP delivery plan matched that reply, with the authorized extension
 returning SIP 200.
 
-Incoming acceptance remains incomplete. The handset callback reached Host IMS
+This first phase left incoming acceptance incomplete. The handset callback reached Host IMS
 and rang both registered extensions, but the test answer observer exited before
 submitting an answer. The recipient reported no answer. Later bounded observers
 received no new callback. This is evidence of incoming delivery and ringing,
-not successful SIP answering or incoming media.
+not successful SIP answering or incoming media. A later
+[answered callback follow-up](VERIFICATION_20261027_HOSTIMS_SIP_INCOMING.md)
+passed PCMA incoming answer/media and key 8; the initial failed attempt and its
+JSON remain retained here.
 
 The [machine-readable record](verification-20261027-hostims-sip.json) separates
 these outcomes. The full hardware acceptance objective remains open.
@@ -111,7 +114,8 @@ specific comparisons rather than claiming an unchanged USB/interface generation.
 Private credentials, subscriber identities, raw SIP/packet captures, database
 copies, recordings and helper scripts stay outside Git.
 
-SIP incoming answering/media needs another handset callback. Actual browser
+SIP incoming answering/media was left open by this phase and subsequently passed
+the linked callback follow-up. Actual browser
 microphone/speaker use, remote IVR recognition, physical hotplug/SIM replacement,
 independent data-owner/proxy loss, active-call/daemon/host failure, other firmware
 and reader combinations, public release/clean-OS installation, disposable eSIM

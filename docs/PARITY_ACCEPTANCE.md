@@ -227,12 +227,20 @@ hearing and speech, and actual handset 5/8 events received by the SIP endpoint.
 One authenticated SIP SMS was carrier-delivered and the human OK reply matched
 the original-SIM inbox and durable recipient plan with final SIP 200. The actual
 callback reached both ringing endpoints but was unanswered after a test-observer
-preflight failure; later observation windows had no new callback. Incoming
-answer/media acceptance remains open, and arbitrary digit-burst completeness or
-remote IVR recognition is not inferred.
+preflight failure; later observation windows had no new callback in that phase.
+Arbitrary digit-burst completeness or remote IVR recognition is not inferred.
+
+The [answered callback follow-up](VERIFICATION_20261027_HOSTIMS_SIP_INCOMING.md)
+then passed real PCMA incoming answer/media, recipient-confirmed prompt/speech,
+received handset key 8 and cancellation of the other ringing extension. The
+winning endpoint's 40-second source EOF triggered BYE, and both original calls
+cleared. Handset-initiated hangup is not inferred from that teardown. The actual
+client WAV and packet decode differ in duration/bytes, with sampled overlapping
+audio blocks; lossless recording is not claimed. Original modem/host state was
+restored, without new carrier outgoing calls or SMS.
 
 The full objective remains open. Actual browser microphone/speaker use,
-remote IVR recognition, SIP carrier incoming answering/media, physical
+remote IVR recognition, further SIP call-ending/fault scenarios, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
 additional scheduled-task/profile/crash combinations and external provider
 delivery still need their live scenarios. Existing

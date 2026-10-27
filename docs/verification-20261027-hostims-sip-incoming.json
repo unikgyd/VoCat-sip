@@ -1,0 +1,257 @@
+{
+  "schema": 1,
+  "date": "2026-10-27",
+  "scope": "One actual authorized handset callback through the original China Telecom QDC507 pure Host IMS to two ringing Baresip extensions; PCMA winner, audible prompt, human speech, received key 8 and SIP-peer-originated teardown",
+  "artifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+  "sourceRevision": "0d139dfae2321dc4e9fab78706717988f54a297e",
+  "selectedFrozenInputFiles": 1774,
+  "implementationChanged": false,
+  "newSoftwareSuiteExecution": false,
+  "incoming": {
+    "realBaresip": true,
+    "algorithm": "MD5",
+    "direction": "incoming",
+    "originalCTPureHostIMS": true,
+    "authorizedCallerVerifiedBeforeAnswer": true,
+    "onlyOneAnswerSubmission": true,
+    "answerAndACKConfirmed": true,
+    "winningEndpoint": 2,
+    "winningExtensionConfirmed": true,
+    "SIPCodec": "PCMA",
+    "carrierCodec": "AMR",
+    "bidirectionalSIPMediaCounters": true,
+    "maxCallerPackets": 527,
+    "maxCalleePackets": 1840,
+    "carrierMediaQuality": {
+      "local_ssrc": 3992839723,
+      "remote_ssrc": 347578580,
+      "packets_sent": 1857,
+      "packets_received": 555,
+      "octets_sent": 59424,
+      "packets_lost": 0,
+      "jitter": 255,
+      "reports_sent": 11,
+      "reports_received": 0,
+      "invalid_reports": 0,
+      "send_errors": 0,
+      "round_trip_ms": 0,
+      "peer_left": false
+    },
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "recipientHearingConfirmed": true,
+    "recipientSpeechConfirmed": true,
+    "recipientPressed8Confirmed": true,
+    "receivedRTPEventDigits": [
+      8
+    ],
+    "BaresipLoggedDigit8": true,
+    "bothSIPAndOriginalCarrierCallCleared": true,
+    "winningEndpointSentBYE": true,
+    "endpointAudioSourceEOFTriggeredBYE": true,
+    "handsetInitiatedHangupNotEstablished": true,
+    "noOperatorHangupSubmission": true,
+    "losingEndpointCancelledWith487": true,
+    "winningEndpoint200AndACKObserved": true,
+    "receivingEndpointDecodedAudio": {
+      "realReceivingBaresipWAV": true,
+      "rate": 8000,
+      "channels": 1,
+      "decodedSeconds": 10.481,
+      "peak": 10496,
+      "RMS": 596.84,
+      "PCMAFromPacketCapturePCMExactlyMatchesBaresip": false,
+      "exactOneSecondBlocksInCapture": 3,
+      "checkedOneSecondBlocks": 4,
+      "byteEqualityNotClaimed": true
+    },
+    "winningSIPLegRTCP": {
+      "local_ssrc": 1443512763,
+      "remote_ssrc": 1987074356,
+      "packets_sent": 537,
+      "packets_received": 1983,
+      "octets_sent": 84360,
+      "packets_lost": 0,
+      "jitter": 11,
+      "reports_sent": 11,
+      "reports_received": 7,
+      "invalid_reports": 0,
+      "send_errors": 0,
+      "round_trip_ms": 0.61384,
+      "peer_left": false
+    },
+    "observerSecondsIncludingWait": 169.178,
+    "BaresipLoggedCallDurationSeconds": 40
+  },
+  "packets": {
+    "linkType": 1,
+    "packetCount": 2539,
+    "streams": [
+      {
+        "sourcePort": 26122,
+        "destinationPort": 43450,
+        "payloadType": 8,
+        "packets": 2000
+      },
+      {
+        "sourcePort": 43450,
+        "destinationPort": 26122,
+        "payloadType": 8,
+        "packets": 529
+      },
+      {
+        "sourcePort": 43450,
+        "destinationPort": 26122,
+        "payloadType": 101,
+        "packets": 10
+      }
+    ],
+    "SDPConfirmedPCMA": true,
+    "SDPConfirmedTelephoneEvent8000": true,
+    "receivedRTPEventDigits": [
+      8
+    ],
+    "RTPEventEndPackets": 3,
+    "RTCPPackets": [
+      {
+        "sourcePort": 26123,
+        "destinationPort": 60957,
+        "packetType": 200,
+        "packets": 7
+      },
+      {
+        "sourcePort": 26123,
+        "destinationPort": 60957,
+        "packetType": 202,
+        "packets": 8
+      },
+      {
+        "sourcePort": 26123,
+        "destinationPort": 60957,
+        "packetType": 203,
+        "packets": 1
+      },
+      {
+        "sourcePort": 26123,
+        "destinationPort": 60957,
+        "packetType": 204,
+        "packets": 1
+      },
+      {
+        "sourcePort": 60957,
+        "destinationPort": 26123,
+        "packetType": 200,
+        "packets": 11
+      },
+      {
+        "sourcePort": 60957,
+        "destinationPort": 26123,
+        "packetType": 201,
+        "packets": 1
+      },
+      {
+        "sourcePort": 60957,
+        "destinationPort": 26123,
+        "packetType": 202,
+        "packets": 12
+      },
+      {
+        "sourcePort": 60957,
+        "destinationPort": 26123,
+        "packetType": 203,
+        "packets": 1
+      }
+    ],
+    "invalidCapturedRTCP": 0,
+    "SIPForkLegs": [
+      {
+        "endpoint": 1,
+        "originalINVITECount": 1,
+        "dialogCount": 1,
+        "messages": {
+          "toEndpoint INVITE": 1,
+          "fromEndpoint response 180 INVITE": 1,
+          "toEndpoint CANCEL": 1,
+          "fromEndpoint response 200 CANCEL": 1,
+          "fromEndpoint response 487 INVITE": 1,
+          "toEndpoint ACK": 1
+        }
+      },
+      {
+        "endpoint": 2,
+        "originalINVITECount": 1,
+        "dialogCount": 1,
+        "messages": {
+          "toEndpoint INVITE": 1,
+          "fromEndpoint response 180 INVITE": 1,
+          "fromEndpoint response 200 INVITE": 1,
+          "toEndpoint ACK": 1,
+          "fromEndpoint BYE": 1,
+          "toEndpoint response 200 BYE": 1
+        }
+      }
+    ]
+  },
+  "restoration": {
+    "applicationExitedZero": true,
+    "bothOwnedSIPEndpointsStopped": true,
+    "nativeIMSOriginalModeAndRegistration": true,
+    "bothOriginalEquipmentSIMsRegisteredRFOn": true,
+    "originalStockManagerActive": true,
+    "stockManagerSHA256": "e1c6e899c75385544423cf96d5a67e37d516038e16c01680e3ccb5c59941a5e6",
+    "stockManagerAutomaticRestarts": 0,
+    "noOwnedManagerOverrideOrExecutable": true,
+    "CTNetworkExactExcludingUSBRecreatedIfindex": true,
+    "CTIfindexChangedAfterAuthorizedReboot": true,
+    "PHHostNetworkExactlyPreserved": true,
+    "originalDatabaseHashPreserved": true,
+    "sharedLockInodePreserved": true,
+    "originalRunningContainerIDsPreserved": true,
+    "noHostIMSClaims": true,
+    "noXFRMStateOrPolicy": true,
+    "noLiveOwnedInhibitors": true,
+    "rawIPOriginalY": true,
+    "noNewOutgoingSMSHistoryRows": true
+  },
+  "endpointCompatibility": {
+    "realBaresipClients": 2,
+    "DigestAlgorithm": "MD5",
+    "defaultSHA256CompatibilityNotClaimed": true,
+    "firstEndpointRangAndWasCancelled": true,
+    "secondEndpointPCMAAnswered": true,
+    "carrierCodec": "AMR",
+    "noADBOrUSBVoiceBridge": true
+  },
+  "observerHTTP": {
+    "retainedTransientReads": 1,
+    "callsStatuses": [
+      409
+    ],
+    "SIPStatuses": [
+      200
+    ],
+    "singleAnswerSubmission": true
+  },
+  "harnessFindings": [
+    "The first preparation observer required an empty native-call list. A retained incoming object was positively terminated; no active call or bearer was present. That read-only attempt timed out before any maintenance write. Its evidence was archived, and the helper was corrected to accept only positively terminated history while retaining exact original equipment/SIM and active-call checks.",
+    "A bounded read observer retained a transient HTTP line_busy response; it recovered before answering, without another application start or answer submission.",
+    "The initial packet analyzer classified some RTCP packets as RTP. Compound RTCP framing was separated before publication; no carrier call was repeated for this analysis repair.",
+    "The observer initially named final teardown as handset hangup. The actual SIP dialog and Baresip log show that the 40-second source reached EOF and the winning endpoint sent BYE. The final report corrects that label and retains the original observer result privately.",
+    "The actual receiving client WAV contains 10.481 seconds of decoded audio; raw captured PCMA payloads decode to 10.58 seconds. Three of four inspected one-second client blocks occur exactly in the captured decode. Full byte equality is false and its cause is not established; lossless/full-call audio identity is not claimed."
+  ],
+  "limits": [
+    "This establishes PCMA incoming answering, audible prompt/speech, received handset key 8, losing-leg cancellation and endpoint-originated cleanup. Handset-initiated SIP bridge hangup was not established by this call.",
+    "SIP-leg RTCP was observed in both directions. The carrier-leg snapshot sent 11 reports and received zero reports in this call; bidirectional carrier RTCP is not newly claimed.",
+    "The Baresip clients ran on the NAS trusted LAN with MD5. Browser microphone/speaker, public/NAT/SBC and default SHA-256 client compatibility remain separate.",
+    "Remote IVR recognition, physical hotplug/SIM replacement, independent owner/proxy loss, active-call/daemon/host failures, additional firmware/reader/provisioning and external-provider combinations remain open.",
+    "No new application code or Go/frontend/race/build execution was introduced; prior checked-candidate software evidence remains referenced."
+  ],
+  "privacy": {
+    "rawPacketsAudioSubscriberIdentitiesCredentialsDatabasesAndPrivateHelpersExcluded": true,
+    "outgoingCarrierCallSubmissions": 0,
+    "outgoingSMSSubmissions": 0,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "externalNotificationProvidersUsed": false
+  }
+}
