@@ -1,0 +1,138 @@
+{
+  "schema": 1,
+  "date": "2026-10-27",
+  "scope": "Bounded original-capability RTP/RTCP media-route cleanup retry after a retained real SIP handset-hangup failure",
+  "sourceBaselineRevision": "d8781b43f95fd8b2d99f834478103c21a6e5fbcf",
+  "implementationChanged": true,
+  "frozenManifestSHA256": "53eb9a747da42e94dc49d0b0353509206e69c8847f7d9635a43cd54a36e86e2c",
+  "frozenArchiveInputs": 1924,
+  "inputAudit": {
+    "allFrozenInputsMatch": true,
+    "frozenInputs": 1924,
+    "frontendInputs": 868,
+    "allFrontendInputsUnchanged": true
+  },
+  "implementation": {
+    "maxPassesPerWorker": 3,
+    "backoffMilliseconds": [
+      500,
+      1000
+    ],
+    "sharedWorkerBudgetSeconds": 15,
+    "maxRouteAttemptsPerPass": 32,
+    "singleWorkerPerMedia": true,
+    "originalRouteHandlesOnly": true,
+    "failedCapabilitiesRetained": true,
+    "noAnotherCallOrBrowserPollRequired": true
+  },
+  "software": {
+    "results": [
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 202.863,
+        "tests": {
+          "pass": 2118,
+          "fail": 0,
+          "skip": 48
+        }
+      },
+      {
+        "label": "data-kernel",
+        "exit": 0,
+        "seconds": 1.373,
+        "tests": {
+          "pass": 3,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 7.961
+      },
+      {
+        "label": "recovery-race",
+        "exit": 0,
+        "seconds": 137.54,
+        "tests": {
+          "pass": 125,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 11.166
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 12.036
+      },
+      {
+        "label": "386",
+        "exit": 0,
+        "seconds": 11.142
+      },
+      {
+        "label": "arm",
+        "exit": 0,
+        "seconds": 10.968
+      }
+    ],
+    "artifacts": {
+      "amd64": "d10c0246324e1084d2a24853521a3272785c2e90f9b4ca51acad82de04c3f10a",
+      "arm64": "4ae61291dc39cb9e445875f9f772bfdf57075d05f4c0012f5497d0a20cc9af40",
+      "386": "f75bfab5b18fcf4f257d4b94a7a25d6e4a05496eb78dcaf27642ef67b30ed7a2",
+      "arm": "8ece54130c952ee3ed7b4ba12ae2352440d898f1f7053a6ead69066b905b5450"
+    },
+    "frontend": "All 868 frontend inputs unchanged; prior 82 cases/build referenced, not rerun"
+  },
+  "hardware": {
+    "status": "No callback observed in bounded five-minute window; repaired per-call cleanup not accepted",
+    "sameCheckedAMD64ArtifactDeployed": true,
+    "originalCTPureHostIMSRegistered": true,
+    "realBaresipBindings": 2,
+    "carrierPermissionsRestrictedToOriginalCT": true,
+    "SMSDisabled": true,
+    "callbackWindowSeconds": 300,
+    "carrierOutgoingCalls": 0,
+    "carrierIncomingCalls": 0,
+    "carrierSMS": 0,
+    "initialRetainedFailure": "verification-20261027-sip-lifecycle-initial.json",
+    "actualRetryCountInstrumented": false,
+    "endpointDeathScenarioExecuted": false,
+    "fixtureObservationFailure": "An absent IPv4 FIB table in the IPv6-only fixture; corrected before business by selecting from existing tables",
+    "restoration": {
+      "originalEquipmentSIMsRegisteredRFOn": true,
+      "nativeIMS1RegisteredAndPDPProfilesRestored": true,
+      "CTHostPreservedExceptInterfaceIndex": true,
+      "PHHostExactlyPreserved": true,
+      "rootDatabaseHashPreserved": true,
+      "sharedLockInodePreserved": true,
+      "originalRunningContainerIDsPreserved": true,
+      "stockManagerExecutableRestored": true,
+      "stockManagerAutomaticRestarts": 0,
+      "ownedManagerOverrideAndExecutableRemoved": true,
+      "noHostIMSClaim": true,
+      "noXFRMStateOrPolicy": true,
+      "applicationExitedZero": true,
+      "applicationRestartCount": 0,
+      "SIPContainersStopped": true,
+      "noOwnedInhibitor": true,
+      "noCarrierOrSIPCallObservedDuringCallbackWindow": true,
+      "endpointDeathScenarioNotExecuted": true,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0,
+      "ownedInhibitorFinalization": {
+        "exactOwnedPIDAndStartVerified": true,
+        "oldRollbackInhibitorStillAliveAfterPriorSIGTERM": true,
+        "terminationRetry": true,
+        "SIGKILLRequired": true
+      }
+    }
+  }
+}

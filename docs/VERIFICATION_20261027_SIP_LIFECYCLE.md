@@ -1,5 +1,9 @@
 # SIP handset hangup and retained media cleanup — 2026-10-27
 
+The subsequent [bounded retry candidate](VERIFICATION_20261027_SIP_CLEANUP_RETRY.md)
+passed combined software checks, but received no call during its new observation
+window. The initial hardware failure below remains retained and unaccepted.
+
 One new authorized handset callback reached two real Baresip endpoints through
 the original CT pure Host IMS line. Endpoint 2 answered with PCMA, the carrier
 used AMR, and answer/ACK, bidirectional media, handset digit 8 and cancellation of

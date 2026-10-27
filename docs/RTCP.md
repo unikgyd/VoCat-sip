@@ -44,6 +44,10 @@ retires any staged capability. There is no plain/default-network fallback.
 IMS call termination queues RTCP cleanup without waiting inside SIP response
 locks. Original bearer routes remain retained until the report sender, final
 send and control receiver finish; explicit bearer teardown joins that cleanup.
+The original media cleanup worker makes at most three passes, with 500 ms and
+1 s backoff under one shared 15-second budget. It retries only retained route
+handles; each original owner still verifies its cleanup authority. Unconfirmed
+handles remain fenced after exhaustion and can be retried by explicit teardown.
 Wi-Fi session teardown also drains its control sockets before the surrounding
 tunnel is released. An exhausted cleanup budget closes the original control
 socket immediately, preventing a late callback from sending after tunnel removal.

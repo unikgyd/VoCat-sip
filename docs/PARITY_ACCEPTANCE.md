@@ -268,10 +268,14 @@ inputs were unchanged and the prior combined software checks were not rerun.
 The [SIP handset-hangup follow-up](VERIFICATION_20261027_SIP_LIFECYCLE.md)
 confirms gateway BYE/endpoint 200 after human handset termination, with other-leg
 CANCEL and complete recording. One media route remained until original session
-stop; full per-call cleanup failed and requires repair/retest. Physical browser
+stop; full per-call cleanup failed. The [bounded retry candidate](VERIFICATION_20261027_SIP_CLEANUP_RETRY.md)
+passed 2,118 Go cases, 125 selected race executions, kernel/vet checks and four
+builds. Its actual deployment registered, but no call arrived in the five-minute
+callback window, so repaired per-call resource cleanup remains unaccepted. Physical browser
 audio is deferred by human request after a pre-dial missing-device error.
 
-The full objective remains open. Actual browser microphone/speaker use,
+The full objective remains open. Browser microphone/speaker use is deferred
+by the human. Repaired SIP per-call resource cleanup,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner while it holds an active claim,
 unconfigured/default-supervision proxy-loss and other failure combinations,

@@ -12,6 +12,8 @@ import (
 
 const cellularRTPTimeout = 15 * time.Second
 const maxRetiredCellularRoutes = 32
+const cellularRouteCleanupPasses = 3
+const cellularRouteCleanupRetryDelay = 500 * time.Millisecond
 
 type cellularRTPRoute struct {
 	route vowifi.CellularMediaRoute
@@ -79,8 +81,10 @@ func (media *rtpMedia) retireCellularRoute(route vowifi.CellularMediaRoute) {
 	media.startCellularRouteCleanup()
 }
 
-// One bounded pass per media, never one permanent retry goroutine per failed
-// route. Failed handles stay owned by this media until a later explicit drain.
+// One worker per media makes at most three passes under one shared deadline.
+// A transient original-owner rejection must not strand an ended call's routes
+// until the entire IMS session stops. Every retry uses the same retained handle;
+// failed handles remain owned after the bounded worker finishes.
 func (media *rtpMedia) startCellularRouteCleanup() {
 	media.cleanupMu.Lock()
 	if media.cleanupRunning || len(media.retiredRoutes) == 0 {
@@ -94,48 +98,64 @@ func (media *rtpMedia) startCellularRouteCleanup() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), cellularRTPTimeout)
 		defer cancel()
-		attempted := make(map[*cellularRTPRoute]bool)
-		for ctx.Err() == nil && len(attempted) < maxRetiredCellularRoutes {
-			media.cleanupMu.Lock()
-			var current *cellularRTPRoute
-			for _, entry := range media.retiredRoutes {
-				if !attempted[entry] {
-					current = entry
-					break
+		for pass := 0; pass < cellularRouteCleanupPasses && ctx.Err() == nil; pass++ {
+			if pass > 0 {
+				timer := time.NewTimer(time.Duration(pass) * cellularRouteCleanupRetryDelay)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+				case <-timer.C:
 				}
 			}
-			media.cleanupMu.Unlock()
-			if current == nil {
-				// Check and publish the end of this pass under the same lock as
-				// retireCellularRoute, so a newly queued handle cannot be stranded.
+			attempted := make(map[*cellularRTPRoute]bool)
+			for ctx.Err() == nil && len(attempted) < maxRetiredCellularRoutes {
 				media.cleanupMu.Lock()
+				var current *cellularRTPRoute
 				for _, entry := range media.retiredRoutes {
 					if !attempted[entry] {
 						current = entry
 						break
 					}
 				}
+				media.cleanupMu.Unlock()
 				if current == nil {
-					media.cleanupRunning = false
-					close(done)
+					// Check and publish the end of this pass under the same lock as
+					// retireCellularRoute, so a newly queued handle cannot be stranded.
+					media.cleanupMu.Lock()
+					for _, entry := range media.retiredRoutes {
+						if !attempted[entry] {
+							current = entry
+							break
+						}
+					}
+					if current == nil {
+						finished := len(media.retiredRoutes) == 0 || pass == cellularRouteCleanupPasses-1
+						if finished {
+							media.cleanupRunning = false
+							close(done)
+						}
+						media.cleanupMu.Unlock()
+						if finished {
+							return
+						}
+						break
+					}
 					media.cleanupMu.Unlock()
-					return
+				}
+				attempted[current] = true
+				err := current.route.Close(ctx)
+				media.cleanupMu.Lock()
+				current.err = err
+				if err == nil {
+					for index, entry := range media.retiredRoutes {
+						if entry == current {
+							media.retiredRoutes = append(media.retiredRoutes[:index], media.retiredRoutes[index+1:]...)
+							break
+						}
+					}
 				}
 				media.cleanupMu.Unlock()
 			}
-			attempted[current] = true
-			err := current.route.Close(ctx)
-			media.cleanupMu.Lock()
-			current.err = err
-			if err == nil {
-				for index, entry := range media.retiredRoutes {
-					if entry == current {
-						media.retiredRoutes = append(media.retiredRoutes[:index], media.retiredRoutes[index+1:]...)
-						break
-					}
-				}
-			}
-			media.cleanupMu.Unlock()
 		}
 		media.cleanupMu.Lock()
 		media.cleanupRunning = false

@@ -144,6 +144,10 @@ The [SIP handset-hangup follow-up](docs/VERIFICATION_20261027_SIP_LIFECYCLE.md)
 confirms handset termination reaching the SIP endpoint, but retains a failed
 per-call media-route cleanup case. Physical browser audio was deferred at the
 human's request; no browser carrier dial was submitted.
+The [bounded media cleanup candidate](docs/VERIFICATION_20261027_SIP_CLEANUP_RETRY.md)
+passed 2,118 Go cases, 125 selected race executions, kernel/vet checks and four
+builds. It registered on the original line, but its five-minute callback window
+had no new call; repaired per-call cleanup still needs hardware acceptance.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the
