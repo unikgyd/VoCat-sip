@@ -1,0 +1,126 @@
+{
+  "schema": 1,
+  "date": "2026-10-27",
+  "scope": "Actual ordinary QMI data proxy SIGKILL, retained original-owner fence, and controlled original-SIM generation-change recovery with explicit subsequent data enable; not automatic proxy-loss recovery",
+  "artifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+  "sourceRevision": "aa2ea95f8c613447dd6e168730542958f9b030fb",
+  "selectedFrozenInputFiles": 1774,
+  "implementationChanged": false,
+  "newSoftwareSuiteExecution": false,
+  "initialData": {
+    "connected": true,
+    "originalOwnerClaim": true,
+    "publicIPHTTPStatus": 200,
+    "publicIPAddressFamily": 6
+  },
+  "proxyLoss": {
+    "actualProxySIGKILL": true,
+    "proxyAutomaticallyRestarted": true,
+    "proxyRestartDelta": 1,
+    "originalOwnerAndMainUnchanged": true,
+    "originalClaimExactlyRetained": true,
+    "originalOwnerHasInstanceLockDuplicate": true,
+    "publicQueryHTTPAfterTransportLoss": 409,
+    "publicQueryFailed": true,
+    "noNewEnableOrStopRequestDuringFaultWindow": true,
+    "noCallsOrSMS": true,
+    "seconds": 37.149,
+    "proxyDockerExit137Confirmed": true,
+    "publicQueryErrorCode": "cellular_data_unconfirmed"
+  },
+  "observedDataPhases": {
+    "failed": 7,
+    "starting": 3,
+    "recovering": 6
+  },
+  "mainQuiescence": {
+    "mainExited137NoAutomaticRestart": true,
+    "originalOwnerAlive": true,
+    "originalClaimRetained": true,
+    "instanceLockStillHeldByOriginalOwner": true
+  },
+  "generationRecovery": {
+    "originalOwnerUnchanged": true,
+    "oldClaimDeletedByOriginalOwner": true,
+    "USBGenerationChanged": true,
+    "originalSIMAndEquipmentRegistered": true,
+    "nativeIMSKept1": true,
+    "noNativeIMSSettingWrite": true,
+    "oneRecoveryReboot": true
+  },
+  "controlledRecovery": {
+    "originalOwnerReleasedItsClaim": true,
+    "originalInstanceLockReleased": true,
+    "noFreshCIDHandleAdoption": true,
+    "noJournalOrFenceForced": true,
+    "nativeIMS1ReRegistered": true,
+    "originalHostNetworkRestored": true,
+    "manualMaintenanceNotAutomaticRecovery": true
+  },
+  "postRecoveryData": {
+    "originalSIMAndOwner": true,
+    "newClaimAfterOldGenerationCleanup": true,
+    "publicIPHTTPStatus": 200,
+    "publicIPAddressFamily": 4,
+    "explicitNewEnableRequest": true,
+    "automaticRecoveryNotClaimed": true
+  },
+  "ownerNeverRestartedInWholeCase": true,
+  "restoration": {
+    "applicationAndOwnerExitedZero": true,
+    "ownedProxyStopped": true,
+    "privateOwnerSocketAndRuntimeArchived": true,
+    "originalEquipmentSIMsRegisteredRFOn": true,
+    "nativeIMSKept1AndRegistered": true,
+    "stockManagerActive": true,
+    "stockManagerSHA256": "e1c6e899c75385544423cf96d5a67e37d516038e16c01680e3ccb5c59941a5e6",
+    "stockManagerAutomaticRestarts": 0,
+    "ownedOverrideAndExecutableRemoved": true,
+    "CTHostExactExceptRecreatedInterfaceIndex": true,
+    "CTInterfaceIndexChangedAfterReboot": true,
+    "PHHostExactlyPreserved": true,
+    "originalDatabaseHashPreserved": true,
+    "sharedLockInodePreserved": true,
+    "originalRunningContainerIDsPreserved": true,
+    "noDataClaim": true,
+    "noXFRMStateOrPolicy": true,
+    "noPrivateDNSFile": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "noLiveOwnedInhibitors": true,
+    "noHostIMSClaim": true
+  },
+  "fixture": {
+    "dockerHostNetworkAndPIDNamespaces": true,
+    "checkedBinaryMountedReadOnlyForAllThreeProcesses": true,
+    "privateDatabaseAndSharedOriginalLock": true,
+    "proxyRestartPolicy": "on-failure",
+    "mainRestartPolicy": "no",
+    "ownerRestartPolicy": "no",
+    "actualComposeExecution": false,
+    "unmodifiedShippingSupervisionFaultAcceptance": false,
+    "nativeIMSSettingWrites": 0,
+    "initialConfiguredFamily": "IPV4V6",
+    "postRecoveryConfiguredFamily": "IPV4V6"
+  },
+  "harnessFindings": [
+    "Private helper imports and continuation indentation were repaired before any injected signal; existing manager/port acquisition was not replayed.",
+    "The original ModemManager-owned proxy did not exit during a bounded absence wait despite zero established clients. The owning temporary manager was stopped normally, process/socket absence confirmed, then the private proxy was cold-started before the manager and original port inhibitors were re-established. No serving proxy was adopted or individually killed to prepare the case."
+  ],
+  "limits": [
+    "Proxy-loss automatic data recovery did not pass: a fresh proxy served, but the old transport and durable fence remained unresolved. Controlled maintenance and an explicit new data enable were required.",
+    "The original independent owner survived. This does not prove cleanup after death of that owner, machine/power loss or recovery by force-deleting a journal.",
+    "Main/owner automatic restarts were disabled in this private fixture to retain the original capability. Shipping Compose defaults and systemd dependency cascades were not fault-tested here.",
+    "The first actual public query used IPv6; the post-maintenance query used IPv4 under dual-stack configuration. Post-maintenance end-to-end IPv6 was not independently proved by that query.",
+    "This is ordinary module data, not Host IMS voice/session recovery. Other active-call/daemon/host failures, browser audio, remote IVR, hardware/provisioning/provider combinations remain open.",
+    "Implementation was unchanged; prior software suites are referenced only, with no new Go/frontend/race/build execution."
+  ],
+  "privacy": {
+    "rawSubscriberIdentitiesCredentialsDataClaimsNetworkAddressesAndLogsExcluded": true,
+    "outgoingCarrierCalls": 0,
+    "outgoingSMS": 0,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "externalNotificationProvidersUsed": false
+  }
+}

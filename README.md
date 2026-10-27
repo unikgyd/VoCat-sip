@@ -47,6 +47,7 @@ QDC507 ADB/D4/UAC voice bridge is outside this implementation target.
 | Live Linux acceptance | QDC507/China Telecom Host IMS and EC20/DITO VoWiFi registered simultaneously. Pure Host IMS SMS received carrier delivery status 0. A later answered AMR call carried bidirectional RTP; the recipient confirmed clear tones and speaking. |
 | Further live acceptance | Real Baresip extension media/transcoding, RTCP and DTMF, LAN MESSAGE confirmation/deduplication, physical USB PCM I/O, an existing eSIM profile round trip and four prompt import formats passed their scoped checks. |
 | Cellular data export | Real CTNET IPv6, simultaneous IPv4/IPv6 and IPv4 HTTPS through authenticated HTTP/SOCKS5, IPv4/IPv6 public-IP queries and original data cleanup passed. |
+| QMI proxy fault | A real proxy SIGKILL retained the original owner's claim and rejected unconfirmed data. One original-modem reboot allowed original-owner cleanup and a subsequent explicit data enable; automatic proxy-loss recovery remains open. |
 | Native installation | Scoped real systemd installation, failed-upgrade rollback, original administrator preservation and shared-lock retention passed. |
 | Advanced live acceptance | Pure Host IMS hold/resume, incoming automatic answer, prompt playback, web-phone PCM takeover and complete stereo recordings passed scoped carrier checks. A negotiated key submission succeeded; remote IVR recognition remains separate. |
 | SIP carrier acceptance | Real Baresip PCMU outgoing and PCMA incoming calls through pure Host IMS AMR passed recipient-confirmed prompt/speech checks. Handset keys reached SIP; incoming first-answer cancellation and SIP-peer teardown passed. One SIP SMS was delivered and its human OK reply reached the authorized SIP recipient. |
@@ -124,6 +125,10 @@ The [answered callback follow-up](docs/VERIFICATION_20261027_HOSTIMS_SIP_INCOMIN
 subsequently passed PCMA incoming answer/media, handset key 8 and cancellation of
 the other ringing leg. Source EOF triggered endpoint BYE and cleanup;
 handset-initiated SIP bridge hangup remains separate.
+The [ordinary-data proxy-loss follow-up](docs/VERIFICATION_20261027_PROXY_LOSS.md)
+adds actual proxy SIGKILL, retained ownership and a rejected public query after
+proxy restart. Controlled original-modem maintenance restored data without a
+forced claim deletion; this is not automatic proxy-loss recovery.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

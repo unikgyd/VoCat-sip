@@ -239,9 +239,19 @@ client WAV and packet decode differ in duration/bytes, with sampled overlapping
 audio blocks; lossless recording is not claimed. Original modem/host state was
 restored, without new carrier outgoing calls or SMS.
 
+The [ordinary-data proxy-loss follow-up](VERIFICATION_20261027_PROXY_LOSS.md)
+adds an actual proxy SIGKILL/exit 137 and automatic proxy restart while the
+original owner/main and exact claim stayed retained. The public query returned
+409 for unconfirmed data. Controlled original-modem generation change allowed
+the same owner to release its own claim/lock, followed by an explicit fresh
+data enable and real public query. Final host state was restored. This accepts
+fault containment and manual maintenance, not automatic proxy-loss recovery;
+owner death and shipping supervision dependency cascades remain open.
+
 The full objective remains open. Actual browser microphone/speaker use,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
+automatic proxy-loss recovery and default-supervision failure combinations,
 additional scheduled-task/profile/crash combinations and external provider
 delivery still need their live scenarios. Existing
 profile management does not establish provisioning/download/delete of a

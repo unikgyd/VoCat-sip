@@ -99,6 +99,16 @@ instance lock stay retained when original cleanup cannot be confirmed. Starting
 a fresh proxy does not restore that capability. Such a failure needs controlled
 operator recovery and cannot be counted as automatic main-process recovery.
 
+The [actual proxy-loss follow-up](VERIFICATION_20261027_PROXY_LOSS.md) exercised
+that boundary with the original owner surviving. A real proxy SIGKILL and
+automatic proxy restart retained the exact old claim; unconfirmed data queries
+were rejected. One original-modem reboot allowed that same owner to acknowledge
+old-generation loss and release its own claim/instance lock. A subsequent
+explicit data enable and real public query passed. No journal was forced or
+lost capability adopted. This private Docker case used deliberate main/owner
+restart policies; owner death and unchanged shipping supervision fault behavior
+remain separate, and automatic proxy-loss recovery is not established.
+
 See [the data fence](DATA_OWNERSHIP_FENCE.md) and
 [main-process crash acceptance](VERIFICATION_20261027_DATA_OWNER.md) for the
 executed checks, retained initial failure and hardware boundaries.
