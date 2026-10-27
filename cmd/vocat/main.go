@@ -362,6 +362,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
+	case "data-owner":
+		if err := runDataOwner(logger, rest); err != nil {
+			logger.Error("data owner stopped", "error", err)
+			os.Exit(1)
+		}
 	case "update":
 		if err := update.Run(logger, rest); err != nil {
 			logger.Error("update failed", "error", err)
@@ -440,6 +445,19 @@ func run(logger *slog.Logger, logs *loghub.Hub) (runErr error) {
 		return err
 	}
 	defer database.Close()
+	dataNetwork, err := configureDataOwner(startupContext, cfg.DatabasePath, instanceLock)
+	if err != nil {
+		return fmt.Errorf("connect independent data owner: %w", err)
+	}
+	if dataNetwork != nil {
+		defer func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := dataNetwork.Close(ctx); err != nil {
+				logger.Warn("independent data cleanup pending", "error", err)
+			}
+		}()
+	}
 	recordings, recordingErr := configureCallRecordings(startupContext, cfg, database, logger)
 	if recordingErr != nil {
 		logger.Warn("call recordings unavailable; calls remain enabled", "category", "call", "error", recordingErr)
@@ -521,6 +539,7 @@ func run(logger *slog.Logger, logs *loghub.Hub) (runErr error) {
 	var deviceManager *device.Manager
 	deviceManager, err = device.NewManager(device.Options{
 		DataClaims:  dataClaimJournal,
+		DataNetwork: dataNetwork,
 		CardReaders: cardReaders,
 		Logger:      deviceLogger,
 		AllowAutomaticSIMRecovery: func(ctx context.Context, candidate modem.Candidate) bool {

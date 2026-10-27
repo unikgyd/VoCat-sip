@@ -412,6 +412,10 @@ func (manager *Manager) ReconcileEC20MBNAfterProfileSwitch(ctx context.Context, 
 		state.opMu.Unlock()
 		return fmt.Errorf("defer MBN selection requiring online restart: %w", err)
 	}
+	if err := manager.stopDelegatedData(ctx, id); err != nil {
+		state.opMu.Unlock()
+		return err
+	}
 	commandContext, cancelCommand := context.WithTimeout(ctx, manager.longTimeout)
 	changed, previous, selected, err := reconcileMBNSelection(commandContext, client, hplmn, override)
 	cancelCommand()

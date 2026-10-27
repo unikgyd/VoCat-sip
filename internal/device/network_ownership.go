@@ -61,6 +61,9 @@ func (m *Manager) StopOwnedNetwork(ctx context.Context, id string) error {
 	state := m.devices[id] // retained inventory also holds disconnected owners
 	m.mu.RUnlock()
 	if state == nil {
+		if m.dataNetwork != nil {
+			return m.stopDelegatedData(ctx, id)
+		}
 		return m.requireNoPendingDataClaim(ctx, modem.Candidate{ID: id})
 	}
 	if err := lockMutexContext(ctx, &state.opMu); err != nil {
@@ -73,6 +76,9 @@ func (m *Manager) StopOwnedNetwork(ctx context.Context, id string) error {
 	defer state.dataMu.Unlock()
 	owner := state.dataOwner
 	if owner == nil {
+		if m.dataNetwork != nil && (m.candidateFor(state).QMIControl != "" || m.dataNetwork.Admitted(id)) {
+			return m.stopDelegatedData(ctx, id)
+		}
 		if state.dataSession != nil {
 			return ErrDataCleanupPending
 		}

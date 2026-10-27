@@ -62,6 +62,9 @@ Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制�
 双栈状态的 14 次实机观察；普通数据进程异常退出后的自动归属恢复仍待实现及验收。
 新增[普通数据持久化保护](DATA_OWNERSHIP_FENCE.md)：按原卡启动 QMI 前先记录所有者，
 未确认释放的记录阻止新进程接管；丢失原始连接后的自动清理仍待补齐。
+可选[独立数据所有者](DATA_OWNER.md)现已完成宿主网络命名空间内的主进程真实 SIGKILL、
+IPv4／IPv6／双栈自动恢复与原网络清理，见[完整记录](VERIFICATION_20261027_DATA_OWNER.md)。
+所有者本身崩溃、主机断电及 Host IMS 的恢复仍另列验收。
 
 完整差异见[能力并集清单](FEATURE_UNION.md)，接入边界见[独立接入说明](INDEPENDENT_ACCESS.md)，
 源码、缓存和运行文件的提交规则见[仓库约定](REPOSITORY.md)。原许可、地区准入和授权检查保持。

@@ -25,6 +25,7 @@ Usage:
                      any modem, SIM, network, database or audio device.
                      Flags: --json --require-amr.
   vocat doctor       Diagnose USB modem, AT, QMI, PC/SC and proxy UDP paths.
+  vocat data-owner   Retain original QMI data connections across serve exits.
                      Use --repair-dji-qmi on Linux to restore the factory-ID
                      DJI/Baiwang 2ca3:4006 AT/QMI interface bindings and wake
                      QMI without changing NV.

@@ -1,0 +1,214 @@
+{
+  "date": "2026-10-27",
+  "scope": "Optional surviving QMI owner; main-process SIGKILL in the original host network namespace",
+  "sourceBaseline": "e9b5d906008a7ca436915cfde9ab9758d0c8e49b",
+  "sourceManifestSHA256": "8a9ca7d8d9bc91074011223c830acad13136ac5e5d70741012f72b7fd1352447",
+  "artifacts": {
+    "amd64": "85505d858fc4ad0bfa648bd98c93d0675829e934f0c62f8680e9822e27189335",
+    "arm64": "370c7c346b240ff0fef7b00e7449cd4d2aca247adc169043cd5e1c97f12affb6"
+  },
+  "software": [
+    {
+      "label": "go",
+      "exit": 0,
+      "seconds": 189.149,
+      "tests": {
+        "pass": 2076,
+        "fail": 0,
+        "skip": 50
+      }
+    },
+    {
+      "label": "data-kernel",
+      "exit": 0,
+      "seconds": 1.373,
+      "tests": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    {
+      "label": "vet",
+      "exit": 0,
+      "seconds": 6.708
+    },
+    {
+      "label": "race",
+      "exit": 0,
+      "seconds": 34.238,
+      "tests": {
+        "pass": 50,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    {
+      "label": "amd64",
+      "exit": 0,
+      "seconds": 12.816
+    },
+    {
+      "label": "arm64",
+      "exit": 0,
+      "seconds": 13.131
+    }
+  ],
+  "additionalReleaseBuilds": [
+    {
+      "architecture": "386",
+      "flavor": "native",
+      "exit": 0,
+      "executedOnHardware": false,
+      "sha256": "07aba3f50b2e9303fbea4cd144d46cd4e6e0182f1d0c65acd69a58221331722e"
+    },
+    {
+      "architecture": "armv7",
+      "flavor": "native",
+      "exit": 0,
+      "executedOnHardware": false,
+      "sha256": "c370adfd0d09d52bcf688666d6b7495218c7691b422221c16c7834002c23b234"
+    }
+  ],
+  "windowsTargetedDeviceAndApplicationPassed": true,
+  "shipping": {
+    "compose": {
+      "exit": 0,
+      "sameImage": true,
+      "sameSocket": true,
+      "sharedDatabaseAndLocks": true,
+      "hostNamespaces": true
+    },
+    "systemdSyntaxExit": 0,
+    "actualNativeOwnerUnitExecuted": false
+  },
+  "retainedInitialCandidate": {
+    "sourceManifestSHA256": "f64d06ceda83a172716c7bf7c0faade23a7ff10c15a7fd0405d64f9264b7498e",
+    "artifacts": {
+      "amd64": "02601e770124f6089ff3d16b39d190595c90ef57514eaa5ee103bd25d8c7b78b",
+      "arm64": "4c862dee870a4883557cf34f9aa669da5b8886b269e1aa310425edba6650cfe4"
+    },
+    "liveResult": "rejected before active crash injection: extra database-file descriptors broke POSIX locks and left deleted WAL/shm files",
+    "originalLiveOwnerNormallyReleased": true,
+    "originalEnvironmentRestored": true
+  },
+  "negativeControl": {
+    "oldCandidateExit": 1,
+    "failedTests": [
+      "TestDataOwnerDatabaseAttestationPreservesSQLiteWAL"
+    ],
+    "newRegressionDetectsOriginalBug": true
+  },
+  "retainedInitialObservationAttempt": {
+    "actualMainSIGKILL": true,
+    "sameContainerRecoveredAutomatically": true,
+    "observerExitedOnTransientFailure": true,
+    "notCountedAsCompleteModeCase": true
+  },
+  "retainedIntermediateCleanupHarness": {
+    "logDirectoryMismatchRetained": true,
+    "cleanupResumedFromVerifiedStoppedServices": true
+  },
+  "finalATCompatibilityRegressionPassed": true,
+  "liveCases": [
+    {
+      "transientFailureObservations": 6,
+      "ipMode": "4",
+      "actualSIGKILL": true,
+      "dockerExit137": true,
+      "automaticMainRestart": true,
+      "mainProcessChanged": true,
+      "independentOwnerProcessUnchanged": true,
+      "hostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "originalClaimDeletedAndNewClaimCreated": true,
+      "sameSIMAndUSBGeneration": true,
+      "emptyFenceObserved": true,
+      "hostStateRestoredBeforeReconnect": true,
+      "noNewEnableRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "recoveryAndPublicQuerySeconds": 26.228,
+      "dockerRestartDelta": 1,
+      "transientFailureReasons": [
+        "no delegated original data session"
+      ],
+      "dockerExitCodes": [
+        "137"
+      ]
+    },
+    {
+      "transientFailureObservations": 7,
+      "ipMode": "6",
+      "actualSIGKILL": true,
+      "dockerExit137": true,
+      "automaticMainRestart": true,
+      "mainProcessChanged": true,
+      "independentOwnerProcessUnchanged": true,
+      "hostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "originalClaimDeletedAndNewClaimCreated": true,
+      "sameSIMAndUSBGeneration": true,
+      "emptyFenceObserved": true,
+      "hostStateRestoredBeforeReconnect": true,
+      "noNewEnableRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 6,
+      "recoveryAndPublicQuerySeconds": 26.102,
+      "dockerRestartDelta": 1,
+      "transientFailureReasons": [
+        "no delegated original data session"
+      ],
+      "dockerExitCodes": [
+        "137"
+      ]
+    },
+    {
+      "transientFailureObservations": 6,
+      "ipMode": "dual",
+      "actualSIGKILL": true,
+      "dockerExit137": true,
+      "automaticMainRestart": true,
+      "mainProcessChanged": true,
+      "independentOwnerProcessUnchanged": true,
+      "hostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "originalClaimDeletedAndNewClaimCreated": true,
+      "sameSIMAndUSBGeneration": true,
+      "emptyFenceObserved": true,
+      "hostStateRestoredBeforeReconnect": true,
+      "noNewEnableRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 6,
+      "recoveryAndPublicQuerySeconds": 27.295,
+      "dockerRestartDelta": 2,
+      "transientFailureReasons": [
+        "no delegated original data session"
+      ],
+      "dockerExitCodes": [
+        "137",
+        "1"
+      ],
+      "additionalStartupExitReason": "original owner retained the host instance lock during acknowledged cleanup"
+    }
+  ],
+  "firmwareChanges": false,
+  "modemResets": false,
+  "carrierCallsOrMobileSMS": false,
+  "ownerProcessCrashRecoveryProven": false,
+  "machineOrPowerLossRecoveryProven": false,
+  "hostIMSProcessCrashRecoveryProven": false,
+  "restoration": {
+    "bothTestServicesExitedZero": true,
+    "originalManagerActive": true,
+    "managerAutomaticRestarts": 0,
+    "bothOriginalRegisteredSIMPairs": true,
+    "originalDatabaseUnchanged": true,
+    "originalRunningContainersUnchanged": true,
+    "noRemainingDataClaims": true,
+    "cloneDatabaseIntegrity": "ok",
+    "noHostXFRM": true,
+    "ownedSocketAndTemporaryManagerFilesRemoved": true,
+    "originalServerLockInodePreserved": true
+  }
+}

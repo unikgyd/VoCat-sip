@@ -100,9 +100,17 @@ environment restoration. Process-exit fencing is tested without a live packet
 call. Lost-transport automatic cleanup is still open; this is not data-crash
 recovery acceptance.
 
+The [surviving-owner acceptance](VERIFICATION_20261027_DATA_OWNER.md) subsequently
+adds real host-network main-process SIGKILL and automatic saved-intent recovery
+for IPv4, IPv6 and dual stack, with acknowledged original host cleanup before
+reconnection. The optional independent owner stayed alive. The corrected candidate
+passed 2,076 Go cases, 50 race executions, three kernel cases, vet and four Linux
+builds. The initial SQLite-lock failure and transient startup observations remain
+visible. Owner-process loss and the native owner unit are not accepted by these cases.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
-hotplug, Host IMS/module-data crash recovery, successful scheduled work and external provider
+hotplug, Host IMS and data-owner/machine crash recovery, successful scheduled work and external provider
 delivery still need their live scenarios. Existing
 profile management does not establish provisioning/download/delete of a
 disposable profile.

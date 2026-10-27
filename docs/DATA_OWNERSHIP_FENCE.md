@@ -30,8 +30,10 @@ operation still verifies its original SIM and physical generation.
 
 This fence does **not** restore a WDS transport after process death. An unresolved
 record remains pending and requires a separately acknowledged recovery path.
-An independently surviving data owner and a complete host-resource journal are
-still needed for automatic recovery. Legacy unbound standalone controls keep
+The optional [surviving data owner](DATA_OWNER.md) now supplies acknowledged
+main-process cleanup while retaining the original transport and host capability.
+Recovery after loss of that owner and a complete durable host-resource journal
+remain open. Legacy unbound standalone controls keep
 their previous contract. IPv4 cleanup's existing host-resource limitations are
 not changed by this implementation.
 

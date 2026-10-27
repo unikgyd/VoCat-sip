@@ -1,0 +1,38 @@
+[Unit]
+Description=vocat original QMI data owner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=root
+Group=root
+WorkingDirectory=/opt/vocat
+ExecStart=/opt/vocat/bin/vocat data-owner
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=120s
+RuntimeDirectory=vocat
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+Environment=VOCAT_DATABASE_PATH=/opt/vocat/data/vocat.db
+Environment=VOCAT_DATA_OWNER_SOCKET=/run/vocat/data-owner.sock
+EnvironmentFile=/etc/vocat/env
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=false
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ReadWritePaths=/opt/vocat/data /run/vocat /run/lock -/proc/sys/net/ipv6/conf /sys/devices
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK AF_PACKET
+UMask=0077
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

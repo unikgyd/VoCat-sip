@@ -64,11 +64,13 @@ The [isolated Docker crash follow-up](docs/VERIFICATION_20261027_CRASH.md) recor
 real SIGKILL and saved-intent connection restoration on the original EC20/DITO
 SIM, with host-network crash recovery still listed separately.
 The [QMI ownership inquiry](docs/VERIFICATION_20261027_QMI_OWNERSHIP.md) records
-the fresh-client status observations that constrain ordinary-data recovery;
-automatic recovery of an active host data process remains open.
+the fresh-client status observations that constrain ordinary-data recovery.
 The [ordinary-data ownership fence](docs/DATA_OWNERSHIP_FENCE.md) records ownership
 before a SIM-bound QMI start and prevents a new process from acknowledging or
-replacing an unresolved owner. Automatic cleanup after a lost transport remains open.
+replacing an unresolved owner. With the optional [surviving owner](docs/DATA_OWNER.md),
+real host-network main-process SIGKILL and automatic IPv4/IPv6/dual-stack recovery
+passed the [new acceptance cases](docs/VERIFICATION_20261027_DATA_OWNER.md).
+Loss of the owner itself remains separate acceptance.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

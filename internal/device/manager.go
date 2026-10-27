@@ -17,6 +17,7 @@ import (
 )
 
 type Options struct {
+	DataNetwork    DataNetworkController
 	DataClaims     DataClaimJournal
 	AudioInspector modemaudio.Inspector
 	Discoverer     modem.Discoverer
@@ -40,6 +41,7 @@ type Options struct {
 }
 
 type Manager struct {
+	dataNetwork               DataNetworkController
 	dataClaimJournal          DataClaimJournal
 	dataClaims                dataClaims
 	audioInspector            modemaudio.Inspector
@@ -195,6 +197,7 @@ func NewManager(options Options) (*Manager, error) {
 		options.AudioInspector = modemaudio.NewService(modemaudio.Resolver{})
 	}
 	return &Manager{
+		dataNetwork:        options.DataNetwork,
 		dataClaimJournal:   options.DataClaims,
 		audioInspector:     options.AudioInspector,
 		discoverer:         options.Discoverer,
@@ -930,6 +933,9 @@ func (manager *Manager) Reboot(ctx context.Context, id string) error {
 		manager.setResult(id, state, nil, err)
 		return err
 	}
+	if err := manager.stopDelegatedData(ctx, id); err != nil {
+		return err
+	}
 	state.dataMu.Lock()
 	invalidateQMINetworkSession(state, manager.candidateFor(state))
 	state.dataMu.Unlock()
@@ -978,6 +984,9 @@ func (manager *Manager) softResetForProfileSwitch(ctx context.Context, id string
 
 // softResetSIMLocked 要求持有 opMu，使模式验证与 SIM 重置不能被其他模组操作插入。
 func (manager *Manager) softResetSIMLocked(ctx context.Context, id string, state *managedDevice, client modem.Client) error {
+	if err := manager.stopDelegatedData(ctx, id); err != nil {
+		return err
+	}
 	state.dataMu.Lock()
 	invalidateQMINetworkSession(state, manager.candidateFor(state))
 	state.dataMu.Unlock()

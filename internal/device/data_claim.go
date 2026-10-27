@@ -23,6 +23,9 @@ type dataClaims struct {
 // OwnsDataClaim is metadata-only and safe inside the policy callback. It is
 // positive evidence only for this process's retained journal capability.
 func (m *Manager) OwnsDataClaim(candidate modem.Candidate) bool {
+	if m.dataNetwork != nil && m.dataNetwork.Owns(candidate) {
+		return true
+	}
 	m.dataClaims.RLock()
 	defer m.dataClaims.RUnlock()
 	_, ok := m.dataClaims.active[dataClaimPhysicalKey(candidate)]

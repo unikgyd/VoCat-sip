@@ -118,3 +118,11 @@ failed original stops and failed journal deletion retain the fence; a confirmed
 original stop can retry journal deletion without issuing another modem stop.
 See [the exact scope and verification](DATA_OWNERSHIP_FENCE.md). This is a crash
 fence, not reconstruction of the lost WDS capability or host-resource recovery.
+
+The optional [surviving owner](DATA_OWNER.md) moves that original device manager
+into an independently supervised process and retains the main instance's flock
+descriptor through cleanup. Main-process SIGKILL, original host cleanup and saved
+IPv4/IPv6/dual-stack reconnection now have
+[real host-namespace evidence](VERIFICATION_20261027_DATA_OWNER.md). Losing the
+owner itself still leaves the durable fence; it does not authorize reconstructing
+a client or stopping an unknown packet call.

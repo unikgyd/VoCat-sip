@@ -351,6 +351,9 @@ func (manager *Manager) SetFlight(
 	current := previous
 	currentKnown := false
 	if changed {
+		if err := manager.stopDelegatedData(ctx, id); err != nil {
+			return FlightResult{}, err
+		}
 		if enabled {
 			// Entering RF-off tears down the packet service. Forget the previous
 			// WDS generation before issuing CFUN so a later enable starts cleanly.

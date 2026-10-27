@@ -273,6 +273,32 @@ func (manager *Manager) SetNetwork(
 		if candidate.QMIControl == "" || candidate.NetworkInterface == "" {
 			return NetworkResult{}, fmt.Errorf("%w: QMI control device and network interface are required", ErrDataBackendUnavailable)
 		}
+		if manager.dataNetwork != nil {
+			if state.dataOwner != nil || state.dataSession != nil {
+				return NetworkResult{}, ErrDataCleanupPending
+			}
+			if !request.Enabled {
+				err := manager.stopDelegatedData(ctx, id)
+				return NetworkResult{Backend: "qmi", Interface: candidate.NetworkInterface, ControlDevice: candidate.QMIControl}, err
+			}
+			iccid, imsi := "", ""
+			if guard != nil {
+				iccid, imsi = guard.binding.iccid, guard.binding.imsi
+			}
+			if iccid == "" || imsi == "" {
+				entry, err := manager.Get(id)
+				if err != nil || entry.Snapshot == nil || iccid != "" && iccid != entry.Snapshot.ICCID {
+					return NetworkResult{}, ErrSIMObservation
+				}
+				iccid, imsi = entry.Snapshot.ICCID, entry.Snapshot.IMSI
+			}
+			if iccid == "" || imsi == "" {
+				return NetworkResult{}, ErrSIMObservation
+			}
+			// Snapshot values constrain the request; the surviving owner still
+			// verifies the actual original ICCID/IMSI through its QMI transport.
+			return manager.dataNetwork.Set(ctx, candidate, iccid, imsi, request)
+		}
 		// OpenStick's native WWAN path must drive registration through QMI NAS.
 		// AT+COPS only updates the legacy AT facade on this firmware and can leave
 		// NAS in not-registered-searching, which then makes WDS dialing report a
@@ -329,6 +355,9 @@ func (manager *Manager) SetNetwork(
 		return NetworkResult{}, err
 	}
 	defer state.dataMu.Unlock()
+	if err := manager.stopDelegatedData(ctx, id); err != nil {
+		return NetworkResult{}, err
+	}
 	guard, err := manager.newSIMWriteGuard(ctx, candidate)
 	if err != nil {
 		return NetworkResult{}, err

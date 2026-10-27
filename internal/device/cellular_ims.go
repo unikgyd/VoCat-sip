@@ -166,6 +166,9 @@ func (manager *Manager) SetCellularIMS(ctx context.Context, id string, mode Cell
 		manager.setResult(id, state, nil, err)
 		return status, err
 	}
+	if err := manager.stopDelegatedData(ctx, id); err != nil {
+		return status, err
+	}
 	if _, err = manager.command(ctx, client, fmt.Sprintf(`AT+QCFG="ims",%d`, target)); err != nil {
 		manager.setResult(id, state, nil, err)
 		return CellularIMSStatus{}, err

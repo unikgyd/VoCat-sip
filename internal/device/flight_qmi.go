@@ -734,6 +734,17 @@ func (manager *Manager) setNativeQMIFlight(
 	}
 	changed := targetQMI != previousQMI
 	if changed {
+		if err := manager.stopDelegatedData(ctx, id); err != nil {
+			return FlightResult{}, true, err
+		}
+		if manager.dataNetwork != nil {
+			verify, cancel := manager.withTimeout(ctx, manager.commandTimeout*5)
+			err := guard.verify(verify, session, !enabled)
+			cancel()
+			if err != nil {
+				return FlightResult{}, true, err
+			}
+		}
 		setContext, cancelSet := manager.withTimeout(ctx, manager.commandTimeout)
 		err = session.SetOperatingMode(setContext, targetQMI)
 		cancelSet()

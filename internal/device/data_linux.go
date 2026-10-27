@@ -340,6 +340,16 @@ func (manager *Manager) NetworkStatus(ctx context.Context, id string) (NetworkSt
 	}
 	candidate := manager.candidateFor(state)
 	status := NetworkStatus{Backend: "qmi", Interface: candidate.NetworkInterface}
+	if manager.dataNetwork != nil && state.dataOwner == nil && (candidate.QMIControl != "" || manager.dataNetwork.Admitted(id)) {
+		if err := manager.requireNoPendingDataClaim(ctx, candidate); err != nil && !manager.dataNetwork.Owns(candidate) {
+			return status, err
+		}
+		remote, err := manager.dataNetwork.Status(ctx, id)
+		if remote.Interface == "" {
+			remote.Interface = candidate.NetworkInterface
+		}
+		return remote, err
+	}
 	if candidate.QMIControl == "" || candidate.NetworkInterface == "" {
 		return status, ErrDataBackendUnavailable
 	}
