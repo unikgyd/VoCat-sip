@@ -2,7 +2,9 @@
 
 2026-10-26 implementation. The combined software run is complete, including
 confirmed-journal recovery and changed/unknown-owner rejection. See the
-[verification results and remaining real restart acceptance](VERIFICATION_20261026.md).
+[software verification](VERIFICATION_20261026.md). The subsequent
+[real process-crash case](VERIFICATION_20261027_HOSTIMS_PROCESS.md) passed on the
+original CT SIM with the same host namespace and surviving ModemManager.
 
 A service-process restart does not prove that its IMS PDN, network objects or
 XFRM/TC resources disappeared. The application now connects the private journal
@@ -44,8 +46,9 @@ This recovers confirmed journals while the original daemon, bearer and kernel
 identity are still provable. It does not infer ownership across an MM restart,
 host reboot or replacement network namespace. A disconnected bearer whose
 original network identity/configuration cannot be proved remains pending too.
-Those conditions are explicit blocked states, not successful recovery. Real
-firmware and restart acceptance remains separate from synthetic verification.
+Those conditions are explicit blocked states, not successful recovery. The
+confirmed active-main-process case above has real firmware evidence; daemon/host
+restart, unknown mutations and active carrier-call recovery remain separate.
 
 Final verification includes confirmed network/security cleanup, process locks,
 absent claims, staged/unknown operations, token/identity/configuration changes,

@@ -1,0 +1,89 @@
+{
+  "date": "2026-10-27",
+  "scope": "QDC507 original China Telecom SIM: active Host IMS main SIGKILL, original host network namespace and surviving original ModemManager",
+  "sourceCommit": "70fc3b8215de76eed297ecce6ea17e31da4f587d",
+  "sourceManifestSHA256": "8a9ca7d8d9bc91074011223c830acad13136ac5e5d70741012f72b7fd1352447",
+  "deployedAMD64SHA256": "85505d858fc4ad0bfa648bd98c93d0675829e934f0c62f8680e9822e27189335",
+  "softwareEvidence": "verification-20261027-data-owner.json",
+  "maintenance": {
+    "explicitHumanAuthorization": true,
+    "originalNativeIMSMode": 1,
+    "temporaryNativeIMSMode": 2,
+    "originalNonVoiceConnectionsCouldBeInterrupted": true,
+    "modemRebootAfterEachModeWrite": true,
+    "originalModeRestoredAndNativeIMSRegistered": true
+  },
+  "liveCase": {
+    "actualSIGKILL": true,
+    "dockerExitCodes": [
+      "137"
+    ],
+    "automaticMainRestart": true,
+    "newMainProcess": true,
+    "originalHostNetworkNamespaceUnchanged": true,
+    "originalModemManagerPIDAndRestartCountUnchanged": true,
+    "sameOriginalEquipmentSIMAndUSBGeneration": true,
+    "sameOriginalDaemonBinding": true,
+    "originalPDNDeleted": true,
+    "newPDNAndClaim": true,
+    "oldXFRMReqIDsAbsent": true,
+    "oldSecurityReservationsRemoved": true,
+    "emptyClaimAndXFRMObservedBeforeReconnect": true,
+    "realIMSRegistrationRestored": true,
+    "noNewEnableRequestAfterCrash": true,
+    "noCarrierCallsOrMobileSMS": true,
+    "recoverySeconds": 45.77,
+    "dockerRestartDelta": 1
+  },
+  "recoveryStatusTransitions": [
+    [
+      "idle",
+      null
+    ],
+    [
+      "failed",
+      "host_ims_cleanup_failed"
+    ],
+    [
+      "sms_ready",
+      null
+    ]
+  ],
+  "recoveryStatusObservationCounts": {
+    "('idle', None)": 18,
+    "('failed', 'host_ims_cleanup_failed')": 68,
+    "('sms_ready', None)": 1
+  },
+  "retainedHarnessCorrections": {
+    "privateProjectionInitiallyDisagreedWithSavedSIMPolicy": true,
+    "correctedWhileStoppedBeforeAccessEnable": true,
+    "noRepeatedFirmwareWrite": true,
+    "stopObserverExpectedDisabledButActualAcknowledgedIdle": true,
+    "originalStopNotResubmitted": true
+  },
+  "restoration": {
+    "applicationExitedZero": true,
+    "bothOriginalEquipmentSIMPairsRegisteredRFOn": true,
+    "originalNativeIMSMode1Registered": true,
+    "originalFirmwareProfilesUnchanged": true,
+    "originalModemManagerBinaryAndServiceRestored": true,
+    "finalManagerAutomaticRestarts": 0,
+    "originalDatabaseByteIdentical": true,
+    "originalRunningContainerIDsUnchanged": true,
+    "noRemainingHostIMSClaims": true,
+    "noRemainingHostXFRM": true,
+    "noRemainingSecurityReservations": true,
+    "originalLowerInterfaceRulesDefaultsAndSettingsRestored": true,
+    "cloneDatabaseIntegrity": "ok",
+    "ownedTemporaryManagerFilesRemoved": true,
+    "originalGlobalLockInodePreserved": true
+  },
+  "limitations": {
+    "onlyOneActiveProcessCrashCase": true,
+    "noAnsweredOrIncomingCarrierCall": true,
+    "noCarrierMediaOrMobileSMSDelivery": true,
+    "noWiFiCalls": true,
+    "noMMOrMachineOrPowerLossRecovery": true,
+    "noPhysicalHotplug": true
+  }
+}

@@ -108,9 +108,18 @@ passed 2,076 Go cases, 50 race executions, three kernel cases, vet and four Linu
 builds. The initial SQLite-lock failure and transient startup observations remain
 visible. Owner-process loss and the native owner unit are not accepted by these cases.
 
+The [Host IMS process-recovery follow-up](VERIFICATION_20261027_HOSTIMS_PROCESS.md)
+then passed one real active-main SIGKILL case in the original host namespace.
+The original daemon survived; the old PDN/security claim was cleaned before a
+new claim and real registration returned in 45.770 seconds without another
+enable request. The authorized native IMS mode change was restored to `1,1`,
+and both original SIM pairs, profiles, database and host environment were verified.
+Transient cleanup failures and two corrected harness assumptions remain recorded.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
-hotplug, Host IMS and data-owner/machine crash recovery, successful scheduled work and external provider
+hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
+successful scheduled work and external provider
 delivery still need their live scenarios. Existing
 profile management does not establish provisioning/download/delete of a
 disposable profile.

@@ -71,6 +71,9 @@ replacing an unresolved owner. With the optional [surviving owner](docs/DATA_OWN
 real host-network main-process SIGKILL and automatic IPv4/IPv6/dual-stack recovery
 passed the [new acceptance cases](docs/VERIFICATION_20261027_DATA_OWNER.md).
 Loss of the owner itself remains separate acceptance.
+The [Host IMS process-recovery follow-up](docs/VERIFICATION_20261027_HOSTIMS_PROCESS.md)
+also passed one active-main SIGKILL case with the original host namespace and
+ModemManager preserved; the authorized native IMS setting was restored afterward.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

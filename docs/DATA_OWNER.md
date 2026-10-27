@@ -73,9 +73,10 @@ The persistent fence has no expiry or force takeover. An unknown Start that
 returned no usable handle can remain pending even in the original owner. If
 the owner itself dies, its unresolved journal still denies new data/Host IMS/RF
 admission; this implementation does not reconstruct its lost WDS capability.
-Host IMS's own active-process crash path and machine/power loss remain separate
-acceptance scenarios. Existing IPv4 host-resource ownership limitations are not
-changed by moving the original manager into a surviving process.
+Host IMS has its own [confirmed active-process case](VERIFICATION_20261027_HOSTIMS_PROCESS.md);
+machine/power loss remains separate acceptance. Existing IPv4 host-resource
+ownership limitations are not changed by moving the original manager into a
+surviving process.
 
 See [the data fence](DATA_OWNERSHIP_FENCE.md) and
 [main-process crash acceptance](VERIFICATION_20261027_DATA_OWNER.md) for the
