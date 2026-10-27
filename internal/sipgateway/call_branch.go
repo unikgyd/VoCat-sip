@@ -270,9 +270,30 @@ func (b *callBranch) byeRequest(response *sip.Response) (*sip.Request, error) {
 	return b.byeForInvite(invite, response)
 }
 func (b *callBranch) byeForInvite(invite *sip.Request, response *sip.Response) (*sip.Request, error) {
+	return b.dialogRequest(sip.BYE, invite, response)
+}
+func (b *callBranch) dialogRequest(method sip.RequestMethod, invite *sip.Request, response *sip.Response) (*sip.Request, error) {
 	recipient := invite.Recipient
 	if contact := response.Contact(); safeCallContact(contact) {
 		recipient = contact.Address
 	}
-	return b.call.r.buildCallRequest(sip.BYE, recipient, b.entry.source, invite.From(), response.To(), invite.CallID().Value(), invite.CSeq().SeqNo+1, "", nil)
+	// Only the accepted dialog shares probe/BYE sequence space. Late answers
+	// with a different tag or authenticated attempt keep their own cleanup.
+	sequence := invite.CSeq().SeqNo + 1
+	b.mu.Lock()
+	selected := b.response != nil && b.invite != nil && b.invite.CallID().Value() == invite.CallID().Value() &&
+		b.invite.CSeq().SeqNo == invite.CSeq().SeqNo &&
+		b.response.To().Params.GetOr("tag", "") == response.To().Params.GetOr("tag", "")
+	b.mu.Unlock()
+	if selected {
+		var err error
+		sequence, err = nextDialogSequence(&b.localSequence, invite.CSeq().SeqNo)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if sequence >= 1<<31 {
+		return nil, errDialogSequence
+	}
+	return b.call.r.buildCallRequest(method, recipient, b.entry.source, invite.From(), response.To(), invite.CallID().Value(), sequence, "", nil)
 }

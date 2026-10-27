@@ -31,6 +31,13 @@ Caller-ID 使用已认证账号及配置显示名，而不是客户端自报显�
   2xx 重传再次 ACK，但不重复新开通话。首次有效接听以服务器端互斥选择为准。
 - 接听后向主叫重传 200，直到有效 ACK 或默认 32 秒期限。被叫提前挂断仍保留
   主叫的 200／ACK 恢复路径；随后 BYE。双方任一端正常 BYE 都结束另一腿。
+- 已接通的每条 SIP 对话独立每 30 秒发送一次无正文 OPTIONS，单次最多等 32 秒；
+  校验原始 UDP 来源、Call-ID、双向标签、Via 分支与 CSeq。超时或原对话返回 408／481
+  时结束这通通话，并通知另一腿或原运营商通话。两个探测互不推迟，正常静音不影响判断。
+  OPTIONS／最终 BYE 共用递增的本地 CSeq，和远端请求的 CSeq 分开。其他最终响应仅确认
+  原事务收到应答；不会跟随其 Contact、发送认证重试或把应答 SDP 用作媒体变更。
+  普通挂断和退出会取消并回收探测；带标签的入站 OPTIONS 对不存在／结束的对话返回 481，
+  错误来源／标签／序号在底层事务匹配前拒绝。此为原对话存活检查，尚未实现 RFC 4028 协商。
 - 默认振铃期限 30 秒，迟到响应保留 32 秒；BYE／CANCEL 事务最多等待 3 秒。
   每个账号一次只参与一通通话，全局最多 16 通、512 个在途呼叫事务。
 - RTP 使用本机路由对应的接口与临时 UDP 端口，服务器分别锚定两条媒体腿。
@@ -49,8 +56,9 @@ Caller-ID 使用已认证账号及配置显示名，而不是客户端自报显�
 ## 当前限制与验收范围
 
 - 仅内部普通 G.711、单路 sendrecv RTP/AVP；已补 [RFC 4733 按键跨腿](SIP_DTMF.md)。
-  没有 AMR 内线、RTCP、SIP INFO DTMF、保持、
-  re-INVITE／UPDATE、转接、Session Timer、TCP／TLS、SRTP、ICE／TURN 或公网 SBC。
+  [独立 RTCP](RTCP.md)、[SIP INFO DTMF](SIP_DTMF.md) 及 IMS 保持／恢复已另接入；
+  内线尚无 AMR、保持 re-INVITE／UPDATE、转接、RFC 4028 Session Timer 协商、
+  TCP／TLS、SRTP、ICE／TURN 或公网 SBC。
   不支持的 Require 扩展明确失败，不能靠客户端“注册成功”认定完整 PBX 可用。
 - RTP 端口尚无固定范围配置；LAN／VPN 也必须允许服务器临时 UDP 媒体端口。
   仅映射 SIP 端口无法提供公网语音，当前版本不应直接暴露公网。
@@ -58,7 +66,11 @@ Caller-ID 使用已认证账号及配置显示名，而不是客户端自报显�
   网页首接仲裁已有独立合成验证；每模组完整模式隔离、Asterisk 和运营商短信仍需整合。
 - 验证使用真实回环 UDP、独立 Digest 客户端与合成 SIP/RTP 终端。覆盖正常双向媒体、
   群振、取消、迟到接听、双方挂断、错误来源与标签、丢 ACK、超时及快速退出。
-  Windows 主机和 Linux amd64 原生测试均运行；未做真实软电话听感或运营商验收。
+  Windows 主机和 Linux amd64 原生测试均运行。后续真实 Baresip 与 CT 纯 Host IMS 回拨
+  已有[分阶段实测](VERIFICATION_20261028_SIP_FOLLOWUP.md)；该记录保留首次进程强杀后
+  30 秒内未自动结束的失败。[新增原对话探测](VERIFICATION_20261028_SIP_DIALOG_LIVENESS.md)已完成
+  统一软件检查、新旧构建的相同 80 秒对照及真实 Linux 内线强杀后的自动清理；真实外线
+  分机故障和其他网络／重启组合仍需单独验收。
 
 协议依据：[RFC 3261](https://www.rfc-editor.org/rfc/rfc3261.html)、
 [RFC 3264](https://www.rfc-editor.org/rfc/rfc3264.html)、

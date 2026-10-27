@@ -149,9 +149,12 @@ passed 2,118 Go cases, 125 selected race executions, kernel/vet checks and four
 builds. Its [answered callback follow-up](docs/VERIFICATION_20261028_SIP_FOLLOWUP.md)
 now confirms handset BYE propagation, digit 8, complete recording and original
 per-call media-route cleanup before session stop. Real Linux endpoint tests also
-passed caller/callee BYE and ringing CANCEL. Abrupt endpoint process death left
-both calls active throughout a 30-second observation and required explicit
-cleanup; automatic recovery for that scenario remains open.
+passed caller/callee BYE and ringing CANCEL. The initial abrupt-process failure
+is retained. [Original-dialog liveness](docs/VERIFICATION_20261028_SIP_DIALOG_LIVENESS.md)
+now passed 2,128 Go cases, 245 selected race executions and actual Linux internal
+caller/callee process-death cleanup in about 60 seconds; the old-build control
+still required manual end after 80 seconds. Carrier-bound endpoint faults remain
+separate live work.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

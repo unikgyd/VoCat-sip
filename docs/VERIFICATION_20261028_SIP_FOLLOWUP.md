@@ -121,3 +121,12 @@ Raw captures, credentials, subscriber identities, recordings and addresses remai
 outside Git. Physical browser audio is still deferred at the human's request.
 The endpoint-death automatic termination cases and the other live combinations
 listed in [the acceptance matrix](PARITY_ACCEPTANCE.md) keep the overall goal open.
+
+## Subsequent original-dialog liveness follow-up
+
+The [later implementation and controlled comparison](VERIFICATION_20261028_SIP_DIALOG_LIVENESS.md)
+adds independent dialog OPTIONS checks. The old build still required manual
+end under an 80-second internal callee-fault control; the new checked build
+automatically ended actual internal caller/callee process faults in about
+60 seconds. This initial diagnostic remains historical evidence. Actual
+carrier-bound endpoint faults and the overall goal remain separate/open.

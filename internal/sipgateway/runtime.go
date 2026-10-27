@@ -105,6 +105,8 @@ type runtime struct {
 	callRingTimeout      time.Duration
 	callAckTimeout       time.Duration
 	callLateTimeout      time.Duration
+	callProbeInterval    time.Duration
+	callProbeTimeout     time.Duration
 	carrier              CarrierBackend
 	journal              *callJournal
 	carrierBusy          map[string]*carrierLeg
@@ -139,6 +141,8 @@ func start(config stored, options ...runtimeOptions) (*runtime, error) {
 	r.callRingTimeout = 30 * time.Second
 	r.callAckTimeout = 32 * time.Second
 	r.callLateTimeout = 32 * time.Second
+	r.callProbeInterval = 30 * time.Second
+	r.callProbeTimeout = 32 * time.Second
 	if _, err := rand.Read(r.key[:]); err != nil {
 		return nil, err
 	}
@@ -194,6 +198,10 @@ func start(config stored, options ...runtimeOptions) (*runtime, error) {
 	srv.OnAck(func(_ *sip.Request, _ sip.ServerTransaction) {})
 	srv.OnOptions(func(req *sip.Request, tx sip.ServerTransaction) {
 		if !r.validRequest(req, tx) {
+			return
+		}
+		if req.To().Params.Has("tag") && !r.validOptionsDialog(req, req.Source(), true) {
+			r.respond(req, tx, 481, "Unknown Dialog")
 			return
 		}
 		r.respond(req, tx, 200, "OK")

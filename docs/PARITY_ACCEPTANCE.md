@@ -281,8 +281,19 @@ passed. Abrupt caller/callee process death kept each call active for the full
 network syscall was observed, so a media I/O-error fix is not established by
 these cases. Physical browser audio remains deferred by human request.
 
+The [original-dialog liveness implementation and follow-up](VERIFICATION_20261028_SIP_DIALOG_LIVENESS.md)
+passed 2,128 Go cases, 245 selected race executions, kernel/vet checks and four
+builds. Under the same 80-second observation, an old-build actual internal
+callee fault required explicit end; the new build automatically ended actual
+callee/caller process faults in about 60 seconds, delivered BYE/200 to the
+survivor and admitted a fresh call without gateway restart. Long normal calls
+remained active across independent default OPTIONS rounds. Both fixtures were
+fully restored. Original carrier cleanup is regression-tested with synthetic
+backends; these internal calls do not establish a new carrier-fault result.
+
 The full objective remains open. Browser microphone/speaker use is deferred
-by the human. Automatic termination after abrupt SIP endpoint death,
+by the human. Actual carrier-bound SIP endpoint death, peer restart with a prior
+live dialog, network-loss and other fault combinations,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner while it holds an active claim,
 unconfigured/default-supervision proxy-loss and other failure combinations,

@@ -397,7 +397,7 @@ func randomToken() string {
 func (r *runtime) responseFilter() sip.TransportReadFilter {
 	parser := registrarParser()
 	return func(props sip.TransportReadProps, data []byte) ([]byte, error) {
-		if bytes.HasPrefix(data, []byte("CANCEL ")) || bytes.HasPrefix(data, []byte("ACK ")) || bytes.HasPrefix(data, []byte("BYE ")) {
+		if bytes.HasPrefix(data, []byte("CANCEL ")) || bytes.HasPrefix(data, []byte("ACK ")) || bytes.HasPrefix(data, []byte("BYE ")) || bytes.HasPrefix(data, []byte("OPTIONS ")) {
 			parsed, err := parser.ParseSIP(data)
 			if err != nil {
 				return nil, nil
@@ -408,6 +408,13 @@ func (r *runtime) responseFilter() sip.TransportReadFilter {
 			}
 			request.SetSource(props.RemoteAddr.String())
 			request.SetTransport("UDP")
+			if request.Method == sip.OPTIONS {
+				if request.To() != nil && request.To().Params.Has("tag") && !r.validOptionsDialog(request, props.RemoteAddr.String(), false) {
+					r.statelessCallResponse(request, props.RemoteAddr.String(), 481)
+					return nil, nil
+				}
+				return data, nil
+			}
 			if request.Method == sip.CANCEL {
 				r.cancelCall(request, props.RemoteAddr.String())
 				return nil, nil

@@ -377,6 +377,7 @@ func (c *sipCall) runIncoming() {
 				c.mu.Lock()
 				c.phase = "active"
 				c.mu.Unlock()
+				c.startDialogProbes()
 				deadline = nil
 			case "local":
 				c.stopCall("local_answer")

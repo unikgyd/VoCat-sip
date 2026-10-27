@@ -292,6 +292,7 @@ func (c *sipCall) runCarrier() {
 				c.phase = "active"
 			}
 			c.mu.Unlock()
+			c.startDialogProbes()
 		case <-retransmit:
 			_ = c.transaction.Respond(c.accepted)
 			delay = min(2*delay, 4*time.Second)

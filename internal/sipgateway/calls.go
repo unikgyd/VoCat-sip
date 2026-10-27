@@ -68,6 +68,9 @@ type sipCall struct {
 	carrier        *carrierLeg
 	inbound        *carrierIncoming
 	infoRequests   map[infoRequestKey]*infoReceipt
+	localSequence  atomic.Uint32
+	probeCancel    context.CancelFunc // mu; also prevents a second worker
+	probeWork      sync.WaitGroup
 }
 type callBranch struct {
 	call          *sipCall
@@ -84,6 +87,7 @@ type callBranch struct {
 	remoteEnded   atomic.Bool
 	provisional   atomic.Bool
 	finalResponse atomic.Bool
+	localSequence atomic.Uint32
 }
 
 func (b *callBranch) stopBranch() { b.stopOnce.Do(func() { close(b.stop) }) }
@@ -100,6 +104,9 @@ func (c *sipCall) stopCall(by string) {
 	if !c.stopped {
 		c.stopped = true
 		c.endedBy = by
+		if c.probeCancel != nil {
+			c.probeCancel()
+		}
 		if c.carrier != nil && c.carrier.cancel != nil {
 			c.carrier.cancel()
 		}
@@ -416,6 +423,7 @@ func (c *sipCall) run() {
 				c.phase = "active"
 			}
 			c.mu.Unlock()
+			c.startDialogProbes()
 		case <-retransmit:
 			if accepted != nil {
 				_ = c.transaction.Respond(accepted)
@@ -446,6 +454,7 @@ func (c *sipCall) run() {
 	}
 }
 func (c *sipCall) finish() {
+	c.stopDialogProbes()
 	if c.inbound != nil {
 		c.inbound.cancel()
 		if bridge := c.inbound.bridge.Load(); bridge != nil {
@@ -550,13 +559,18 @@ func (c *sipCall) sendCallerBye() {
 	defer cancel()
 	_ = c.r.callDo(ctx, request, c.callerLeg.source)
 }
-func (c *sipCall) callerBye() (*sip.Request, error) {
+func (c *sipCall) callerBye() (*sip.Request, error) { return c.callerRequest(sip.BYE) }
+func (c *sipCall) callerRequest(method sip.RequestMethod) (*sip.Request, error) {
 	contact := c.incoming.Contact()
 	from := c.incoming.To().AsFrom()
 	from.Params = from.Params.Clone()
 	from.Params.Add("tag", c.callerLeg.localTag)
 	to := c.incoming.From().AsTo()
-	return c.r.buildCallRequest(sip.BYE, contact.Address, c.callerLeg.source, &from, &to, c.callerLeg.id, 1, "", nil)
+	sequence, err := nextDialogSequence(&c.localSequence, 0)
+	if err != nil {
+		return nil, err
+	}
+	return c.r.buildCallRequest(method, contact.Address, c.callerLeg.source, &from, &to, c.callerLeg.id, sequence, "", nil)
 }
 func (r *runtime) callDialog(req *sip.Request, source string, ack bool) *callLeg {
 	return r.checkCallDialog(req, source, ack, true)
@@ -717,6 +731,9 @@ func (r *runtime) closeCalls() {
 		if !c.stopped {
 			c.stopped = true
 			c.endedBy = "shutdown"
+			if c.probeCancel != nil {
+				c.probeCancel()
+			}
 			if c.carrier != nil && c.carrier.cancel != nil {
 				c.carrier.cancel()
 			}
@@ -729,6 +746,7 @@ func (r *runtime) closeCalls() {
 			_ = c.transaction.Respond(c.callerResponse(503, "Service Stopping", nil))
 		}
 		c.mu.Unlock()
+		c.stopDialogProbes()
 		if established {
 			if bye, err := c.callerBye(); err == nil {
 				_ = r.sendCallPacket(bye, c.callerLeg.source)
