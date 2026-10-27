@@ -90,6 +90,13 @@ func (s *Server) restoreFailedAutomaticTaskPreparation(ctx context.Context, task
 		return device.ErrSIMObservation
 	}
 	if task.RevertProfile {
+		if plan.initialEID == "" {
+			return device.ErrSIMObservation
+		}
+		storage, err := s.taskProfileStorage(cleanup, physical, plan.initialICCID, plan.initialEID)
+		if err != nil {
+			return err
+		}
 		if config.Telephony != nil && config.Telephony.ICCID != identity.ICCID {
 			applied, _, err := s.bindTelephonySubscription(cleanup, config, identity)
 			if err != nil {
@@ -113,7 +120,7 @@ func (s *Server) restoreFailedAutomaticTaskPreparation(ctx context.Context, task
 		if _, err := s.setSubscriptionFlight(cleanup, physical, identity, true); err != nil {
 			return err
 		}
-		switchErr := s.devices.ESIMSwitchProfile(cleanup, physical, plan.initialICCID, plan.initialAID)
+		switchErr := s.devices.ESIMSwitchProfile(cleanup, physical, plan.initialICCID, storage.AID)
 		actual, verifyErr := s.devices.Refresh(cleanup, physical)
 		if verifyErr != nil || strings.TrimSpace(actual.ICCID) != plan.initialICCID {
 			return errors.Join(switchErr, verifyErr, device.ErrSIMObservation)

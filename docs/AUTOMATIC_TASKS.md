@@ -65,6 +65,20 @@ SIM reconciler, legacy maintenance, data work and manual lifecycle writers all
 honor the durable fence. The task page shows active or pending restoration;
 private journal payloads and tokens are excluded from API responses.
 
+After a module process restart, that fence may leave its in-memory IMEI snapshot
+empty. Recovery permits only a bounded `AT+CGSN` identity observation on the
+saved original USB/serial/reader binding. A matching IMEI and unchanged generation
+must precede access/data cleanup; a full refresh then rechecks hardware and the
+known original/target SIM before profile writes. Missing binding or a changed
+identity keeps the fence. Host IMS continues to use its metadata owner.
+
+Profile switches record the original storage's ISD-R management AID and EID from
+live inventory, including original-profile membership. The profile's ISD-P AID
+is not a management channel. Reversion resolves that original storage again, so
+old version-1 journals with an erroneous profile AID can recover without guessing
+an application or discarding their identity checks. Changed EID, missing profile
+or ambiguous storage keeps restoration pending.
+
 Host IMS tasks observe the original SIM through its metadata owner, acknowledge
 IMS/bearer cleanup, and only then expose temporary module/VoWiFi task access.
 The task changes only the active independent-access projection; durable per-SIM
@@ -103,3 +117,8 @@ The [call and task verification record](VERIFICATION_20261027_HOSTIMS_CALL_TASKS
 binds the combined checks, retained AT-refresh recovery failure and subsequent
 scoped live results to their candidates. Other firmware, profile-switch, call
 and interruption combinations require their own acceptance.
+
+The [installed-profile task follow-up](VERIFICATION_20261027_ESIM_TASKS.md)
+records these AID/cold-start fixes, a real registration/profile round trip and
+a separate post-switch main-process SIGKILL with automatic original-profile
+restoration. Interrupted runs remain failed and business actions are not replayed.

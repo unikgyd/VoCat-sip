@@ -73,11 +73,17 @@ func (c *revertTestController) ESIMChipInfo(context.Context, string) (*device.Es
 func (c *revertTestController) ESIMListProfiles(_ context.Context, _ string) (device.EsimInfo, error) {
 	return device.EsimInfo{
 		EID: "89010000000000000000000000000001",
+		AID: "A0000005591010FFFFFFFF8900000100",
 		Profiles: []device.EsimProfile{
-			{ICCID: "8901000000000000000", AID: "A0000005591010FFFFFFFF8900000100"},
-			{ICCID: "8901000000000000001", AID: "A0000005591010FFFFFFFF8900000200"},
+			{ICCID: "8901000000000000000", AID: "A0000005591010FFFFFFFF8900000A01"},
+			{ICCID: "8901000000000000001", AID: "A0000005591010FFFFFFFF8900000A02"},
 		},
 	}, nil
+}
+
+func (c *revertTestController) ESIMInventory(ctx context.Context, id string) ([]device.EsimInventoryEntry, error) {
+	info, err := c.ESIMListProfiles(ctx, id)
+	return []device.EsimInventoryEntry{{Info: info, Chip: device.EsimChipInfo{EID: info.EID, AID: info.AID}}}, err
 }
 
 func (c *revertTestController) ESIMSwitchProfile(_ context.Context, _ string, iccid, aid string) error {

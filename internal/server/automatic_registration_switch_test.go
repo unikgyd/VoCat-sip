@@ -20,6 +20,13 @@ type registrationSwitchController struct {
 	switched     bool
 }
 
+func (c *registrationSwitchController) ESIMInventory(context.Context, string) ([]device.EsimInventoryEntry, error) {
+	return []device.EsimInventoryEntry{{Info: device.EsimInfo{
+		EID: "89010000000000000000000000000001", AID: "A0000005591010FFFFFFFF8900000100",
+		Profiles: []device.EsimProfile{{ICCID: c.entry.Snapshot.ICCID}, {ICCID: "8901000000000000002"}},
+	}}}, nil
+}
+
 func (c *registrationSwitchController) SetFlight(ctx context.Context, id string, enabled bool) (device.FlightResult, error) {
 	result, err := c.registrationTaskController.SetFlight(ctx, id, enabled)
 	if c.cancelFlight != nil {

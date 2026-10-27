@@ -1,0 +1,355 @@
+{
+  "schema": 1,
+  "date": "2026-10-27",
+  "scope": "Original EC20 installed-profile cellular registration task: management-AID repair, cold original-device verification, explicit reversion and real post-switch main-process SIGKILL recovery",
+  "inputs": {
+    "baseline": "28716422e5a67385e22eb365f0d755c098528237",
+    "manifestSHA256": "1827cd13aeae00541db75fe7d8093ea719d94ce68fafea6d61e00f8db4e0c36b",
+    "frozenFiles": 1896,
+    "matchedImplementationTestFrontendScriptAndModulePaths": 1774,
+    "artifacts": {
+      "amd64": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+      "arm64": "1fc73b21b21b78c5bcf1c79f7f72e7eb34d4b9d869f61ceebcdff558d02935f8",
+      "386": "2a56f14fb35d73db9c51eafe8e14dddcceee28e5fb0efa9bf524620e803a91b9",
+      "arm": "48eed5fe26ca1a59501b194aad3a8d31ac4cbd1ee0d497989eac76c9bd63a2f1"
+    },
+    "contractManifestSHA256": "235f9dd816d375be23726fee26c43193d3cac6edeed804a378a8b0f44f7fddff",
+    "goToolchain": "go1.27.3 linux/amd64",
+    "moduleResolution": "GOWORK=off GOTOOLCHAIN=local GOPROXY=off GOFLAGS=-mod=readonly"
+  },
+  "finalSoftwareChecks": [
+    {
+      "label": "go",
+      "exit": 0,
+      "seconds": 197.238,
+      "tests": {
+        "pass": 2096,
+        "fail": 0,
+        "skip": 50
+      }
+    },
+    {
+      "label": "data-kernel",
+      "exit": 0,
+      "seconds": 1.32,
+      "tests": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    {
+      "label": "vet",
+      "exit": 0,
+      "seconds": 6.716
+    },
+    {
+      "label": "task-race",
+      "exit": 0,
+      "seconds": 169.257,
+      "tests": {
+        "pass": 15,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    {
+      "label": "amd64",
+      "exit": 0,
+      "seconds": 10.029
+    },
+    {
+      "label": "arm64",
+      "exit": 0,
+      "seconds": 9.958
+    },
+    {
+      "label": "386",
+      "exit": 0,
+      "seconds": 9.352
+    },
+    {
+      "label": "arm",
+      "exit": 0,
+      "seconds": 9.905
+    }
+  ],
+  "frontend": {
+    "newRun": false,
+    "unchangedPaths": 868,
+    "previousPassedCases": 82,
+    "reference": "verification-20261027-hostims-call-tasks.json"
+  },
+  "changes": [
+    "Resolve the original profile storage management ISD-R AID from fresh inventory, its profile membership and original EID; never use the profile ISD-P AID as the management channel.",
+    "Retain old version-1 journals and resolve their original storage from live EID/profile inventory before reversion.",
+    "For an empty module IMEI cache after restart, permit only an AT+CGSN observation bound to the saved original USB/serial/reader evidence. Require matching IMEI and unchanged generation during the observation; refresh and recheck full hardware/SIM identity before profile writes.",
+    "Host IMS metadata restoration keeps its existing path and does not use that legacy AT bootstrap."
+  ],
+  "retainedLiveFailures": {
+    "initialCandidateSHA256": "ef2ebfced99cf736e21f890adbaf386a7eee8f8677a6a9925727843bb1ed4ca0",
+    "queuedOnce": true,
+    "taskType": "cellular_attach",
+    "revertProfile": true,
+    "runStatus": "failed",
+    "attempts": 1,
+    "restorationFenceRetained": true,
+    "savedEIDPresent": true,
+    "savedManagementAIDDoesNotMatchStorage": true,
+    "wrongSavedAIDSelectedInUART": true,
+    "select6A82Observed": true,
+    "standardManagementAIDUsable": true,
+    "originalManualObserverTimedOutWithoutReplay": true,
+    "concurrentLineControlHTTP": 409,
+    "concurrentLineError": "line_busy",
+    "concurrentLineSeconds": 0.002,
+    "otherLineReadHTTP": 200,
+    "otherLineReadSeconds": 0.002,
+    "v2ControlledUpgradeCandidateSHA256": "97b66dd18a18391df49bdb98d7132fc23e96f1054630991f0dda4e6a10786146",
+    "v2RecoveryStillPending": true,
+    "v2PhysicalPresentButIMEISnapshotAbsent": true,
+    "v2UARTObservationSeconds": 35,
+    "v2UARTReadWriteCalls": 0,
+    "outboundSMSUnchanged": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0
+  },
+  "retainedSoftwareRuns": {
+    "v1": {
+      "manifestSHA256": "0a5b2ddbd9dae7e80c91856ee6ed645567fc22bba8c8b71ea5cdd2fe807a8c95",
+      "checks": [
+        {
+          "label": "go",
+          "exit": 1,
+          "seconds": 199.798,
+          "tests": {
+            "pass": 2095,
+            "fail": 1,
+            "skip": 50
+          }
+        }
+      ],
+      "reason": "New recovery fixture passed a pre-normalization DeviceType, so the hardware fence stopped it before the intended storage check. Canonical stored config and explicit inventory-path assertions corrected the fixture."
+    },
+    "v2": {
+      "manifestSHA256": "399a6a15141d35b45d2eefaca463c37875fc55cc6ee59485979e323cfea5ae22",
+      "checks": [
+        {
+          "label": "go",
+          "exit": 0,
+          "seconds": 198.133,
+          "tests": {
+            "pass": 2096,
+            "fail": 0,
+            "skip": 50
+          }
+        },
+        {
+          "label": "data-kernel",
+          "exit": 0,
+          "seconds": 1.321,
+          "tests": {
+            "pass": 3,
+            "fail": 0,
+            "skip": 0
+          }
+        },
+        {
+          "label": "vet",
+          "exit": 0,
+          "seconds": 7.119
+        },
+        {
+          "label": "task-race",
+          "exit": 0,
+          "seconds": 271.744,
+          "tests": {
+            "pass": 50,
+            "fail": 0,
+            "skip": 0
+          }
+        },
+        {
+          "label": "amd64",
+          "exit": 0,
+          "seconds": 8.295
+        },
+        {
+          "label": "arm64",
+          "exit": 0,
+          "seconds": 8.147
+        },
+        {
+          "label": "386",
+          "exit": 0,
+          "seconds": 10.92
+        },
+        {
+          "label": "arm",
+          "exit": 0,
+          "seconds": 9.402
+        }
+      ],
+      "artifacts": {
+        "amd64": "97b66dd18a18391df49bdb98d7132fc23e96f1054630991f0dda4e6a10786146",
+        "arm64": "4e5a8159f1941b0447c0e5e7b225faf23d0654202c20460c0c4ed1092d72df67",
+        "386": "e1d09592dd9c393847f31241719513df41f6a02e8c7062dcaac77f36be655e9a",
+        "arm": "5be0d5df02691890423d756e59b686b01972e83a7f6ff74c018b6cca4a039ef8"
+      },
+      "liveColdRecoveryPassed": false
+    }
+  },
+  "controlledUpgradeRecovery": {
+    "originalVersion1JournalRecovered": true,
+    "coldModuleIdentityBootstrapVerified": true,
+    "otherLineInertMetadataProjectionCorrected": true,
+    "oldWrongProfileAIDResolvedThroughFreshOriginalEIDAndInventory": true,
+    "originalProfileAndPolicyRestored": true,
+    "journalCleared": true,
+    "controlledUpgrade": true,
+    "automaticRestartCase": false,
+    "noBusinessReplay": true,
+    "outboundSMSUnchanged": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "seconds": 84.249,
+    "artifactSHA256": "5e9ab66648d0442fb4a0bb46c088c009f217cad8c08553b3adc4ac2432bf7044",
+    "originalFailedRunExportRetained": true,
+    "ownedTaskDeletedAfterPrivateRunExport": true
+  },
+  "manualProfileTask": {
+    "case": "manual",
+    "manualHTTP202": true,
+    "taskType": "cellular_attach",
+    "environment": "cellular",
+    "revertProfile": true,
+    "attempts": 1,
+    "runStatus": "success",
+    "targetProjectionObserved": true,
+    "originalProfileAndPolicyRestored": true,
+    "knownEIDIdentityJournalUsed": true,
+    "journalCleared": true,
+    "originalManagerAndBothUSBGenerationsUnchanged": true,
+    "outboundSMSUnchanged": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "seconds": 160.061,
+    "actualSIGKILL": false,
+    "automaticSupervisorRestart": false,
+    "recoverySeconds": null,
+    "durablePreferenceAudit": {
+      "allDurableTelephonyPoliciesUnchanged": true,
+      "allCardPreferencesUnchanged": true,
+      "taskOwnedDeviceProjectionRestored": true,
+      "originalEIDStillMatches": true,
+      "outboundSMSUnchanged": true,
+      "allSixTaskOwnedProjectionFieldsRestored": true,
+      "projectionFieldCount": 6
+    }
+  },
+  "postSwitchSIGKILL": {
+    "case": "interrupt",
+    "manualHTTP202": true,
+    "taskType": "cellular_attach",
+    "environment": "cellular",
+    "revertProfile": true,
+    "attempts": 1,
+    "runStatus": "failed",
+    "targetProjectionObserved": true,
+    "originalProfileAndPolicyRestored": true,
+    "knownEIDIdentityJournalUsed": true,
+    "journalCleared": true,
+    "originalManagerAndBothUSBGenerationsUnchanged": true,
+    "outboundSMSUnchanged": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "seconds": 147.411,
+    "actualSIGKILL": true,
+    "automaticSupervisorRestart": true,
+    "recoverySeconds": 84.737,
+    "casePassed": true,
+    "dockerEvidence": {
+      "actualDie137": true,
+      "sameContainerID": true,
+      "newMainPID": true,
+      "restartCountDelta": 1,
+      "running": true,
+      "actions": [
+        {
+          "action": "die",
+          "exitCode": "137"
+        },
+        {
+          "action": "start",
+          "exitCode": null
+        }
+      ]
+    },
+    "durablePreferenceAudit": {
+      "allDurableTelephonyPoliciesUnchanged": true,
+      "allCardPreferencesUnchanged": true,
+      "taskOwnedDeviceProjectionRestored": true,
+      "originalEIDStillMatches": true,
+      "outboundSMSUnchanged": true,
+      "frozenJournalEIDMatchesOriginal": true,
+      "allSixTaskOwnedProjectionFieldsRestored": true,
+      "projectionFieldCount": 6
+    },
+    "checkpoint": "Target profile publication confirmed; registration preparation in progress; possible in-flight registration I/O.",
+    "interruptedRunExpectedFailed": true,
+    "newTaskEnableOrManualRestartAfterSIGKILL": false
+  },
+  "concurrentControl": {
+    "taskLine": {
+      "status": 409,
+      "seconds": 0.002,
+      "error": "line_busy"
+    },
+    "otherLine": {
+      "status": 200,
+      "seconds": 0.008,
+      "error": null
+    },
+    "otherLineScope": "Original inactive CT line, inert Host IMS metadata configuration; no active-call preservation claim."
+  },
+  "restoration": {
+    "allThreeApplicationsExitedZero": true,
+    "originalInstalledProfilesStatesAndEIDRestored": true,
+    "originalSIMsRegisteredRFOn": true,
+    "CTNativeIMS11AndPDPDefinitionsUnchanged": true,
+    "linkMTUAddressesRulesDefaultsIPv6Restored": true,
+    "claimsXFRMAndTaskRecoveryEmpty": true,
+    "ownedTasksRemovedAfterPrivateRunExport": true,
+    "originalManagerBinaryRestored": true,
+    "restoredManagerAutomaticRestarts": 0,
+    "ownedManagerFilesRemoved": true,
+    "originalDatabaseHashPreserved": true,
+    "serverLockInodePreserved": true,
+    "originalRunningContainerIDsPreserved": true,
+    "CTRawIPYConfirmed": true,
+    "outboundSMSUnchanged": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "profileDownloadOrDeleteRequested": false,
+    "maintenanceModemRebootRequested": false
+  },
+  "harnessObservations": [
+    "The first upgrade preflight expected lowercase iccid inside the private CardPolicy journal; the actual field is ICCID. It stopped before the upgrade intent or any deployment mutation.",
+    "The initial private fixture inherited a module-mode CT projection while ModemManager still owned its serial port. Before v3 rollout, only the stopped private copy was corrected to inert Host IMS metadata mode. The original database and PH recovery journal were preserved.",
+    "The v2 controlled-upgrade observation timed out with the original journal pending and the PH IMEI cache absent. The same live worker remained fenced; no business task was resubmitted.",
+    "Owned task deletion cascades its live run rows. Each failed/successful run was exported privately first; historical failures were not rewritten into passing runs."
+  ],
+  "limits": [
+    "This phase manually queued cellular_attach tasks; it did not establish real clock dispatch for profile-switch tasks.",
+    "SIGKILL occurred after the target profile switch was published, during registration preparation. It did not interrupt the EnableProfile APDU itself.",
+    "Only the two already-installed profiles and this EC20/eUICC combination were exercised. No profile was downloaded or deleted.",
+    "The temporary matching patched ModemManager was used during the cases, then the original service/binary was restored. This does not fix the distribution daemon UAF limitation.",
+    "Active-call/daemon/host crash recovery, physical hotplug, independent data-owner loss, other task/profile/access combinations, actual browser devices, carrier SIP interoperability and external-provider delivery remain separate acceptance."
+  ],
+  "privacy": {
+    "rawIdentitiesProfileNamesDestinationsCredentialsUARTTracesAndPayloadsExcluded": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "carrierSMSOrCallsRequested": false
+  }
+}

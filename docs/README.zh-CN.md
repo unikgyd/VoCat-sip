@@ -35,6 +35,9 @@ Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制�
 后续纯 Host IMS 保持／恢复、来电自动接听、提示音播放、原通话 PCM 接管和双向录音已完成
 分项实测，见[高级通话验收](VERIFICATION_20261027_HOSTIMS_ADVANCED.md)。按键已确认提交，
 远端 IVR 识别与实际浏览器麦克风／扬声器仍单独验收。
+新增[切卡任务恢复验收](VERIFICATION_20261027_ESIM_TASKS.md)：修正 eUICC 管理 AID 误用和
+重启后缺少身份快照导致的恢复阻塞；已实测已安装配置的注册／回切，以及切卡后强杀主进程
+自动恢复原配置和偏好，被中断任务保持失败且不重放业务。
 
 本 fork 作为 Linux 客户端，参考成熟的 [VoWin](https://github.com/unikgyd/VoWin) 补齐能力，
 同时保留现有 Linux 功能。通话与音频、多模组与恢复、管理与通知三个方向均在范围内。

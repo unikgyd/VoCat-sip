@@ -186,6 +186,18 @@ owned-copy deletion checks using a copy of an actual carrier recording. All
 owned hardware/host settings were restored. Runtime inputs were unchanged;
 the previous combined software result was not counted as another execution.
 
+The [installed-profile task follow-up](VERIFICATION_20261027_ESIM_TASKS.md)
+then fixes ISD-P/ISD-R AID confusion and cold module identity bootstrap behind
+the durable recovery fence. The final candidate passed 2,096 Go cases, 15 selected
+race executions, three kernel cases, vet and four builds. It recovered the
+original failed journal after a controlled upgrade, completed a fresh real
+profile registration/revert task, and restored the original profile/preferences
+after a separate real post-switch SIGKILL in 84.737 seconds. The interrupted
+run stayed failed and was not replayed. Original host state was restored.
+The prior AID failure, fixture failure and AID-only cold-recovery failure remain
+artifact-specific evidence; no LPA-commit interruption or clock profile dispatch
+is inferred from the passing cases.
+
 The full objective remains open. Actual browser microphone/speaker use,
 remote IVR recognition, carrier SIP bridging, recipient-confirmed IMS SMS round trips, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,

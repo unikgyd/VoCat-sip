@@ -351,7 +351,7 @@ type automaticTaskRevertState struct {
 	switchAttempted bool
 	physicalID      string
 	initialICCID    string
-	initialAID      string
+	initialEID      string
 	snapshot        automaticTaskEnvironmentSnapshot
 }
 
@@ -401,29 +401,15 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 		}
 	}
 
-	var initialAID, initialEID string
-	if info, infoErr := s.devices.ESIMListProfiles(ctx, physicalID); infoErr == nil {
-		initialEID = strings.TrimSpace(info.EID)
-		for _, p := range info.Profiles {
-			if strings.EqualFold(strings.TrimSpace(p.ICCID), initialICCID) {
-				initialAID = strings.TrimSpace(p.AID)
-				break
-			}
-		}
-		if initialAID == "" {
-			initialAID = strings.TrimSpace(info.AID)
-		}
+	storage, storageErr := s.taskProfileStorage(ctx, physicalID, initialICCID, "")
+	if storageErr != nil {
+		return store.Device{}, device.Device{}, "", recovery, storageErr
 	}
-	if initialEID == "" {
-		if chip, chipErr := s.devices.ESIMChipInfo(ctx, physicalID); chipErr == nil && chip != nil {
-			initialEID = strings.TrimSpace(chip.EID)
-		}
-	}
-	if err := recordAutomaticTaskProfileSwitch(ctx, initialAID, initialEID); err != nil {
+	if err := recordAutomaticTaskProfileSwitch(ctx, storage.AID, storage.EID); err != nil {
 		return store.Device{}, device.Device{}, "", recovery, err
 	}
 
-	recovery.initialAID = initialAID
+	recovery.initialEID = storage.EID
 	revertState = recovery
 	originalNetworkEnabled := config.NetworkEnabled
 	recovery.modified = true

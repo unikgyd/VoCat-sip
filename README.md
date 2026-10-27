@@ -106,6 +106,10 @@ Host IMS task selection, combined checks and scoped recovery results.
 The [advanced carrier follow-up](docs/VERIFICATION_20261027_HOSTIMS_ADVANCED.md)
 adds real hold/resume, incoming automatic answering, audible playback, same-call
 PCM takeover and call-bound recordings, plus authenticated recording API checks.
+The [installed-profile task follow-up](docs/VERIFICATION_20261027_ESIM_TASKS.md)
+fixes eUICC management-AID selection and cold task-recovery identity observation.
+A real registration/profile round trip and a separate post-switch SIGKILL restored
+the original profile and preferences without replaying the interrupted task.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

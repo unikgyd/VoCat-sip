@@ -144,17 +144,63 @@ func (s *Server) createAutomaticTaskJournal(ctx context.Context, task store.Auto
 }
 
 func (journal *automaticTaskJournal) verifyHardware(config store.Device) (device.Device, string, error) {
+	entry, physical, err := journal.verifyHardwareBinding(config)
+	if err == nil && journal.payload.IMEI != "" && (entry.Snapshot == nil || strings.TrimSpace(entry.Snapshot.IMEI) != journal.payload.IMEI) {
+		err = device.ErrSIMObservation
+	}
+	return entry, physical, err
+}
+
+func (journal *automaticTaskJournal) verifyHardwareBinding(config store.Device) (device.Device, string, error) {
 	p := journal.payload
 	entry, physical, present := journal.server.physicalForConfig(config)
 	if !present || config.DeviceType != p.DeviceType || config.ModemIMEI != p.ConfiguredIMEI || config.USBPath != p.ConfiguredUSBPath ||
 		p.USBPath != "" && entry.Candidate.USBPath != p.USBPath ||
 		p.ReaderName != "" && entry.Candidate.ReaderName != p.ReaderName ||
 		p.HardwareKind != entry.Candidate.HardwareKind ||
-		p.SerialNumber != "" && entry.Candidate.SerialNumber != p.SerialNumber ||
-		p.IMEI != "" && (entry.Snapshot == nil || strings.TrimSpace(entry.Snapshot.IMEI) != p.IMEI) {
+		p.SerialNumber != "" && entry.Candidate.SerialNumber != p.SerialNumber {
 		return entry, "", device.ErrSIMObservation
 	}
 	return entry, physical, nil
+}
+
+// Ordinary startup refresh is fenced while a recovery journal exists. An AT
+// modem may therefore have no in-memory IMEI after restart. Permit only an
+// identity query on its already-bound original topology, then require the live
+// IMEI and unchanged USB generation before any access/data/RF cleanup.
+func (journal *automaticTaskJournal) observeHardwareForRecovery(ctx context.Context, config store.Device) (device.Device, string, error) {
+	entry, physical, err := journal.verifyHardwareBinding(config)
+	if err != nil || journal.payload.IMEI == "" {
+		return entry, physical, err
+	}
+	if entry.Snapshot != nil && strings.TrimSpace(entry.Snapshot.IMEI) != "" {
+		if strings.TrimSpace(entry.Snapshot.IMEI) != journal.payload.IMEI {
+			return entry, physical, device.ErrSIMObservation
+		}
+		return entry, physical, nil
+	}
+	p := journal.payload
+	if p.USBPath == "" && p.SerialNumber == "" && p.ReaderName == "" {
+		return entry, physical, device.ErrSIMObservation
+	}
+	query, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	response, err := journal.server.devices.ExecuteAT(query, physical, "AT+CGSN")
+	if err != nil || !response.OK() {
+		return entry, physical, errors.Join(err, device.ErrSIMObservation)
+	}
+	matched := false
+	for _, line := range response.Lines {
+		if strings.TrimSpace(line) == p.IMEI {
+			matched = true
+		}
+	}
+	latest, currentPhysical, err := journal.verifyHardwareBinding(config)
+	if err != nil || !matched || currentPhysical != physical || latest.Candidate.USBGeneration != entry.Candidate.USBGeneration ||
+		latest.Snapshot != nil && strings.TrimSpace(latest.Snapshot.IMEI) != "" && strings.TrimSpace(latest.Snapshot.IMEI) != p.IMEI {
+		return latest, currentPhysical, errors.Join(err, device.ErrSIMObservation)
+	}
+	return latest, currentPhysical, nil
 }
 
 func temporaryAutomaticTaskDevice(config store.Device) store.Device {
@@ -209,11 +255,16 @@ func (journal *automaticTaskJournal) restore(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, physical, err := journal.verifyHardware(current)
+	metadataOnly := journal.usesHostTaskMetadata(ctx, current)
+	var physical string
+	if metadataOnly {
+		_, physical, err = journal.verifyHardware(current)
+	} else {
+		_, physical, err = journal.observeHardwareForRecovery(ctx, current)
+	}
 	if err != nil {
 		return err
 	}
-	metadataOnly := journal.usesHostTaskMetadata(ctx, current)
 	access := current
 	if metadataOnly {
 		access = journal.payload.Original.Projection.apply(current)
@@ -243,6 +294,9 @@ func (journal *automaticTaskJournal) restore(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		if journal.payload.IMEI != "" && strings.TrimSpace(live.IMEI) != journal.payload.IMEI {
+			return device.ErrSIMObservation
+		}
 	}
 	if _, verified, err := journal.verifyHardware(current); err != nil || verified != physical {
 		return errors.Join(err, device.ErrSIMObservation)
@@ -271,15 +325,19 @@ func (journal *automaticTaskJournal) restore(ctx context.Context) error {
 		if !journal.payload.SwitchAttempted || journal.payload.EID == "" {
 			return device.ErrSIMObservation
 		}
-		chip, err := s.devices.ESIMChipInfo(ctx, physical)
-		if err != nil || chip == nil || strings.TrimSpace(chip.EID) != journal.payload.EID {
+		storage, err := s.taskProfileStorage(ctx, physical, original.Card.ICCID, journal.payload.EID)
+		if err != nil {
 			return errors.Join(err, device.ErrSIMObservation)
+		}
+		journal.payload.InitialAID = storage.AID
+		if err := journal.save(ctx, "restoring"); err != nil {
+			return err
 		}
 		identity := vowifi.SIMIdentity{ICCID: iccid, IMSI: strings.TrimSpace(live.IMSI)}
 		if _, err := s.setSubscriptionFlight(ctx, physical, identity, true); err != nil {
 			return err
 		}
-		switchErr := s.devices.ESIMSwitchProfile(ctx, physical, original.Card.ICCID, journal.payload.InitialAID)
+		switchErr := s.devices.ESIMSwitchProfile(ctx, physical, original.Card.ICCID, storage.AID)
 		live, err = s.devices.Refresh(ctx, physical)
 		if err != nil || strings.TrimSpace(live.ICCID) != original.Card.ICCID {
 			return errors.Join(switchErr, err, device.ErrSIMObservation)
