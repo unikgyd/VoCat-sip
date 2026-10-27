@@ -1,0 +1,476 @@
+{
+  "accepted": true,
+  "sourceBaseline": "3db21943634f9cfa63f52f3171c62eeca38c5db4",
+  "manifestSHA256": "c284f9010d2f28100cc3385565e65e296ab7fa3f2afaeb728d13339edf3a6599",
+  "image": "sha256:88127f9d7fdad8e453ce33ab9f59264962112ab62c08fd5fe8228c5523fbef26",
+  "binarySHA256": "70204ffabb9fdfa289b188ab358f36d7b3d52951714a8f07d63cc828bfd9c13b",
+  "helperSHA256": {
+    "asterisk_overlay_linux_test.go": "5d01c6932f7a6c1f15be3a9f14324161ff00a084778be263f78b2e9646422fed",
+    "run-isolated.sh": "289456e7902833eaf8a40e169e5855ad6def35dae78427f967b7794eea2b4c8f"
+  },
+  "tests": {
+    "rootsPassed": 2,
+    "subtestsPassed": 7,
+    "failed": 0,
+    "skipped": 0
+  },
+  "smoke": [
+    {
+      "algorithm": "SHA-256",
+      "accepted": true,
+      "bidirectionalMESSAGEAndINVITE": true,
+      "exactPCMAEcho": true,
+      "CANCEL": true,
+      "bodylessCredentialFreeReadiness": true
+    },
+    {
+      "algorithm": "MD5",
+      "accepted": true,
+      "bidirectionalMESSAGEAndINVITE": true,
+      "exactPCMAEcho": true,
+      "CANCEL": true,
+      "bodylessCredentialFreeReadiness": true
+    }
+  ],
+  "cases": {
+    "restart-to-pbx": {
+      "accepted": true,
+      "automaticClearSeconds": 30.012,
+      "actualChildKilledAndWaited": true,
+      "sameRuntime": true,
+      "manualHangupBeforeMeasurement": false,
+      "oldBackendHangups": 1,
+      "replacementProbeReplies": [
+        [
+          [
+            481
+          ]
+        ]
+      ],
+      "freshCallPassed": true,
+      "finalBackendHangups": 2
+    },
+    "death-from-pbx": {
+      "accepted": true,
+      "automaticClearSeconds": 62.007,
+      "actualChildKilledAndWaited": true,
+      "sameRuntime": true,
+      "manualHangupBeforeMeasurement": false,
+      "oldBackendHangups": 1,
+      "replacementProbeReplies": [],
+      "freshCallPassed": true,
+      "finalBackendHangups": 2
+    },
+    "death-to-pbx": {
+      "accepted": true,
+      "automaticClearSeconds": 62.043,
+      "actualChildKilledAndWaited": true,
+      "sameRuntime": true,
+      "manualHangupBeforeMeasurement": false,
+      "oldBackendHangups": 1,
+      "replacementProbeReplies": [],
+      "freshCallPassed": true,
+      "finalBackendHangups": 2
+    },
+    "healthy-two-dialogs": {
+      "accepted": true,
+      "silentSeconds": 67.108,
+      "originalDialogs": 2,
+      "zeroRTPPacketCounters": true,
+      "originalDialogProbeReplies": [
+        [
+          [
+            200
+          ],
+          [
+            200
+          ]
+        ],
+        [
+          [
+            200
+          ],
+          [
+            200
+          ]
+        ]
+      ],
+      "exactPCMObservedAfterSilence": true,
+      "independentHangup": true
+    },
+    "restart-from-pbx": {
+      "accepted": true,
+      "automaticClearSeconds": 30.045,
+      "actualChildKilledAndWaited": true,
+      "sameRuntime": true,
+      "manualHangupBeforeMeasurement": false,
+      "oldBackendHangups": 1,
+      "replacementProbeReplies": [
+        [
+          [
+            481
+          ]
+        ]
+      ],
+      "freshCallPassed": true,
+      "finalBackendHangups": 2
+    }
+  },
+  "software": {
+    "started": 1793125095.349309,
+    "sourceBaseline": "3db21943634f9cfa63f52f3171c62eeca38c5db4",
+    "manifestSHA256": "c284f9010d2f28100cc3385565e65e296ab7fa3f2afaeb728d13339edf3a6599",
+    "contractManifestSHA256": "235f9dd816d375be23726fee26c43193d3cac6edeed804a378a8b0f44f7fddff",
+    "results": [
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 213.658,
+        "tests": {
+          "pass": 2131,
+          "fail": 0,
+          "skip": 48
+        }
+      },
+      {
+        "label": "data-kernel",
+        "exit": 0,
+        "seconds": 1.369,
+        "tests": {
+          "pass": 3,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 7.579
+      },
+      {
+        "label": "recovery-and-sip-race-partition",
+        "exit": 0,
+        "seconds": 386.205,
+        "tests": {
+          "pass": 255,
+          "fail": 0,
+          "skip": 0
+        },
+        "rootNames": 51,
+        "repetitionsPerRoot": [
+          5
+        ]
+      },
+      {
+        "label": "sms-readiness-race",
+        "exit": 0,
+        "seconds": 535.202,
+        "tests": {
+          "pass": 65,
+          "fail": 0,
+          "skip": 0
+        },
+        "rootNames": 13,
+        "repetitionsPerRoot": [
+          5
+        ]
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 11.457
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 11.812
+      },
+      {
+        "label": "386",
+        "exit": 0,
+        "seconds": 12.141
+      },
+      {
+        "label": "arm",
+        "exit": 0,
+        "seconds": 10.81
+      }
+    ],
+    "resumedAt": 1793126070.0604525,
+    "retainedInitialRace": {
+      "accepted": false,
+      "result": {
+        "label": "recovery-and-sip-race",
+        "exit": 1,
+        "seconds": 693.386,
+        "tests": {
+          "pass": 311,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      "reason": "Expanded five-iteration selection exceeded its per-package 10-minute test budget; all source and assertions retained, selections partitioned at five iterations each with 20-minute package budgets.",
+      "rootPassesBeforeTimeout": 311
+    },
+    "resumeDriverSHA256": "86bb26978e60ea8ba5f3c3426d1212e0a878c2f039eca5ee2b5877d9473ad828",
+    "artifacts": {
+      "amd64": "18c88714414563bf732c02f9d5cfc15d9bd18bf54707c810c00bceb63e42ee47",
+      "arm64": "5a065be0614fdbaf20dcc48cac13c5b4695724e50a0702a9f8dbc2740725d058",
+      "386": "4205a56bd8e43bd42e883721b6e15ef413039efff930bdb997e91eb81f3c3ed5",
+      "arm": "36b2803c678185c7ee3852ec74dfe66c9ba54b6d9cce6b429e74cfc6174b5fc3"
+    },
+    "completed": 1793126651.9681218
+  },
+  "sourceUnchangedDuringLiveBatch": true,
+  "originalFiveContainersUnchanged": true,
+  "ownedContainerRemoved": true,
+  "isolation": {
+    "network": "none",
+    "onlyLoopback": true,
+    "user": "10001:10001",
+    "readOnlyRoot": true,
+    "capDropAll": true,
+    "noNewPrivileges": true,
+    "noHostDevices": true,
+    "noHostPorts": true,
+    "onlyPrivateBinaryAndEvidenceBinds": true
+  },
+  "retainedFirstBatch": {
+    "accepted": false,
+    "exit": 1,
+    "rootsFailed": 2,
+    "subtestsFailed": 7,
+    "findings": [
+      "Both real Asterisk challenge algorithms blocked SMS readiness because To URI port was omitted in their replies while the request included it. Product fix changes logical request To only; strict response checks retained.",
+      "Minimal old Asterisk fixture omitted res_pjsip_dlg_options.so; healthy dialogs consequently had no OPTIONS response. Corrected fixture explicitly loads and verifies this module.",
+      "Initial harness counted synthetic remote hangup as a backend API operation and expected too few cleanup calls. Corrected harness injects a separate remote-ended event; both directions require one automatic original-call cleanup before any manual event."
+    ],
+    "originalContainersPreserved": true,
+    "ownedContainerRemoved": true
+  },
+  "sourceInputs": 1935,
+  "frontendInputsUnchanged": 868,
+  "changedGoInputs": {
+    "internal/sipgateway/sms_peer_readiness.go": "620f90be69048067c7aa819d846d23c8d8d33c55e37dbe73236c0ceb0e3868b3",
+    "internal/sipgateway/sms_peer_readiness_address_test.go": "b305951fce7b6a7d85485a6913781dbc3b4f0988d45f489c25108e9072eba26a"
+  },
+  "explicitGoSkips": [
+    {
+      "package": "vocat/internal/device",
+      "test": "TestQMIIPv6DataKernelRoutesDNSAndOriginalSettings"
+    },
+    {
+      "package": "vocat/internal/device",
+      "test": "TestQMIIPv6DataKernelPreservesOtherInterfaceRoutes"
+    },
+    {
+      "package": "vocat/internal/device",
+      "test": "TestQMIIPv6DataKernelRefusesForeignAddressesAndReplacement"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestReadOnlySystemModemManagerProbe"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelCleanupIdentitySurvivesDownRenameAndMTUChange"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelCleanupIdentityProvesDeletionWithoutTouchingReusedIndex"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelCleanupIdentityDoesNotGuessDeathFromBadAnchorOrNamespace"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelCleanupIdentityRejectsClosedDriver"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelCleanupIdentityDoesNotTreatNamespaceMoveAsDeletion"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelOwnedDownLinkLifecycle"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkDualStackSetupBoundSocketsAndCleanup"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkReusesButNeverDeletesExistingAddress"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkMediaReferenceCountsAndSignalingPin"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkForeignRouteReplacementIsPreserved"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkLostAckNeverGuessesOwnership"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkKnownRejectionHasNoUnknownFence"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkCancellationKeepsPendingUntilObservedCleanup"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkRejectsUnmatchedRuntimeBeforeMutation"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkTwoModemsWithOverlappingDualStackAddresses"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkRejectsExistingDefaultWithoutMutation"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkPolicyOverrideFailsClosedAndRollsBack"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkDetectsRuleActionReplacement"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkRenameAndMTUChangesInvalidate"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkSocketBindingRejectsUnknownDestinationAndWrongFamily"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkRejectsMultipathSocketOutsideTCPESPContract"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkMutationExcludesSIM"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkDualStackGateways"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkSocketFromAnotherNamespaceIsRejected"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkJournalFailureBeforeIntentDoesNotMutate"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkJournalFailureAfterAckRetainsPendingFence"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkMediaLimitAndLastRelease"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkUnknownIPv6RoutePreferenceIsPreserved"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkWDSProofIsRevalidatedBeforeReuse"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelNetworkRuntimeBusyDoesNotPoisonClose"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestSystemQMIEndpointProbeIsReadOnly"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestKernelSecurityOwnerNativeDualStackOverlappingModems"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestSecurityTCNativeOwnedCreateFingerprintAndForeignFence"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestSecurityTCNativeOverlappingModemESPDelivery"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestScopedXFRMNative"
+    },
+    {
+      "package": "vocat/internal/hostims",
+      "test": "TestSocketSecurityPolicyNative"
+    },
+    {
+      "package": "vocat/internal/vowifi/ike",
+      "test": "TestLinuxUserspaceInstallerLifecycle"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestNativeAMRMissingLibraryFallsBackWithoutFakeCapability"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestCellularNativeRTPBindsBearerAndSource"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestCellularNativeBoundSignalingSockets"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestLinuxIPSecInstallerLifecycle"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestLinuxIPSecRollbackPreservesForeignKernelState"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestLinuxXFRMSharedPlanIncludesRequiredUEClientUDPInbound"
+    },
+    {
+      "package": "vocat/internal/vowifi/ims",
+      "test": "TestLinuxXFRMServerRepliesEncryptEphemeralTCPAndUDP"
+    }
+  ],
+  "realPBXObservedCalls": {
+    "answered": 14,
+    "ringingCancelled": 2,
+    "logicalMESSAGEDeliveries": 4,
+    "actualCarrierCalls": 0,
+    "actualCarrierSMS": 0
+  },
+  "scope": [
+    "Real Asterisk 22.5.2 fixed-peer protocol/dialog/process interoperability only; carrier and SMS backends are memory-only fixtures.",
+    "No actual IMS/operator registration, physical SIM, modem, QMI, DBus, call or SMS in this phase.",
+    "PCMA echo is exact synthetic PCM across real G711 RTP; no human listening, AMR, NAT/VPN or browser microphone acceptance.",
+    "Liveness scenarios SHA-256; short bidirectional call/SMS smoke also explicit MD5; no implicit digest downgrade.",
+    "Production vowin-asterisk was not configured, reloaded, originated or restarted. Carrier-bound fixed-PBX joint acceptance and other matrix cases remain open."
+  ],
+  "finalHostAudit": {
+    "originalFiveContainersStillUnchanged": true,
+    "noIsolatedAsteriskContainers": true,
+    "stockManagerPIDAndBinaryUnchanged": true,
+    "stockManagerRestarts": 0
+  },
+  "publicationAudit": {
+    "productInputsUnchanged": 1818,
+    "fullFrozenInputsBeforePublication": 1935,
+    "onlyPublicationDocsChanged": true
+  }
+}

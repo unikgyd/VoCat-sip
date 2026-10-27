@@ -122,3 +122,7 @@ network loss and other hardware/host/data-owner/task/provider combinations remai
 in [the acceptance matrix](PARITY_ACCEPTANCE.md). Physical browser audio stays
 deferred at the human's request. The overall goal remains open. Raw captures,
 addresses, subscriber data, credentials and private logs remain outside Git.
+
+The subsequent [fixed-Asterisk follow-up](VERIFICATION_20261028_ASTERISK_SESSION.md)
+adds current-source fixed-PBX long-dialog, process-loss and restart acceptance
+with synthetic carrier backends. Actual carrier-bound joint faults remain open.

@@ -73,7 +73,10 @@ Caller-ID 使用已认证账号及配置显示名，而不是客户端自报显�
   统一软件检查、新旧构建的相同 80 秒对照及真实 Linux 内线强杀后的自动清理；真实外线
   分机故障和其他组合仍需单独验收。后续[注册终端重启／无 RTP／断网实测](VERIFICATION_20261028_SIP_SESSION_FAULTS.md)
   已修复旧目标 404／410 误判，证明无 RTP 不误挂、恢复后同一通话继续、静默断网自动清理，
-  以及新通话不受旧清理影响。固定 PBX 重启、长时间断网重连和真实外线故障仍单独验收。
+  以及新通话不受旧清理影响。[固定 PBX 后续复测](VERIFICATION_20261028_ASTERISK_SESSION.md)
+  已通过真实隔离 Asterisk 双向长通话及退出／重启清理，使用模拟运营商后端。
+  `autoload=no` 的 Asterisk 需加载 `res_pjsip_dlg_options.so` 响应会话内 OPTIONS。
+  长时间断网重连和真实外线联合故障仍单独验收。
 
 协议依据：[RFC 3261](https://www.rfc-editor.org/rfc/rfc3261.html)、
 [RFC 3264](https://www.rfc-editor.org/rfc/rfc3264.html)、

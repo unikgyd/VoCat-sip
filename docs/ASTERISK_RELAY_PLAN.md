@@ -177,7 +177,19 @@ OPTIONS、REGISTER 或其他连通探测，不因配置保存而拨号、发短�
 恢复。已经提交而结果未知的短信继续保留防重事实；不能随监听器换代清除正在执行的
 逐模组隔离锁，或释放尚未清理 ACK 的 Host 所有者。
 
-## 离线验证与后续验收
+## 当前源码隔离复测：2026-10-28
+
+[长会话与 PBX 故障验收](VERIFICATION_20261028_ASTERISK_SESSION.md)已在真实 Asterisk
+22.5.2 断网容器通过双向呼叫／短信（SHA-256 和显式 MD5）、67 秒无音频注入双会话、
+双方向 PBX 进程退出和快速重启。原网关运行时自动结束旧呼叫并可建立新呼叫。
+运营商／短信后端为模拟实现，不计为新的实卡、IMS 或运营商联合故障验收。
+
+短信就绪探测的逻辑 `To` 不带 URI 端口，Request-URI／UDP 投递及实际响应源仍固定
+原端点；不放宽响应校验或发送探测凭据。若 Asterisk 使用 `autoload=no`，需在
+`res_pjsip`、`res_pjsip_session` 之外加载并核实 `res_pjsip_dlg_options.so`，否则已有
+会话的 OPTIONS 无响应会触发网关清理。这与 `res_pjsip` 的会话外 OPTIONS 是独立处理。
+
+## 首阶段离线验证与后续验收
 
 第一阶段配置／秘密、API／UI、独立权限、双向电话和短信 MESSAGE、原卡回复及
 持久化 peer recipient 已接线。合成回环及断网容器内的 Asterisk 22.5.2 互通已通过：

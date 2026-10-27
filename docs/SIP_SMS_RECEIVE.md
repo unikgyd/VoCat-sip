@@ -199,5 +199,8 @@ attempt token、来源、canonical 回复目标及逐包检查不变。探测、
 
 Go 仍限可信内网／VPN、UDP、UTF-8 `text/plain`，不截断正文冒充成功。
 本地分机没有有效注册时等待；固定 peer 探测失败也保留尚未认领的原 Queued。
+[真实 Asterisk 复测](VERIFICATION_20261028_ASTERISK_SESSION.md)已修复就绪探测 `To` URI
+端口兼容：逻辑地址不带端口，实际投递端点和响应校验仍保持固定；SHA-256／显式 MD5
+双向 MESSAGE 均通过，运营商后端仍为模拟实现。
 任一 Contact 完整返回 200／202 只表示该接收人接受，不保证所有终端展示、PBX 后分机收齐
 或用户已读。Unknown 不自动重投。私有标记和摘要不是磁盘加密，数据库仍需访问保护。

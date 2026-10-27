@@ -112,7 +112,11 @@ func (r *runtime) runSMSPeerProbe(probe *smsPeerProbe) {
 	request.SetDestination(endpoint.String())
 	from := &sip.FromHeader{Address: sip.Uri{Scheme: "sip", User: "gateway", Host: r.identityDomain()}}
 	from.Params.Add("tag", randomToken())
-	to := &sip.ToHeader{Address: uri}
+	// To is the logical recipient, not the transport destination. PJSIP prints
+	// To without its URI port in OPTIONS replies; omit it in our request too so
+	// strict response identity checks still match. Request-URI, Via and the
+	// observed response source retain the exact configured endpoint ports.
+	to := &sip.ToHeader{Address: sip.Uri{Scheme: "sip", User: uri.User, Host: uri.Host}}
 	callID := sip.CallIDHeader(randomToken())
 	forward := sip.MaxForwardsHeader(20)
 	request.AppendHeader(via)

@@ -160,6 +160,12 @@ fixes stale-target 404/410 handling and passed 2,130 Go cases, 255 selected race
 executions and five actual Linux scenarios: caller/callee restart, zero inbound
 RTP with same-call media recovery, silent UDP loss and a fresh call surviving the
 prior cleanup window. The old 80-second restart failure is retained.
+The [fixed-Asterisk follow-up](docs/VERIFICATION_20261028_ASTERISK_SESSION.md)
+repairs SMS-readiness addressing and passed 2,131 Go cases plus real isolated
+Asterisk SHA-256/MD5 call/SMS interoperability. Two silent dialogs survived 67
+seconds; bidirectional PBX restart and process-loss cleanup completed in about
+30 and 62 seconds, respectively. These use synthetic carrier backends; real
+carrier-bound fault combinations remain separate acceptance.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

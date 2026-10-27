@@ -302,8 +302,20 @@ A fresh call stayed active past the prior 32-second drain; all owned rules and
 fixtures plus original host state were restored. These are registered internal
 endpoint cases, not fixed-PBX or carrier-call fault acceptance.
 
+The [fixed-Asterisk long-dialog and process-fault follow-up](VERIFICATION_20261028_ASTERISK_SESSION.md)
+then repaired readiness To-port handling and passed 2,131 Go cases, kernel/vet
+checks, selected race iterations and four builds. Real isolated Asterisk passed
+both SHA-256 and explicit MD5 call/SMS smoke; two simultaneous original dialogs
+survived 67.108 silent seconds with matched OPTIONS/200 and media recovery.
+Both PBX restart directions cleared original calls in about 30 seconds via
+matched OPTIONS/481; both absent-process directions cleared in about 62 seconds.
+Fresh calls passed without gateway restart, and all owned containers were removed.
+Carrier/SMS backends were synthetic; this is fixed-PBX protocol/process evidence,
+with real carrier-bound joint faults still open. Initial product and fixture
+failures are retained separately.
+
 The full objective remains open. Browser microphone/speaker use is deferred
-by the human. Actual carrier-bound SIP endpoint death, fixed-PBX/Asterisk restart,
+by the human. Actual carrier-bound SIP endpoint death and fixed-PBX/carrier joint faults,
 prolonged network-loss/reconnection and other fault combinations,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner while it holds an active claim,
