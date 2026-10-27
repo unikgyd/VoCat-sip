@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"vocat/internal/store"
+	"vocat/internal/vowifi"
 )
 
 func (s *Server) stopTelephonyAccess(ctx context.Context, config store.Device) error {
@@ -23,7 +24,7 @@ func (s *Server) stopTelephonyAccess(ctx context.Context, config store.Device) e
 	}
 	for _, access := range s.telephonyControllerAccesses(config) {
 		controller := s.controllerForMode(access)
-		if err := s.stopTelephonyController(ctx, config.ID, access); err != nil {
+		if err := s.stopAutomaticTaskController(ctx, config.ID, access); err != nil {
 			return err
 		}
 		defer endIMSMaintenance(controller, config.ID)
@@ -34,6 +35,9 @@ func (s *Server) stopTelephonyAccess(ctx context.Context, config store.Device) e
 // A scheduled task temporarily changes the active device projection. The SIM's
 // durable preferences stay intact and are restored by the task's finalizer.
 func (s *Server) prepareIndependentTaskEnvironment(ctx context.Context, config *store.Device, physical string, task store.AutomaticTask, progress automaticTaskProgress) error {
+	if task.Environment == store.IMSModeHost && task.TaskType != "sms" && task.TaskType != "call" {
+		return errors.New("Host IMS tasks support SMS and calls")
+	}
 	identity, err := s.observedTelephonySubscription(ctx, *config)
 	if err != nil || identity.ICCID != config.Telephony.ICCID || identity.ICCID != task.ProfileICCID {
 		return errors.New("task subscription does not match the active SIM")
@@ -55,6 +59,11 @@ func (s *Server) prepareIndependentTaskEnvironment(ctx context.Context, config *
 		policy.AutoConnectCellular = false
 		policy.WiFiRadioPolicy = "exclusive"
 		policy.DefaultRoute = store.IMSModeVoWiFi
+	} else if task.Environment == store.IMSModeHost {
+		progress("正在准备 Host IMS 执行环境")
+		policy.CellularMode, policy.DefaultRoute = store.IMSModeHost, store.IMSModeHost
+		policy.AutoConnectCellular, policy.AutoConnectWiFi = true, false
+		policy.WiFiRadioPolicy = "coexist"
 	} else {
 		progress("正在准备蜂窝执行环境")
 		policy.CellularMode, policy.DefaultRoute = store.IMSModeModule, store.IMSModeModule
@@ -68,7 +77,7 @@ func (s *Server) prepareIndependentTaskEnvironment(ctx context.Context, config *
 	}
 	activation := *config
 	activation.NetworkEnabled = false // data starts only after task registration is ready
-	if task.Environment == "vowifi" {
+	if task.Environment == "vowifi" || task.Environment == store.IMSModeHost {
 		s.cellularDataRuntime().resume(config.ID)
 	}
 	if err := s.startTelephonyAccess(ctx, activation, physical); err != nil {
@@ -76,6 +85,9 @@ func (s *Server) prepareIndependentTaskEnvironment(ctx context.Context, config *
 	}
 	if task.Environment == "vowifi" {
 		return s.waitAutomaticVoWiFi(ctx, config.ID, policy.ICCID, task.TaskType == "sms")
+	}
+	if task.Environment == store.IMSModeHost {
+		return s.waitAutomaticHostIMS(ctx, config.ID, policy.ICCID, task.TaskType == "sms")
 	}
 	if _, err := s.devices.SetOperatorSelection(ctx, physical, true, "", nil); err != nil {
 		return err
@@ -105,13 +117,23 @@ func (s *Server) restoreIndependentTaskEnvironment(ctx context.Context, physical
 	if err != nil {
 		return err
 	}
-	if err := s.stopTelephonyAccess(ctx, current); err != nil {
+	access := current
+	metadataOnly := store.HostIMSConfigured(config) && s.hasHostTaskMetadata()
+	if metadataOnly {
+		access = config
+	}
+	if err := s.stopTelephonyAccess(ctx, access); err != nil {
 		return err
 	}
 	if err := s.quiesceOwnedData(ctx, current); err != nil {
 		return fmt.Errorf("stop temporary task data before restoring access: %w", err)
 	}
-	identity, err := s.observedTelephonySubscription(ctx, current)
+	var identity vowifi.SIMIdentity
+	if metadataOnly {
+		identity, err = s.hostTaskSubscription(ctx, config.ID, config.Telephony.ICCID)
+	} else {
+		identity, err = s.observedTelephonySubscription(ctx, current)
+	}
 	if err != nil || identity.ICCID != config.Telephony.ICCID {
 		return errors.New("task restoration subscription could not be verified")
 	}

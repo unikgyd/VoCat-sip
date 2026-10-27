@@ -50,6 +50,7 @@ type imsCall struct {
 	dialogOffers    map[dialogOfferKey]*dialogOfferTransaction
 	mediaRemoteCSeq uint32
 	pracked         map[string]bool
+	earlyMediaTag   string
 	sessionExpires  int
 	sessionCancel   context.CancelFunc
 	// callMu protects these fields; replyMu orders incoming final responses
@@ -322,6 +323,9 @@ func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) 
 				session.updateCallDialogFromResponse(call, response)
 				if len(response.Body) > 0 {
 					if mediaErr := session.configureCallMedia(call, response.Body); mediaErr == nil {
+						session.callMu.Lock()
+						call.earlyMediaTag = headerParameter(response.value("To"), "tag")
+						session.callMu.Unlock()
 						session.setCallMediaReady(call.callID)
 						session.setCallState(call.callID, "early_media")
 					}
@@ -364,12 +368,24 @@ func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) 
 					session.endAnsweredDialog(dialog)
 					continue
 				}
-				mediaErr := session.configureCallMedia(call, response.Body)
+				// A reliable provisional answer may complete SDP negotiation before
+				// the final 2xx. Keep that media only for the same early dialog;
+				// another fork must supply its own answer, as must a new SDP body.
+				session.callMu.Lock()
+				reuseMedia := len(response.Body) == 0 && dialog.remoteTag != "" &&
+					call.earlyMediaTag == dialog.remoteTag && call.media != nil && call.media.ready()
+				session.callMu.Unlock()
+				var mediaErr error
+				if !reuseMedia {
+					mediaErr = session.configureCallMedia(call, response.Body)
+				}
 				if mediaErr != nil {
+					session.setCallDiagnostic(call.callID, response.StatusCode, mediaErr.Error())
 					session.finishCall(call.callID, "failed", response.StatusCode, mediaErr.Error())
 					session.endAnsweredDialog(dialog)
 					continue
 				}
+				session.setCallDiagnostic(call.callID, response.StatusCode, diagnostic)
 				session.callMu.Lock()
 				cancelled := call.terminated || call.public.EndedAt != nil
 				if !cancelled {

@@ -1,0 +1,349 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "scope": "Pure QDC507 Host IMS answered AMR call and explicit Host IMS automatic tasks",
+  "source": {
+    "baseline": "93aee1eafb4f81c0b9ebaef8e86200662afe72d8",
+    "manifestSHA256": "f7708df78d6324dbc2248c7b312497c09d7d166459e905479847b569c5d9191d",
+    "frozenFiles": 1892,
+    "finalRuntimeTestAndFrontendPathsMatched": 1754,
+    "implementationCompletedBeforeEachCombinedRun": true
+  },
+  "software": {
+    "final": {
+      "started": 1793079731.851804,
+      "sourceBaseline": "93aee1eafb4f81c0b9ebaef8e86200662afe72d8",
+      "manifestSHA256": "f7708df78d6324dbc2248c7b312497c09d7d166459e905479847b569c5d9191d",
+      "contractManifestSHA256": "235f9dd816d375be23726fee26c43193d3cac6edeed804a378a8b0f44f7fddff",
+      "results": [
+        {
+          "label": "go",
+          "exit": 0,
+          "seconds": 196.955,
+          "tests": {
+            "pass": 2094,
+            "fail": 0,
+            "skip": 50
+          }
+        },
+        {
+          "label": "data-kernel",
+          "exit": 0,
+          "seconds": 1.424,
+          "tests": {
+            "pass": 3,
+            "fail": 0,
+            "skip": 0
+          }
+        },
+        {
+          "label": "vet",
+          "exit": 0,
+          "seconds": 7.248
+        },
+        {
+          "label": "cleanup-race",
+          "exit": 0,
+          "seconds": 64.973,
+          "tests": {
+            "pass": 5,
+            "fail": 0,
+            "skip": 0
+          }
+        },
+        {
+          "label": "amd64",
+          "exit": 0,
+          "seconds": 8.047
+        },
+        {
+          "label": "arm64",
+          "exit": 0,
+          "seconds": 7.443
+        },
+        {
+          "label": "386",
+          "exit": 0,
+          "seconds": 10.343
+        },
+        {
+          "label": "arm",
+          "exit": 0,
+          "seconds": 9.243
+        }
+      ],
+      "artifacts": {
+        "amd64": "ef2ebfced99cf736e21f890adbaf386a7eee8f8677a6a9925727843bb1ed4ca0",
+        "arm64": "70e58a362e9bb3abadcdfa45eb083374ea2fbbe849432cd6730747a4f666bad2",
+        "386": "141ad9e010ccc664c24059715dc5a13ba166affa4f0844184b0567253f5f4729",
+        "arm": "45ad2bb15a788caf1f9b3f3d5291365733ef4d5c25f216423a38a9b80da22f16"
+      },
+      "completed": 1793080037.96291
+    },
+    "frontend": {
+      "passCount": 82,
+      "failCount": 0,
+      "skipCount": 0,
+      "testHarnessSeconds": 4.769,
+      "buildSeconds": 63.948,
+      "frontendPathsUnchanged": 868
+    },
+    "priorCallRace": {
+      "candidate": "v4",
+      "checks": [
+        {
+          "label": "call-race",
+          "exit": 0,
+          "seconds": 20.266,
+          "tests": {
+            "pass": 20,
+            "fail": 0,
+            "skip": 0
+          }
+        }
+      ]
+    },
+    "priorTaskRace": {
+      "candidate": "v5",
+      "checks": [
+        {
+          "label": "task-race",
+          "exit": 0,
+          "seconds": 175.692,
+          "tests": {
+            "pass": 30,
+            "fail": 0,
+            "skip": 0
+          }
+        }
+      ]
+    },
+    "retainedInitialFailures": [
+      {
+        "started": 1793075900.9369626,
+        "sourceBaseline": "93aee1eafb4f81c0b9ebaef8e86200662afe72d8",
+        "manifestSHA256": "62fafbeea69b6be36fa64e35e63ce031dd543788e5a03f69d61202fb9e71f1e3",
+        "contractManifestSHA256": "235f9dd816d375be23726fee26c43193d3cac6edeed804a378a8b0f44f7fddff",
+        "results": [
+          {
+            "label": "go",
+            "exit": 1,
+            "seconds": 189.387,
+            "tests": {
+              "pass": 2087,
+              "fail": 2,
+              "skip": 50
+            }
+          }
+        ]
+      },
+      {
+        "started": 1793076150.8041167,
+        "sourceBaseline": "93aee1eafb4f81c0b9ebaef8e86200662afe72d8",
+        "manifestSHA256": "1fd7628b2c7ac36aa26ce6fe524d6e204f4c7a77e44e23555a832c7d6a6f150d",
+        "contractManifestSHA256": "235f9dd816d375be23726fee26c43193d3cac6edeed804a378a8b0f44f7fddff",
+        "results": [
+          {
+            "label": "go",
+            "exit": 1,
+            "seconds": 195.423,
+            "tests": {
+              "pass": 2089,
+              "fail": 1,
+              "skip": 50
+            }
+          }
+        ]
+      }
+    ],
+    "priorAdmissionCallRace": {
+      "candidate": "v6",
+      "checks": [
+        {
+          "label": "admission-call-race",
+          "exit": 0,
+          "seconds": 70.801,
+          "tests": {
+            "pass": 10,
+            "fail": 0,
+            "skip": 0
+          }
+        }
+      ]
+    }
+  },
+  "call": {
+    "candidate": "v4",
+    "artifactSHA256": "96f20291711f6a5a1a00aa184908f53ac344d0b3126369ebaf3fa9f11ae1cf26",
+    "manifestSHA256": "f99233d3d5f456b2844b6606644a95a5648a5eed84d96084ef9424c3b793986d",
+    "result": {
+      "absolute20msPacing": true,
+      "answered": true,
+      "callHTTP202": true,
+      "mediaReady": true,
+      "noADBVoiceRoute": true,
+      "noPhilippinesSubmission": true,
+      "observedStates": {
+        "active": true,
+        "dialing": true,
+        "early_media": true,
+        "ringing": true
+      },
+      "onlyAuthorizedDestination": true,
+      "originalCTSIMVerified": true,
+      "receivedFrames": 572,
+      "receivedNonzeroSamples": 76581,
+      "receivedPeak": 18384,
+      "receivedRMS": 2036.7819134450951,
+      "receivedSamples": 91520,
+      "sentSamples": 129440,
+      "toneFadeMs": 10,
+      "tonePeak": 900,
+      "transport": "host_ims",
+      "websocketConnected": true,
+      "recipientConfirmedClearTones": true,
+      "recipientConfirmedSpoke": true,
+      "finalState": "ended",
+      "codec": "AMR",
+      "RTP": {
+        "packets_sent": 809,
+        "packets_received": 572,
+        "octets_sent": 25888,
+        "packets_lost": 0,
+        "jitter": 16,
+        "reports_sent": 16,
+        "reports_received": 4,
+        "invalid_reports": 0,
+        "send_errors": 0
+      },
+      "finalHangupHTTP": 409,
+      "alreadyEndedBeforeDeferredHangup": true
+    }
+  },
+  "taskRecovery": {
+    "retainedV4Failure": "Old claim cleared but legacy ATI refresh timed out; original journal retained; no SMS submission or replay",
+    "controlledV5Upgrade": {
+      "actualSIGKILLDuringTaskPreparation": true,
+      "automaticSupervisorRestart": false,
+      "upgradedCandidateResumedOriginalJournal": true,
+      "interruptedRunFailed": true,
+      "restorationJournalCleared": true,
+      "savedPolicyRestored": true,
+      "originalMMAndUSBGenerationUnchanged": true,
+      "oldClaimAndPDNReplacedAfterCleanup": true,
+      "hostIMSRegistrationRestored": true,
+      "noNewEnableRequest": true,
+      "controlledUpgradeAfterRetainedFailure": true,
+      "noSMSSubmissionOrReplay": true,
+      "observerResumedSameRecovery": true,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0,
+      "secondsSinceOriginalKillIncludingInvestigationAndChecks": 1015.741
+    },
+    "freshV5Interruption": {
+      "actualSIGKILLDuringTaskPreparation": true,
+      "automaticSupervisorRestart": true,
+      "interruptedRunFailed": true,
+      "restorationJournalCleared": true,
+      "savedPolicyRestored": true,
+      "originalMMAndUSBGenerationUnchanged": true,
+      "oldClaimAndPDNReplacedAfterCleanup": true,
+      "hostIMSRegistrationRestored": true,
+      "noNewEnableOrManualRestart": true,
+      "noSMSSubmissionOrReplay": true,
+      "recoverySeconds": 58.963,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0
+    }
+  },
+  "retainedV5ClockFailure": {
+    "realClockDispatch": true,
+    "failedBeforeAdmission": true,
+    "error": "line_busy",
+    "attempts": 1,
+    "noSMSSubmission": true,
+    "ownedTaskRemovedAfterEvidence": true
+  },
+  "remaining": [
+    "Incoming carrier calls",
+    "Carrier hold/DTMF/recording/playback/takeover",
+    "Actual browser microphone/speaker chain and sleep",
+    "SIP-to-carrier bridging",
+    "Active-call/daemon/host crash and physical hotplug",
+    "Additional profile-switch, hardware, installation and provider combinations",
+    "Recipient-confirmed IMS SMS round trip until separately observed"
+  ],
+  "clockSMS": {
+    "candidate": "v6",
+    "artifactSHA256": "3d694a731fdd774dd7775b34ebed78eaaa73fab4f4ef56e590e2bc7f2377ae84",
+    "result": {
+      "realClockDispatch": true,
+      "oneSuccessfulRun": true,
+      "attempts": 1,
+      "oneIMSSMSAccepted": true,
+      "deliveryState": "delivered",
+      "restorationJournalCleared": true,
+      "savedPolicyRestored": true,
+      "hostIMSRegistrationRestored": true,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0
+    }
+  },
+  "retainedCallTaskV6Failure": {
+    "oneHostIMSCallSubmitted": true,
+    "configuredDurationSeconds": 6,
+    "finalSIP487Observed": true,
+    "runFailedAtInitialCleanup": true,
+    "error": "host_ims_cleanup_incomplete",
+    "backgroundRecoveryJournalCleared": true,
+    "savedPolicyRestored": true,
+    "hostIMSRegistrationRestored": true,
+    "ownedTaskRemovedAfterEvidence": true,
+    "noBusinessReplay": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0
+  },
+  "callTask": {
+    "candidate": "v7",
+    "artifactSHA256": "ef2ebfced99cf736e21f890adbaf386a7eee8f8677a6a9925727843bb1ed4ca0",
+    "result": {
+      "manualHostIMSCallTask": true,
+      "configuredDurationSeconds": 6,
+      "oneSuccessfulRun": true,
+      "attempts": 1,
+      "originalCallEndedAndSignalingSettled": true,
+      "restorationJournalCleared": true,
+      "savedPolicyRestored": true,
+      "hostIMSRegistrationRestored": true,
+      "noSMSSubmission": true,
+      "answeredAudioNotClaimed": true,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0
+    }
+  },
+  "IMSRecipientOKObservedBeforeShutdown": false,
+  "restoration": {
+    "allPhaseApplicationsExitedZero": true,
+    "hostIMSClaimsCleared": true,
+    "securityAndPDNCleanupAcknowledged": true,
+    "taskRecoveryJournalsAndOwnedTasksCleared": true,
+    "nativeIMS1Registered": true,
+    "bothOriginalSIMsRegisteredRFOn": true,
+    "originalProfilesRetained": true,
+    "hostNetworkAndRawIPRestored": true,
+    "originalModemManagerRestored": true,
+    "temporaryManagerFilesRemoved": true,
+    "originalDatabaseAndLockPreserved": true,
+    "originalContainerIDsPreserved": true,
+    "privateADBServerStopped": true,
+    "noADBVoiceProductChanges": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0
+  },
+  "retainedHarnessObservations": [
+    "First v4 call observer canceled a ringing call after transient line_busy; a separate robust observation attempt passed",
+    "An enable request was explicitly rejected busy before a confirmed fresh enable",
+    "The v7 rollout helper path was corrected before any deployment mutation",
+    "Post-reset network snapshot was transiently different; all baseline fields subsequently matched and restoration resumed without another modem reboot"
+  ]
+}

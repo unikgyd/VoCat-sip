@@ -30,7 +30,19 @@ import {
 } from "../lib/automaticTaskProfiles";
 
 type TaskType = "sms" | "call" | "public_ip" | "cellular_attach";
-type TaskEnvironment = "vowifi" | "cellular";
+type TaskEnvironment = "vowifi" | "cellular" | "host_ims";
+
+export function AutomaticTaskEnvironmentSelect({ value, disabled, reader, onChange, t }: {
+  value: TaskEnvironment; disabled: boolean; reader: boolean;
+  onChange: (value: TaskEnvironment) => void; t: (value: string) => string;
+}) {
+  const options = reader ? [{ value: "vowifi", label: "VoWiFi" }] : [
+    { value: "vowifi", label: "VoWiFi" },
+    { value: "host_ims", label: "Host IMS" },
+    { value: "cellular", label: t("基站直连（自动选网）") },
+  ];
+  return <Select value={value} onChange={(next) => onChange(next as TaskEnvironment)} disabled={disabled} options={options} />;
+}
 
 interface AutomaticTaskPayload {
   phone?: string;
@@ -440,7 +452,7 @@ export default function AutomaticTasksPage() {
   }
 
   const taskTypeLabel = (value: TaskType) => ({ sms: t("发送短信"), call: t("拨打电话并自动挂断"), public_ip: t("获取漫游公网 IP"), cellular_attach: t("仅注册蜂窝网络") })[value];
-  const environmentLabel = (value: TaskEnvironment) => value === "vowifi" ? "VoWiFi" : t("基站直连");
+  const environmentLabel = (value: TaskEnvironment) => value === "host_ims" ? "Host IMS" : value === "vowifi" ? "VoWiFi" : t("基站直连");
 	const selectedTaskDeviceIsReader = deviceByID.get(form.deviceId)?.deviceType === "usb_sim_reader";
 	const taskTypeOptions = [
 	  { value: "sms", label: t("发送短信") },
@@ -448,9 +460,6 @@ export default function AutomaticTasksPage() {
 	  ...(!selectedTaskDeviceIsReader ? [{ value: "cellular_attach", label: t("仅注册蜂窝网络") }] : []),
 	  ...(advancedTasksAvailable && !selectedTaskDeviceIsReader ? [{ value: "public_ip", label: t("开启漫游流量并获取一次公网 IP") }] : []),
 	];
-	const environmentOptions = selectedTaskDeviceIsReader
-	  ? [{ value: "vowifi", label: "VoWiFi" }]
-	  : [{ value: "vowifi", label: "VoWiFi" }, { value: "cellular", label: t("基站直连（自动选网）") }];
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -563,7 +572,7 @@ export default function AutomaticTasksPage() {
           <div><label className={fieldLabel}>{t("设备")}</label><Select value={form.deviceId} onChange={chooseDevice} options={devices.map((device) => ({ value: device.id, label: `${device.name || device.id} (${device.id})` }))} /></div>
           <div><label className={fieldLabel}>{t("SIM / Profile")}</label><Select value={form.profileIccid} onChange={chooseProfile} disabled={profileLoading || !form.deviceId} placeholder={profileLoading ? t("读取 Profile 中...") : t("请选择 SIM / Profile")} options={profiles.map((profile) => ({ value: profile.iccid, label: profile.label }))} /></div>
           <div><label className={fieldLabel}>{t("任务类型")}</label><Select value={form.taskType} onChange={(value) => chooseTaskType(value as TaskType)} options={taskTypeOptions} /></div>
-          <div><label className={fieldLabel}>{t("执行环境")}</label><Select value={form.environment} onChange={(value) => setForm({ ...form, environment: value as TaskEnvironment })} disabled={form.taskType === "public_ip" || form.taskType === "cellular_attach" || selectedTaskDeviceIsReader} options={environmentOptions} /></div>
+          <div><label className={fieldLabel}>{t("执行环境")}</label><AutomaticTaskEnvironmentSelect value={form.environment} onChange={(environment) => setForm({ ...form, environment })} disabled={form.taskType === "public_ip" || form.taskType === "cellular_attach" || selectedTaskDeviceIsReader} reader={selectedTaskDeviceIsReader} t={t} /></div>
 		  {selectedTaskDeviceIsReader ? <div className="md:col-span-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300">{t("USB SIM读卡器仅支持VoWiFi短信和通话任务")}</div> : null}
 
           {(form.taskType === "sms" || form.taskType === "call") ? <div><label className={fieldLabel}>{t("号码")}</label><Input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} placeholder="+447700900123" /></div> : null}

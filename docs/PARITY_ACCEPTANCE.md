@@ -166,12 +166,20 @@ reading. Its candidate passed 2,086 Go cases, 120 selected race executions, thre
 kernel cases, vet and four builds. On the original CT SIM it registered and sent
 one IMS SMS, with a later carrier status 0 and `delivered` state. The earlier
 module/ADB assisted calls and module SMS are excluded from Host IMS acceptance.
-No answered pure Host IMS call or recipient reply is claimed.
+That phase placed no answered pure Host IMS call and observed no recipient reply.
 
-The full objective remains open. Answered and incoming carrier calls, carrier
+The [Host IMS call and task follow-up](VERIFICATION_20261027_HOSTIMS_CALL_TASKS.md)
+adds an answered pure Host IMS AMR call with recipient-confirmed clear tones,
+received human PCM and bidirectional RTP. It also records explicit Host IMS
+tasks, a retained AT-refresh recovery failure, controlled upgrade recovery and
+a separate successful task-preparation SIGKILL recovery. A later real clock
+Host IMS SMS task received carrier delivery confirmation; a new six-second
+Host IMS call task completed call/signaling cleanup and restored the saved policy.
+
+The full objective remains open. Incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, recipient-confirmed IMS SMS round trips, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
-scheduled call/SMS and task-restart recovery, and external provider
+additional scheduled-task/profile/crash combinations and external provider
 delivery still need their live scenarios. Existing
 profile management does not establish provisioning/download/delete of a
 disposable profile.

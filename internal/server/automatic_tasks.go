@@ -194,7 +194,7 @@ attempts:
 			}
 		}
 		operationContext, cancel := context.WithTimeout(scheduler.ctx, runtimeLimit)
-		output, err = scheduler.server.executeAutomaticTask(operationContext, task, progress)
+		output, err = scheduler.server.executeAutomaticTaskWhenAvailable(operationContext, task, progress)
 		cancel()
 		if err == nil {
 			break
@@ -233,7 +233,7 @@ attempts:
 func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticTask, progress automaticTaskProgress) (output string, err error) {
 	ctx, release, err := s.beginAutomaticTask(ctx, task.DeviceID)
 	if err != nil {
-		return "", err
+		return "", automaticTaskAdmissionError{err}
 	}
 	defer func() {
 		if releaseErr := release(); releaseErr != nil {
@@ -274,27 +274,47 @@ func (s *Server) executeAutomaticTask(ctx context.Context, task store.AutomaticT
 		}
 	}()
 	progress("正在释放原接入并核对设备和 SIM")
-	if err := s.enterAutomaticTaskMaintenance(ctx, current); err != nil {
-		return "", err
+	config := current
+	var entry device.Device
+	var physicalID string
+	if journal.usesHostTaskMetadata(ctx, current) {
+		if err := s.stopTelephonyAccess(ctx, current); err != nil {
+			return "", err
+		}
+		if err := s.quiesceOwnedData(ctx, current); err != nil {
+			return "", err
+		}
+		if _, err := s.hostTaskSubscription(ctx, current.ID, task.ProfileICCID); err != nil {
+			return "", err
+		}
+		entry, physicalID, err = journal.verifyHardware(current)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		if err := s.enterAutomaticTaskMaintenance(ctx, current); err != nil {
+			return "", err
+		}
+		_, physical, err := journal.verifyHardware(temporaryAutomaticTaskDevice(current))
+		if err != nil {
+			return "", err
+		}
+		live, err := s.devices.Refresh(ctx, physical)
+		if err != nil || strings.TrimSpace(live.ICCID) != journal.payload.Original.Card.ICCID {
+			return "", errors.Join(err, device.ErrSIMObservation)
+		}
+		if err := s.requireModuleCallsIdle(ctx, temporaryAutomaticTaskDevice(current)); err != nil {
+			return "", err
+		}
+		// Only this task capability may start new work after the old data
+		// owner has acknowledged cleanup and the disabled projection is saved.
+		s.cellularDataRuntime().resume(current.ID)
+		config, entry, physicalID, _, err = s.ensureAutomaticTaskProfile(ctx, task, progress)
+		if err != nil {
+			return "", err
+		}
 	}
-	_, physical, err := journal.verifyHardware(temporaryAutomaticTaskDevice(current))
-	if err != nil {
-		return "", err
-	}
-	live, err := s.devices.Refresh(ctx, physical)
-	if err != nil || strings.TrimSpace(live.ICCID) != journal.payload.Original.Card.ICCID {
-		return "", errors.Join(err, device.ErrSIMObservation)
-	}
-	if err := s.requireModuleCallsIdle(ctx, temporaryAutomaticTaskDevice(current)); err != nil {
-		return "", err
-	}
-	// The old data owner has acknowledged cleanup and the disabled temporary
-	// projection is durable. Only this task capability can start new work.
 	s.cellularDataRuntime().resume(current.ID)
-	config, entry, physicalID, _, err := s.ensureAutomaticTaskProfile(ctx, task, progress)
-	if err != nil {
-		return "", err
-	}
 	if err := s.prepareAutomaticTaskEnvironment(ctx, &config, entry, physicalID, task, progress); err != nil {
 		return "", err
 	}
@@ -493,6 +513,22 @@ func (s *Server) ensureAutomaticTaskProfile(ctx context.Context, task store.Auto
 }
 
 func (s *Server) prepareAutomaticTaskEnvironment(ctx context.Context, config *store.Device, entry device.Device, physicalID string, task store.AutomaticTask, progress automaticTaskProgress) error {
+	if task.Environment == store.IMSModeHost && config.Telephony == nil {
+		card, err := s.store.CardPolicy(ctx, task.ProfileICCID)
+		if errors.Is(err, store.ErrNotFound) {
+			card, err = defaultCardPolicy(task.ProfileICCID), nil
+		}
+		if err != nil {
+			return err
+		}
+		policy, err := s.store.TelephonyForCard(ctx, *config, card)
+		if err != nil {
+			return err
+		}
+		// This is only the active task projection. The journal restores a
+		// legacy device without persisting new per-SIM connection preferences.
+		config.Telephony = &policy
+	}
 	if config.Telephony != nil {
 		return s.prepareIndependentTaskEnvironment(ctx, config, physicalID, task, progress)
 	}
@@ -1099,8 +1135,8 @@ func (s *Server) decodeAutomaticTask(r *http.Request, id int64) (store.Automatic
 	if err != nil {
 		return store.AutomaticTask{}, errors.New("selected device does not exist")
 	}
-	if request.Environment != "vowifi" && request.Environment != "cellular" {
-		return store.AutomaticTask{}, errors.New("environment must be vowifi or cellular")
+	if request.Environment != "vowifi" && request.Environment != "cellular" && request.Environment != store.IMSModeHost {
+		return store.AutomaticTask{}, errors.New("environment must be vowifi, cellular or host_ims")
 	}
 	if request.TaskType != "sms" && request.TaskType != "call" && request.TaskType != "public_ip" && request.TaskType != "cellular_attach" {
 		return store.AutomaticTask{}, errors.New("unsupported task type")
@@ -1161,6 +1197,15 @@ func (s *Server) decodeAutomaticTask(r *http.Request, id int64) (store.Automatic
 }
 
 func validateAutomaticTaskAvailability(available bool, taskType, environment string) error {
+	if environment != "vowifi" && environment != "cellular" && environment != store.IMSModeHost {
+		return errors.New("unsupported task environment")
+	}
+	if taskType != "sms" && taskType != "call" && taskType != "public_ip" && taskType != "cellular_attach" {
+		return errors.New("unsupported task type")
+	}
+	if taskType == "public_ip" && environment != "cellular" {
+		return errors.New("public IP tasks must use cellular direct mode")
+	}
 	if taskType == "cellular_attach" && environment != "cellular" {
 		return errors.New("cellular registration tasks must use cellular direct mode")
 	}

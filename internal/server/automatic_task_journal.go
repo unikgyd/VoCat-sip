@@ -54,6 +54,7 @@ type automaticTaskSavedEnvironment struct {
 
 type automaticTaskRecoveryPayload struct {
 	Version         int
+	Environment     string
 	Original        automaticTaskSavedEnvironment
 	Target          automaticTaskSavedEnvironment
 	RevertProfile   bool
@@ -114,7 +115,7 @@ func (s *Server) createAutomaticTaskJournal(ctx context.Context, task store.Auto
 	if err != nil {
 		return nil, err
 	}
-	payload := automaticTaskRecoveryPayload{Version: 1,
+	payload := automaticTaskRecoveryPayload{Version: 1, Environment: task.Environment,
 		Original:      automaticTaskSavedEnvironment{taskProjection(config), originalCard},
 		Target:        automaticTaskSavedEnvironment{taskProjection(target.config), target.policy},
 		RevertProfile: task.RevertProfile, USBPath: entry.Candidate.USBPath,
@@ -212,16 +213,36 @@ func (journal *automaticTaskJournal) restore(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := s.requireAutomaticTaskCallsIdle(ctx, current); err != nil {
+	metadataOnly := journal.usesHostTaskMetadata(ctx, current)
+	access := current
+	if metadataOnly {
+		access = journal.payload.Original.Projection.apply(current)
+	}
+	if err := s.requireAutomaticTaskCallsIdle(ctx, access); err != nil {
 		return err
 	}
-	if err := s.enterAutomaticTaskMaintenance(ctx, current); err != nil {
-		return err
-	}
-	current = temporaryAutomaticTaskDevice(current)
-	live, err := s.devices.Refresh(ctx, physical)
-	if err != nil {
-		return err
+	var live device.Snapshot
+	if metadataOnly {
+		if err := s.stopTelephonyAccess(ctx, access); err != nil {
+			return err
+		}
+		if err := s.quiesceOwnedData(ctx, current); err != nil {
+			return err
+		}
+		identity, err := s.hostTaskSubscription(ctx, current.ID, journal.payload.Original.Card.ICCID)
+		if err != nil {
+			return err
+		}
+		live.ICCID, live.IMSI = identity.ICCID, identity.IMSI
+	} else {
+		if err := s.enterAutomaticTaskMaintenance(ctx, current); err != nil {
+			return err
+		}
+		current = temporaryAutomaticTaskDevice(current)
+		live, err = s.devices.Refresh(ctx, physical)
+		if err != nil {
+			return err
+		}
 	}
 	if _, verified, err := journal.verifyHardware(current); err != nil || verified != physical {
 		return errors.Join(err, device.ErrSIMObservation)
@@ -241,8 +262,10 @@ func (journal *automaticTaskJournal) restore(ctx context.Context) error {
 	}
 	// Host-to-module AT observation must confirm there is no external call
 	// before any RF/profile write, including recovery after process restart.
-	if err := s.requireModuleCallsIdle(ctx, current); err != nil {
-		return err
+	if !metadataOnly {
+		if err := s.requireModuleCallsIdle(ctx, current); err != nil {
+			return err
+		}
 	}
 	if journal.payload.RevertProfile && iccid != original.Card.ICCID {
 		if !journal.payload.SwitchAttempted || journal.payload.EID == "" {

@@ -42,9 +42,9 @@ CTNET IPv4／IPv6／双栈连接、日志释放、公网 IP 查询与原环境�
 | --- | --- | --- |
 | 独立模组状态与控制 | Windows `VoKernelService.TelephonyModes.cs`、`ModuleManagementInstance` | `ims_dispatch.go`、`ims_mode_api.go` 已按模组分派；实际热拔、换卡、冷启动恢复仍须补验收 |
 | 蜂窝模式、VoWiFi 与默认选路独立 | Windows `SimTelephonyPreferences` 分开保存蜂窝／WiFi 自动连接及默认路由 | 已写入逐卡策略、双运行时分派、原通话／USSI 会话归属、Web 控制、逐卡启动投递、换卡停止确认、Host IMS 实时 SIM 元数据、模块 RF／NAS 原卡核验、任务持久恢复及原数据会话／传输清理。应用改动已通过本轮软件检查，实机生命周期仍待验收。见[独立接入边界](INDEPENDENT_ACCESS.md)与[数据交接](CELLULAR_DATA_HANDOVER.md) |
-| Host IMS 信令与短信 | VoSharp Host IMS 会话、承载与安全所有者 | Go `hostimsruntime` 已接应用；已补原卡 UIM 短信中心读取，纯 Host IMS 短信实测获得状态码 0 的运营商送达报告，见[复测](VERIFICATION_20261027_PURE_HOSTIMS.md)。已确认旧日志按网络／安全／原 PDN 顺序清理，未知日志保留屏障；主进程真实 SIGKILL 与自动注册恢复已有[实测](VERIFICATION_20261027_HOSTIMS_PROCESS.md)。MM／主机重启、接通媒体及短信人工回复仍另验收 |
+| Host IMS 信令与短信 | VoSharp Host IMS 会话、承载与安全所有者 | Go `hostimsruntime` 已接应用；已补原卡 UIM 短信中心读取，纯 Host IMS 短信实测获得状态码 0 的运营商送达报告，见[复测](VERIFICATION_20261027_PURE_HOSTIMS.md)。已确认旧日志按网络／安全／原 PDN 顺序清理，未知日志保留屏障；主进程真实 SIGKILL 与自动注册恢复已有[实测](VERIFICATION_20261027_HOSTIMS_PROCESS.md)。后续纯 Host IMS AMR 通话已接通，接听者确认短音清楚，主机收到上行 PCM 和双向 RTP，见[通话补充](VERIFICATION_20261027_HOSTIMS_CALL_TASKS.md)；MM／主机重启及短信人工回复仍另验收 |
 | VoWiFi 注册与恢复 | VoSharp IKE／Manager／按卡历史 | Go `vowifi` 已有双栈、按卡候选、认证证据、持久退避与自动恢复；DITO VoWiFi 实测注销 SIP 500、跨 reader／多卡槽及实机故障矩阵仍待解决／验收 |
-| 网页／本机电话 | Windows 电话页、浮窗与麦克风会话 | Go `web_phone.go`＋`web/src/phone` 已有拨接挂、独占 PCM、跨页来电卡、静音和电平；浏览器休眠、真实听感仍需验收 |
+| 网页／本机电话 | Windows 电话页、浮窗与麦克风会话 | Go `web_phone.go`＋`web/src/phone` 已有拨接挂、独占 PCM、跨页来电卡、静音和电平；纯 Host IMS 出呼短音听感及上行语音接收已分项实测；浏览器实际设备链路与休眠仍需验收 |
 | USB 模组双向媒体 | 显式 module 模式的兼容能力；不作为 QDC507 的 Host IMS 基准 | Go `modulecall` 已接显式 module 模式的网页、SIP 入出呼和 Telegram 原通话控制；先取得同物理设备双向 ALSA 再 ATD／ATA，精确 Call-ID 与串口结束版本隔离。保留兼容能力，但不再移植已废弃的 QDC507 ADB 桥接；QDC507 单独走 Host IMS，见 [USB 语音边界](MODULE_VOICE.md) |
 | 通话中按键 | Windows 电话键盘／控制入口 | 网页 IMS 按键和 SIP 分机／peer 的 RFC 4733 跨腿已接线；新增 SIP INFO `application/dtmf-relay` 到原运营商通话的兼容入口、对话核验与防重。INFO 已纳入本轮软件套件；运营商 IVR 及真实软电话仍待验收 |
 | 保持与恢复 | Windows `ImsCallManager.HoldAsync/ResumeAsync` 通过 re-INVITE | 已写入精确 IMS 对话的出站 re-INVITE、ACK／迟到回复处理、媒体方向与网页保持／恢复入口；新增源码已纳入本轮软件验收，见[保持边界](IMS_CALL_HOLD.md) |
@@ -62,7 +62,7 @@ CTNET IPv4／IPv6／双栈连接、日志释放、公网 IP 查询与原环境�
 | 状态与按需诊断 | Windows 灯态、逐卡 IKE 原因与诊断包 | Go 已有逐模组模式／IKE 状态、按需详情；本次修复 Host IMS 来电误标 VoWiFi，键盘能力取真实 SDP，不取“已注册”猜测 |
 | eSIM、USSD、AT 工具 | 两端已有实现，Go 包含多种设备驱动 | 保留 Go `esim_api.go`／`ussd.go`／`device` 工具；各固件／PCSC／QMI 兼容与并发独占需继续核对 |
 | 网络、代理与流量管理 | Go 自有供网、出口代理、流量和 Web 管理 | 新源码将 HTTP／SOCKS 与公网 IP 查询绑定到已确认的原卡数据会话，停止／任务／换卡前取消并等待传输；共存 Wi-Fi 保留数据开关，代理区分监听与可供网，软件套件已通过，实机互通另验收。Windows 是否需要等效供网／代理控制仍另列反向核对 |
-| 自动任务和多通知渠道 | Go 自有保活任务、时区、任务记录与重试 | 保留 Linux 功能；新增同模组任务独占、原呼叫结束确认、数据库恢复日志、重启后只恢复环境、Host IMS 任务交接和排队补投，软件套件已通过，实机互通另验收。Windows 多渠道／任务管理等效能力另列反向核对，见[任务边界](AUTOMATIC_TASKS.md) |
+| 自动任务和多通知渠道 | Go 自有保活任务、时区、任务记录与重试 | 保留 Linux 功能；新增同模组任务独占、原呼叫结束确认、数据库恢复日志、重启后只恢复环境、Host IMS 任务交接和排队补投；本轮补齐 API／界面的显式 Host IMS 短信／通话任务选择和 schema 33 迁移，已实测定时 IMS 短信送达、通话任务结束与原策略恢复、SIGKILL 后无重放恢复，验收见[通话与任务补充](VERIFICATION_20261027_HOSTIMS_CALL_TASKS.md)。Windows 多渠道／任务管理等效能力另列反向核对，见[任务边界](AUTOMATIC_TASKS.md) |
 | 发布与回滚 | Windows 轻量包；Go 多架构嵌入 Web、Docker／systemd | 最终新源码／新前端一起构建；安装、升级、受控回滚及双模组实网仍独立于软件测试 |
 
 ## 实施顺序与通过条件

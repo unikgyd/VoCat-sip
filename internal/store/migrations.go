@@ -1,6 +1,22 @@
 package store
 
+import "strings"
+
 func migrationStatements(version int) []string {
+	if version == 33 {
+		// Reuse the history/FK/sequence-preserving rebuild, retaining the
+		// revert_profile column added after that migration. Recovery journals
+		// reference devices, not tasks, and stay untouched throughout.
+		statements := migrationStatements(25)
+		for i, statement := range statements {
+			statement = strings.ReplaceAll(statement, "_v24", "_v32")
+			statement = strings.ReplaceAll(statement, "environment IN ('vowifi', 'cellular')", "environment IN ('vowifi', 'cellular', 'host_ims')")
+			statement = strings.ReplaceAll(statement, "last_error TEXT NOT NULL DEFAULT '',", "last_error TEXT NOT NULL DEFAULT '',\n\t\t\t\trevert_profile INTEGER NOT NULL DEFAULT 1 CHECK (revert_profile IN (0, 1)),")
+			statement = strings.ReplaceAll(statement, "last_status, last_error,", "last_status, last_error, revert_profile,")
+			statements[i] = statement
+		}
+		return statements
+	}
 	switch version {
 	case 1:
 		return []string{

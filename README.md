@@ -44,11 +44,11 @@ QDC507 ADB/D4/UAC voice bridge is outside this implementation target.
 | Independent access | Per-ICCID cellular/Wi-Fi preferences, default routing, session ownership, reconnect controls and UI are implemented. Combined software tests and builds passed. |
 | Management | eSIM, USSD, network/proxy tools, scheduled tasks, SMS API and notification channels are retained. Per-SIM startup, live Host IMS identity, owned data/transfer cleanup, durable task restoration, Host IMS handover and coexistence-aware proxy/data controls are integrated. |
 | Advanced calls | IMS hold/resume, legacy SIP INFO, per-SIM delayed answering, imported playback, browser takeover, recording and separate RTCP/statistics are integrated. See the verification record for the tested software scope. |
-| Live Linux acceptance | QDC507/China Telecom Host IMS and EC20/DITO VoWiFi registered simultaneously. The latest pure Host IMS SMS received carrier delivery status 0; answered Host IMS audio remains unverified. |
+| Live Linux acceptance | QDC507/China Telecom Host IMS and EC20/DITO VoWiFi registered simultaneously. Pure Host IMS SMS received carrier delivery status 0. A later answered AMR call carried bidirectional RTP; the recipient confirmed clear tones and speaking. |
 | Further live acceptance | Real Baresip extension media/transcoding, RTCP and DTMF, LAN MESSAGE confirmation/deduplication, physical USB PCM I/O, an existing eSIM profile round trip and four prompt import formats passed their scoped checks. |
 | Cellular data export | Real CTNET IPv6, simultaneous IPv4/IPv6 and IPv4 HTTPS through authenticated HTTP/SOCKS5, IPv4/IPv6 public-IP queries and original data cleanup passed. |
 | Native installation | Scoped real systemd installation, failed-upgrade rollback, original administrator preservation and shared-lock retention passed. |
-| Remaining acceptance | Answered carrier audio, USB call media, live playback/takeover, carrier softphone bridging and other hardware/installation combinations. |
+| Remaining acceptance | Incoming carrier calls, carrier hold/DTMF/recording/playback/takeover, USB call media, carrier softphone bridging and other hardware/installation combinations. |
 
 The initial combined software run passed: **2,025 native Go tests, 2,020 static Go
 tests, 79 frontend tests, 132 selected race-test executions, 41 isolated kernel
@@ -99,6 +99,9 @@ the QDC507 scope and adds SIM-owned SMSC reading. Its frozen candidate passed
 2,086 Go cases, 120 selected race executions, kernel checks, vet and four builds.
 One pure Host IMS SMS was accepted and received a carrier delivery report.
 Earlier module/ADB audio and module SMS are excluded from Host IMS acceptance.
+The [Host IMS call and task follow-up](docs/VERIFICATION_20261027_HOSTIMS_CALL_TASKS.md)
+records the answered pure Host IMS AMR call, the empty-final-SDP fix, explicit
+Host IMS task selection, combined checks and scoped recovery results.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

@@ -54,6 +54,7 @@ func TestUSBSIMReaderAutomaticTasksRequireVoWiFi(t *testing.T) {
 		{taskType: "sms", environment: "vowifi"},
 		{taskType: "call", environment: "vowifi"},
 		{taskType: "sms", environment: "cellular", wantError: true},
+		{taskType: "sms", environment: "host_ims", wantError: true},
 		{taskType: "public_ip", environment: "cellular", wantError: true},
 	} {
 		err := validateAutomaticTaskDeviceCapabilities(reader, test.taskType, test.environment)
@@ -74,6 +75,11 @@ func TestAutomaticTaskAvailabilityHidesRestrictedPaths(t *testing.T) {
 		{false, "call", "vowifi", false},
 		{false, "sms", "cellular", false},
 		{false, "call", "cellular", false},
+		{false, "sms", "host_ims", false},
+		{false, "call", "host_ims", false},
+		{true, "public_ip", "host_ims", true},
+		{true, "cellular_attach", "host_ims", true},
+		{true, "sms", "unknown", true},
 		{false, "public_ip", "cellular", true},
 		{true, "public_ip", "cellular", false},
 	} {
