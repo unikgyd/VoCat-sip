@@ -95,3 +95,57 @@ func TestDelegatedDataCannotReplaceUnreleasedLocalATOwner(t *testing.T) {
 		t.Fatal("QMI delegate bypassed local AT cleanup", err)
 	}
 }
+
+type handoverDataController struct {
+	controllerFixture
+	afterStop func()
+}
+
+func (c *handoverDataController) Stop(ctx context.Context, id string) error {
+	if err := c.controllerFixture.Stop(ctx, id); err != nil {
+		return err
+	}
+	if c.afterStop != nil {
+		c.afterStop()
+	}
+	return nil
+}
+
+type handoverDataJournal struct{ pending bool }
+
+func (j handoverDataJournal) Pending(context.Context, modem.Candidate) (bool, error) {
+	return j.pending, nil
+}
+func (j handoverDataJournal) Acquire(context.Context, modem.Candidate, string, string, string) (DataClaim, error) {
+	return nil, ErrDataCleanupPending
+}
+
+func TestDelegatedChangedGenerationJoinsOnlyAcknowledgedOriginalPeer(t *testing.T) {
+	for _, scenario := range []string{"acknowledged", "stop pending", "journal pending", "changed during acknowledgement"} {
+		t.Run(scenario, func(t *testing.T) {
+			original := modem.Candidate{ID: "fixture", USBGeneration: "1:7", QMIControl: "/dev/fixture", NetworkInterface: "fixture0"}
+			current := original
+			current.USBGeneration = "1:8"
+			state := &managedDevice{candidate: current, discovered: true}
+			ctrl := &handoverDataController{controllerFixture: controllerFixture{candidate: original, active: true}}
+			if scenario == "stop pending" {
+				ctrl.stopErr = ErrDataCleanupPending
+			}
+			if scenario == "changed during acknowledgement" {
+				ctrl.afterStop = func() { state.candidate.USBGeneration = "1:9" }
+			}
+			m := &Manager{started: true, devices: map[string]*managedDevice{current.ID: state}, dataNetwork: ctrl, dataClaimJournal: handoverDataJournal{pending: scenario == "journal pending"}}
+			_, err := m.SetNetworkForSIM(context.Background(), current.ID, "1234567890123456789", "123456789012345", NetworkRequest{Enabled: true, APN: "internet", IPVersion: "IPV4V6", Backend: "qmi"})
+			if ctrl.stops != 1 {
+				t.Fatal("old original peer was not joined", err)
+			}
+			if scenario == "acknowledged" {
+				if err != nil || ctrl.sets != 1 || !ctrl.Owns(current) {
+					t.Fatal("confirmed cleanup did not allow a fresh session", err)
+				}
+			} else if err == nil || ctrl.sets != 0 {
+				t.Fatal("new session bypassed unresolved or changed ownership", err)
+			}
+		})
+	}
+}

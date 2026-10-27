@@ -48,8 +48,10 @@ func configureDataOwner(ctx context.Context, databasePath string, instance *os.F
 }
 
 type dataOwnerDriver struct {
-	manager *device.Manager
-	open    dataowner.Open
+	manager       *device.Manager
+	open          dataowner.Open
+	recoveryPort  string
+	recoveryWatch dataOwnerRecoveryWatch
 }
 
 func (d *dataOwnerDriver) refresh(ctx context.Context) error {
@@ -67,7 +69,15 @@ func (d *dataOwnerDriver) Set(ctx context.Context, request device.NetworkRequest
 		return device.NetworkResult{}, err
 	}
 	request.Backend = "qmi"
-	return d.manager.SetNetworkForSIM(ctx, d.open.Candidate.ID, d.open.ICCID, d.open.IMSI, request)
+	result, err := d.manager.SetNetworkForSIM(ctx, d.open.Candidate.ID, d.open.ICCID, d.open.IMSI, request)
+	if err == nil && result.Enabled && d.recoveryPort != "" {
+		d.recoveryWatch.start(5*time.Second, d.checkRecoveryTransport)
+	}
+	if err != nil && d.recoveryPort != "" {
+		_, recoveryErr := d.manager.RecoverOwnedQMITransport(ctx, d.open.Candidate.ID, d.recoveryPort)
+		return result, errors.Join(err, recoveryErr)
+	}
+	return result, err
 }
 func (d *dataOwnerDriver) Status(ctx context.Context) (device.NetworkStatus, error) {
 	if err := d.refresh(ctx); err != nil {
@@ -76,14 +86,25 @@ func (d *dataOwnerDriver) Status(ctx context.Context) (device.NetworkStatus, err
 	return d.manager.NetworkStatus(ctx, d.open.Candidate.ID)
 }
 func (d *dataOwnerDriver) Stop(ctx context.Context) error {
+	if err := d.recoveryWatch.stop(ctx); err != nil {
+		return err
+	}
 	// Discovery can prove the old USB generation disappeared. Cleanup still
 	// targets the original manager's capability, never the replacement modem.
 	if _, err := d.manager.Discover(ctx); err != nil {
 		return err
 	}
-	return d.manager.StopOwnedNetwork(ctx, d.open.Candidate.ID)
+	err := d.manager.StopOwnedNetwork(ctx, d.open.Candidate.ID)
+	if err != nil && d.recoveryPort != "" {
+		_, recoveryErr := d.manager.RecoverOwnedQMITransport(ctx, d.open.Candidate.ID, d.recoveryPort)
+		return errors.Join(err, recoveryErr)
+	}
+	return err
 }
 func (d *dataOwnerDriver) Close(ctx context.Context) error {
+	if err := d.recoveryWatch.stop(ctx); err != nil {
+		return err
+	}
 	if d.manager.HasOwnedNetwork(d.open.Candidate.ID) {
 		if err := d.Stop(ctx); err != nil {
 			return err
@@ -101,6 +122,10 @@ func runDataOwner(logger *slog.Logger, args []string) error {
 		return err
 	}
 	if err := device.LoadAuthorizedTestSIMs(cfg.AuthorizedTestSIMsFile); err != nil {
+		return err
+	}
+	recoveryPorts, err := parseDataOwnerRecoveryPorts(os.Getenv("VOCAT_DATA_OWNER_RECOVERY_PORTS"))
+	if err != nil {
 		return err
 	}
 	socket := strings.TrimSpace(os.Getenv("VOCAT_DATA_OWNER_SOCKET"))
@@ -131,13 +156,15 @@ func runDataOwner(logger *slog.Logger, args []string) error {
 			if err != nil || pending {
 				return nil, device.ErrDataCleanupPending
 			}
-			manager, err := device.NewManager(device.Options{DataClaims: journal, Logger: logger.With("category", "data_owner"), AllowAutomaticSIMRecovery: func(context.Context, modem.Candidate) bool { return false }, LegacyWriteICCID: func(ctx context.Context, c modem.Candidate) (string, error) {
+			manager, err := device.NewManager(device.Options{DataClaims: journal, Logger: logger.With("category", "data_owner"), AllowAutomaticSIMRecovery: func(context.Context, modem.Candidate) bool { return false }, AllowDataRecovery: func(ctx context.Context, c modem.Candidate) bool {
+				return allowOwnedDataRecovery(ctx, database, c, open.ICCID)
+			}, LegacyWriteICCID: func(ctx context.Context, c modem.Candidate) (string, error) {
 				return legacyWriteICCID(ctx, database, c)
 			}})
 			if err != nil {
 				return nil, err
 			}
-			driver := &dataOwnerDriver{manager: manager, open: open}
+			driver := &dataOwnerDriver{manager: manager, open: open, recoveryPort: recoveryPorts[open.Candidate.ID]}
 			if err = manager.Start(ctx); err == nil {
 				err = driver.refresh(ctx)
 			}

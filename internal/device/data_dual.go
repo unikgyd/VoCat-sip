@@ -30,6 +30,21 @@ type dualQMIDataSession struct {
 	closeOnce sync.Once
 }
 
+func (s *dualQMIDataSession) TransportLost() bool {
+	lost := false
+	for i, part := range s.parts {
+		if !s.attempted[i] {
+			continue
+		}
+		transport, ok := part.(qmiDataTransportState)
+		if !ok || !transport.TransportLost() {
+			return false
+		}
+		lost = true
+	}
+	return lost
+}
+
 func validDataHandle(handle uint32) bool { return handle != 0 && handle != ^uint32(0) }
 
 func (s *dualQMIDataSession) GetICCID(ctx context.Context) (string, error) {

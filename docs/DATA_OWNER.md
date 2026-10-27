@@ -85,6 +85,12 @@ main-process recovery; recreating both containers terminates the surviving owner
 
 ## Limits
 
+An opt-in [original-owner transport recovery](DATA_OWNER_RECOVERY.md) adds one
+durable restart intent through an explicitly configured secondary AT port.
+It requires the original SIM, a data-only policy and confirmed permanent socket
+loss. Submission never clears the fence; the original owner must still confirm
+old-generation cleanup. Without that configuration the behavior below remains.
+
 The persistent fence has no expiry or force takeover. An unknown Start that
 returned no usable handle can remain pending even in the original owner. If
 the owner itself dies, its unresolved journal still denies new data/Host IMS/RF
@@ -107,7 +113,13 @@ old-generation loss and release its own claim/instance lock. A subsequent
 explicit data enable and real public query passed. No journal was forced or
 lost capability adopted. This private Docker case used deliberate main/owner
 restart policies; owner death and unchanged shipping supervision fault behavior
-remain separate, and automatic proxy-loss recovery is not established.
+remain separate. Those observations did not establish automatic proxy recovery.
+The later [opt-in recovery follow-up](VERIFICATION_20261027_PROXY_AUTO.md) adds
+the original owner's independent transport watch, one durable reset attempt and
+DMS identity-client cleanup. One actual proxy SIGKILL recovered automatically
+with the original main/owner retained and a real IPv6 public query. Retained
+failures, reset acknowledgment without generation change and unchanged shipping
+supervision boundaries are recorded separately there.
 
 See [the data fence](DATA_OWNERSHIP_FENCE.md) and
 [main-process crash acceptance](VERIFICATION_20261027_DATA_OWNER.md) for the

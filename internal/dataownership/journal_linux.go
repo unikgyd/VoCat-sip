@@ -38,6 +38,7 @@ type record struct {
 	EquipmentKey, PhysicalKey, Token, SIMKey, Generation, Interface string
 	PID                                                             int
 	BootID                                                          string
+	RecoveryAttempted                                               bool `json:",omitempty"`
 }
 
 func digits(value string, min, max int) bool {
@@ -114,6 +115,41 @@ type claim struct {
 	raw      []byte
 	guard    io.Closer
 	released bool
+}
+
+func (c *claim) BeginRecovery(ctx context.Context, candidate modem.Candidate, equipment, iccid, imsi string) (bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var original record
+	if c.released || json.Unmarshal(c.raw, &original) != nil || original.Version != 1 ||
+		original.EquipmentKey != digest("imei:"+equipment) || original.PhysicalKey != PhysicalKey(candidate) ||
+		original.SIMKey != digest(iccid+"\x00"+imsi) || original.Generation != candidate.USBGeneration ||
+		original.Interface != candidate.NetworkInterface || original.PID != os.Getpid() {
+		return false, device.ErrDataCleanupPending
+	}
+	if original.RecoveryAttempted {
+		return false, nil
+	}
+	if pending, err := c.database.HasHostIMSClaim(ctx, "host.ims.claim.private.v1."+original.EquipmentKey); err != nil || pending {
+		return false, device.ErrDataCleanupPending
+	}
+	original.RecoveryAttempted = true
+	next, err := json.Marshal(original)
+	if err != nil {
+		return false, device.ErrDataCleanupPending
+	}
+	ok, err := c.database.CompareDataBearerClaim(ctx, c.key, c.raw, next)
+	if err != nil || !ok {
+		// An uncertain commit consumes the intent, but never authorizes a reset.
+		// Reconcile only these exact original-owner bytes so later physical
+		// disappearance can still release the original claim safely.
+		if stored, readErr := c.database.AppSetting(ctx, c.key); readErr == nil && bytes.Equal(stored.Value, next) {
+			c.raw = next
+		}
+		return false, device.ErrDataCleanupPending
+	}
+	c.raw = next
+	return true, nil
 }
 
 func (c *claim) Release(ctx context.Context) error {

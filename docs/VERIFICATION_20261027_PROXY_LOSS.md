@@ -99,3 +99,8 @@ Automatic proxy-loss recovery, death of the independent owner, default
 Compose/systemd dependency behavior under proxy failure and host/power loss
 remain open. Browser audio, remote IVR recognition, further call-ending and
 hardware/profile/provider scenarios retain their separate acceptance entries.
+
+The later [opt-in automatic recovery follow-up](VERIFICATION_20261027_PROXY_AUTO.md)
+adds new implementation and one successful actual automatic case. It preserves
+the failure/manual-maintenance outcome recorded here and the separate owner-death
+and default-supervision boundaries.

@@ -248,10 +248,19 @@ data enable and real public query. Final host state was restored. This accepts
 fault containment and manual maintenance, not automatic proxy-loss recovery;
 owner death and shipping supervision dependency cascades remain open.
 
+The later [opt-in automatic proxy recovery](VERIFICATION_20261027_PROXY_AUTO.md)
+adds an independent original-owner transport watch and DMS identity-CID release.
+The final frozen candidate passed 2,115 Go cases, 85 selected race executions,
+kernel checks, vet and four builds. One real proxy SIGKILL/exit 137 recovered a
+fresh-generation claim and IPv6 public query automatically in 61.813 seconds,
+with original main/owner retained and no manual reset/restart/new enable after
+the fault. Two earlier failed hardware phases and their controlled restoration
+remain recorded. This does not accept owner death or default supervision cascades.
+
 The full objective remains open. Actual browser microphone/speaker use,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
-automatic proxy-loss recovery and default-supervision failure combinations,
+unconfigured/default-supervision proxy-loss and other failure combinations,
 additional scheduled-task/profile/crash combinations and external provider
 delivery still need their live scenarios. Existing
 profile management does not establish provisioning/download/delete of a

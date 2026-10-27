@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/iniwex5/quectel-qmi-go/pkg/qmi"
@@ -37,13 +38,17 @@ type productionQMIDataSession struct {
 	uim                   *qmi.UIMService
 	packetStatusEvents    chan struct{}
 	packetStatusEventOnce sync.Once
+	transportLost         atomic.Bool
 }
 
-func (s *productionQMIDataSession) GetIMEI(ctx context.Context) (string, error) {
+func (s *productionQMIDataSession) GetIMEI(ctx context.Context) (imei string, err error) {
 	dms, err := qmi.NewDMSServiceWithContext(ctx, s.client)
 	if err != nil {
 		return "", err
 	}
+	// Closing the transport does not release service CIDs. Repeated failed
+	// connection attempts otherwise exhaust DMS clients on the original modem.
+	defer func() { err = errors.Join(err, dms.Close()) }()
 	info, err := dms.GetDeviceSerialNumbers(ctx)
 	if err != nil {
 		return "", err
@@ -175,7 +180,9 @@ func (session *productionQMIDataSession) PrepareFamily(ctx context.Context, fami
 }
 
 func (session *productionQMIDataSession) Stop(ctx context.Context, handle uint32) error {
-	return session.wds.StopNetworkInterface(ctx, handle)
+	err := session.wds.StopNetworkInterface(ctx, handle)
+	session.noteTransportLoss(err)
+	return err
 }
 
 func (session *productionQMIDataSession) StopAny(ctx context.Context, disableAutoconnect bool) error {
@@ -217,6 +224,7 @@ func (session *productionQMIDataSession) PacketStatusEvents() <-chan struct{} {
 
 func (session *productionQMIDataSession) Connected(ctx context.Context) (bool, error) {
 	status, err := session.wds.GetPacketServiceStatus(ctx)
+	session.noteTransportLoss(err)
 	return status == qmi.StatusConnected || status == qmi.StatusSuspended, err
 }
 

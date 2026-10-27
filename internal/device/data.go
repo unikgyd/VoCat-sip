@@ -281,6 +281,17 @@ func (manager *Manager) SetNetwork(
 				err := manager.stopDelegatedData(ctx, id)
 				return NetworkResult{Backend: "qmi", Interface: candidate.NetworkInterface, ControlDevice: candidate.QMIControl}, err
 			}
+			if manager.dataNetwork.Admitted(id) && !manager.dataNetwork.Owns(candidate) {
+				// A reset/hotplug may leave the old peer admitted. Only that peer
+				// can acknowledge its original cleanup; a new USB instance must
+				// not inherit its connection or bypass its durable fence.
+				if err := manager.stopDelegatedData(ctx, id); err != nil {
+					return NetworkResult{}, err
+				}
+				if err := guard.current(ctx); err != nil {
+					return NetworkResult{}, err
+				}
+			}
 			iccid, imsi := "", ""
 			if guard != nil {
 				iccid, imsi = guard.binding.iccid, guard.binding.imsi

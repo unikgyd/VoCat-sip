@@ -10,6 +10,13 @@ import (
 // A journal is a crash fence. It cannot reconstruct a WDS client or authorize
 // stopping an unknown modem-wide call. Only the original live owner releases it.
 type DataClaim interface{ Release(context.Context) error }
+
+// DataRecoveryClaim permits one durable restart intent while the original live
+// owner still retains its claim. It never grants a replacement process a lease.
+type DataRecoveryClaim interface {
+	DataClaim
+	BeginRecovery(context.Context, modem.Candidate, string, string, string) (bool, error)
+}
 type DataClaimJournal interface {
 	Acquire(context.Context, modem.Candidate, string, string, string) (DataClaim, error)
 	Pending(context.Context, modem.Candidate) (bool, error)
@@ -47,6 +54,12 @@ func (m *Manager) retainDataClaim(candidate modem.Candidate, claim DataClaim) {
 
 func (m *Manager) releaseDataOwner(ctx context.Context, state *managedDevice) error {
 	owner := state.dataOwner
+	if owner != nil && owner.recoveryClient != nil {
+		if err := owner.recoveryClient.Close(); err != nil {
+			return ErrDataCleanupPending
+		}
+		owner.recoveryClient = nil
+	}
 	if owner != nil && owner.claim != nil {
 		if err := owner.claim.Release(ctx); err != nil {
 			return ErrDataCleanupPending

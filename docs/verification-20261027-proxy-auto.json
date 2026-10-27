@@ -1,0 +1,318 @@
+{
+  "schema": 1,
+  "date": "2026-10-27",
+  "scope": "Opt-in surviving original-owner recovery after actual ordinary-data QMI proxy SIGKILL; one successful automatic run, two retained failed hardware attempts and complete restoration",
+  "sourceBaselineRevision": "c96463c2d0ed879a37188a9a7c461096b53a0606",
+  "implementationChanged": true,
+  "frozenManifestSHA256": "09231c2544150e1c896e88a0ed760bccbda57380df3ee03e4c4e40649e257f73",
+  "frozenArchiveInputs": 1917,
+  "selectedInputs": {
+    "selectedFrozenInputs": 1784,
+    "frontendInputs": 868,
+    "allSelectedInputsMatch": true
+  },
+  "artifactSHA256": "cf7c11fedba7aa58435180fda225fd44692d5294a22956f55e14171deccfdc20",
+  "software": {
+    "finalResults": [
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 199.234,
+        "tests": {
+          "pass": 2115,
+          "fail": 0,
+          "skip": 48
+        }
+      },
+      {
+        "label": "data-kernel",
+        "exit": 0,
+        "seconds": 1.673,
+        "tests": {
+          "pass": 3,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 6.703
+      },
+      {
+        "label": "recovery-race",
+        "exit": 0,
+        "seconds": 138.472,
+        "tests": {
+          "pass": 85,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 4.245
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 4.928
+      },
+      {
+        "label": "386",
+        "exit": 0,
+        "seconds": 4.312
+      },
+      {
+        "label": "arm",
+        "exit": 0,
+        "seconds": 4.09
+      }
+    ],
+    "buildArtifacts": {
+      "amd64": "cf7c11fedba7aa58435180fda225fd44692d5294a22956f55e14171deccfdc20",
+      "arm64": "3a989e23417bfec2cda6adeb3c714a3f6c5070b9b9f1a8950fe75759f68095fe",
+      "386": "62de6afcc50e2aab7994faa91af47ac69f6c0f7c95b29b923cfc0fb177bfc356",
+      "arm": "834600a0a11657e02f8b3be31c9d7174583defbd8be5c233d9206bdb5a2169dc"
+    },
+    "goVersion": "1.27.3",
+    "productionCGOEnabled": false,
+    "raceCGOEnabled": true,
+    "selectedRaceIterations": 5,
+    "newTopLevelGoCases": 17,
+    "previouslySkippedAMRCasesNowExecuted": 2,
+    "frontend": {
+      "unchangedInputs": 868,
+      "previousCaseCount": 82,
+      "newExecution": false
+    },
+    "retainedFailures": [
+      "First combined candidate: cmd/vocat test build failed on nonexistent IMS constant.",
+      "Second combined candidate: unbound legacy VoWiFi admission regression failed."
+    ],
+    "intermediatePassedCandidates": [
+      {
+        "version": "v3",
+        "goPass": 2112,
+        "raceExecutionsPass": 70,
+        "hardwareAcceptance": false
+      },
+      {
+        "version": "v4",
+        "goPass": 2113,
+        "raceExecutionsPass": 75,
+        "hardwareAcceptance": false
+      }
+    ]
+  },
+  "retainedHardwareAttempts": [
+    {
+      "window": {
+        "automaticConnectionObserved": false,
+        "seconds": 300.889,
+        "observerException": "TimeoutError",
+        "noManualRebootOrRestartOrEnableAfterFault": true
+      },
+      "observedPhases": {
+        "failed": 35,
+        "starting": 52,
+        "recovering": 116,
+        "unavailable": 24,
+        "disabled": 4
+      },
+      "durableIntentObserved": true,
+      "oldClaimReleasedBeforeNewClaim": true,
+      "exactlyOneObservedSecondaryCFUNWrite": true,
+      "missingWritableSysfs": {
+        "requiredRawIPPathExists": true,
+        "kernelRawIP": "N",
+        "originalOwnerMountAllowsWrite": false,
+        "actualWriteNotAttemptedByObserver": true,
+        "missingShippingWritableBind": true
+      },
+      "CIDExhaustionObservedInManager": true,
+      "sourceDMSReleaseMissing": true,
+      "oneMaintenanceReset": {
+        "oneResetAcknowledged": true,
+        "USBGenerationChangeNotObserved": true,
+        "noResubmission": true,
+        "noClaimsToForceOrAdopt": true
+      },
+      "exclusiveCIDSyncExit": 0,
+      "restoration": {
+        "applicationAndOwnerExitedZero": true,
+        "ownedProxyStopped": true,
+        "privateOwnerSocketAndRuntimeArchived": true,
+        "originalEquipmentSIMsRegisteredRFOn": true,
+        "nativeIMSKept1AndRegistered": true,
+        "stockManagerActive": true,
+        "stockManagerSHA256": "e1c6e899c75385544423cf96d5a67e37d516038e16c01680e3ccb5c59941a5e6",
+        "stockManagerAutomaticRestarts": 0,
+        "ownedOverrideAndExecutableRemoved": true,
+        "CTHostExactExceptRecreatedInterfaceIndex": true,
+        "CTInterfaceIndexChangedAfterReboot": true,
+        "PHHostExactlyPreserved": true,
+        "originalDatabaseHashPreserved": true,
+        "sharedLockInodePreserved": true,
+        "originalRunningContainerIDsPreserved": true,
+        "noDataClaim": true,
+        "noXFRMStateOrPolicy": true,
+        "noPrivateDNSFile": true,
+        "PhilippinesCalls": 0,
+        "PhilippinesSMS": 0
+      },
+      "rawIPWriteDenialNotCapturedByLateSyscallObserver": true,
+      "manualHostFramingRestorationAfterClientsStopped": true
+    },
+    {
+      "window": {
+        "automaticConnectionObserved": false,
+        "seconds": 301.34,
+        "observerException": "TimeoutError",
+        "noManualRebootOrRestartOrEnableAfterFault": true
+      },
+      "originalClaimExactlyRetained": true,
+      "automaticRecoveryIntentObserved": false,
+      "automaticCFUNWriteCount": 0,
+      "mainIdentityObservationFailureBlockedFurtherSet": true,
+      "shippingWritableSysDevicesBindPresent": true,
+      "manualRecovery": {
+        "automaticRecoveryDidNotPass": true,
+        "CFUNAcknowledgedButNoUSBGenerationChange": true,
+        "oneSeparateCompleteModuleReboot": true,
+        "ADBOnlyForMaintenanceNotVoice": true,
+        "originalOwnerUnchanged": true,
+        "oldClaimDeletedByOriginalOwner": true,
+        "noClaimForcedOrHandleAdopted": true,
+        "newUSBGeneration": true,
+        "nativeIMSKept1": true,
+        "originalHostRestored": true,
+        "mainManuallyRestartedWithDataDisabled": true,
+        "ownedPrivateADBServerStopped": true
+      },
+      "restoration": {
+        "applicationAndOwnerExitedZero": true,
+        "ownedProxyStopped": true,
+        "privateOwnerSocketAndRuntimeArchived": true,
+        "originalEquipmentSIMsRegisteredRFOn": true,
+        "nativeIMSKept1AndRegistered": true,
+        "stockManagerActive": true,
+        "stockManagerSHA256": "e1c6e899c75385544423cf96d5a67e37d516038e16c01680e3ccb5c59941a5e6",
+        "stockManagerAutomaticRestarts": 0,
+        "ownedOverrideAndExecutableRemoved": true,
+        "CTHostExactExceptRecreatedInterfaceIndex": true,
+        "CTInterfaceIndexChangedAfterReboot": true,
+        "PHHostExactlyPreserved": true,
+        "originalDatabaseHashPreserved": true,
+        "sharedLockInodePreserved": true,
+        "originalRunningContainerIDsPreserved": true,
+        "noDataClaim": true,
+        "noXFRMStateOrPolicy": true,
+        "noPrivateDNSFile": true,
+        "PhilippinesCalls": 0,
+        "PhilippinesSMS": 0
+      }
+    }
+  ],
+  "finalHardware": {
+    "initialData": {
+      "connected": true,
+      "originalOwnerClaim": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4
+    },
+    "automaticRecovery": {
+      "actualProxySIGKILLAndExit137": true,
+      "proxyAutomaticallyRestartedOnce": true,
+      "originalMainUnchanged": true,
+      "originalOwnerUnchanged": true,
+      "savedDataIntentRetained": true,
+      "originalClaimRecoveryIntentObserved": true,
+      "exactlyOneObservedCFUNWrite": true,
+      "configuredSecondaryATPortUsed": true,
+      "oldClaimDeletedBeforeNewClaim": true,
+      "oldHostRoutingAndDNSClearedBeforeNewClaim": true,
+      "sameSIMAndEquipmentClaimKey": true,
+      "newUSBGenerationAndClaim": true,
+      "noManualModemRebootOrMainRestartOrDataEnableAfterFault": true,
+      "publicQueryHTTPStatus": 200,
+      "publicIPAddressFamily": 6,
+      "secondsIncludingPublicQuery": 61.813,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0
+    },
+    "extraEvidence": {
+      "sameEquipmentAndPhysicalClaimKeys": true,
+      "rawIPWriteObserved": true,
+      "rawIPReadOnlyErrors": 0,
+      "checkedMainAndOwnerRestartCountsZero": true,
+      "mainAndOwnerSameStartTicks": true,
+      "recoveredClaimHasNoConsumedRecoveryIntent": true,
+      "independentOriginalOwnerWatchWasConfigured": true,
+      "rawIPFileSyscalls": 11
+    },
+    "postAcceptanceHostRestoration": {
+      "originalHostLinkFlagRestoredAfterClientsStopped": true,
+      "noRawIPRepairRequired": true,
+      "noFirmwareOrDataRecoveryAction": true
+    },
+    "restoration": {
+      "applicationAndOwnerExitedZero": true,
+      "ownedProxyStopped": true,
+      "privateOwnerSocketAndRuntimeArchived": true,
+      "originalEquipmentSIMsRegisteredRFOn": true,
+      "nativeIMSKept1AndRegistered": true,
+      "stockManagerActive": true,
+      "stockManagerSHA256": "e1c6e899c75385544423cf96d5a67e37d516038e16c01680e3ccb5c59941a5e6",
+      "stockManagerAutomaticRestarts": 0,
+      "ownedOverrideAndExecutableRemoved": true,
+      "CTHostExactExceptRecreatedInterfaceIndex": true,
+      "CTInterfaceIndexChangedAfterReboot": true,
+      "PHHostExactlyPreserved": true,
+      "originalDatabaseHashPreserved": true,
+      "sharedLockInodePreserved": true,
+      "originalRunningContainerIDsPreserved": true,
+      "noDataClaim": true,
+      "noXFRMStateOrPolicy": true,
+      "noPrivateDNSFile": true,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0,
+      "noLiveOwnedInhibitorsAcrossAllThreePhases": true,
+      "noLiveOwnedADBServer": true,
+      "noHostIMSClaimInOriginalOrFinalPrivateDatabase": true,
+      "CTNativeIMSExactlyPreservedFromBeforeAllPhases": true,
+      "CTPDPDefinitionsExactlyPreservedFromBeforeAllPhases": true
+    }
+  },
+  "fixture": {
+    "privateDockerHostNetworkAndPID": true,
+    "allThreeUseSameCheckedReadOnlyBinary": true,
+    "mainAndOwnerShareWritableSysDevices": true,
+    "recoveryPortExplicitlyMapped": true,
+    "dataOnlyModulePolicy": true,
+    "proxyRestartPolicy": "on-failure",
+    "mainRestartPolicy": "no",
+    "ownerRestartPolicy": "no",
+    "unmodifiedShippingComposeExecuted": false,
+    "systemdDependencyFaultAcceptance": false
+  },
+  "limits": [
+    "One successful final proxy-loss case; earlier failed cases remain failures.",
+    "CFUN acknowledgment can occur without observed USB generation loss. A consumed attempt or unknown cleanup retains the original fence and can require maintenance.",
+    "The original owner survived; no recovery after its death, cold orphan takeover, host/power loss or default supervision cascade is claimed.",
+    "This ordinary-data run does not replace pure Host IMS voice acceptance, browser audio, remote IVR, further call-ending or hardware/profile/provider scenarios.",
+    "No new frontend execution; unchanged inputs reference prior checks."
+  ],
+  "privacy": {
+    "rawSubscriberIdentitiesCredentialsClaimsAddressesAndLogsExcluded": true,
+    "outgoingCarrierCalls": 0,
+    "outgoingSMS": 0,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0,
+    "externalNotificationProvidersUsed": false,
+    "nativeIMSSettingWrites": 0,
+    "newPackagesInstalled": false,
+    "ADBUsedOnlyForFailedCaseModuleMaintenance": true
+  }
+}

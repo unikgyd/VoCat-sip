@@ -13,24 +13,25 @@ var ErrDataCleanupPending = errors.New("original cellular data cleanup has not b
 // dataMu owns this capability. It is not reconstructed from a reused control
 // basename, current SIM, APN, or the current desired device configuration.
 type ownedNetwork struct {
-	claim         DataClaim
-	candidate     modem.Candidate
-	backend       string
-	guard         *simWriteGuard
-	interfaceID   int
-	hostTouched   bool
-	handleKnown   bool
-	radioStopped  bool // confirmed RF-off ended this generation's packet calls
-	packetStopped bool // original WDS stop ACK; journal deletion may still need retry
-	ipFamily      uint8
-	requestKey    string
-	ipv6Address   string // exact installed address; never flush foreign IPv6 addresses
-	ipv4Address   string
-	ipv6Settings  map[string]string
-	ipv4Routes    bool
-	ipv6Routes    bool
-	hostMTU       int
-	hostLinkUp    bool
+	claim          DataClaim
+	candidate      modem.Candidate
+	backend        string
+	guard          *simWriteGuard
+	recoveryClient modem.Client // retained after restart submission until old-generation cleanup
+	interfaceID    int
+	hostTouched    bool
+	handleKnown    bool
+	radioStopped   bool // confirmed RF-off ended this generation's packet calls
+	packetStopped  bool // original WDS stop ACK; journal deletion may still need retry
+	ipFamily       uint8
+	requestKey     string
+	ipv6Address    string // exact installed address; never flush foreign IPv6 addresses
+	ipv4Address    string
+	ipv6Settings   map[string]string
+	ipv4Routes     bool
+	ipv6Routes     bool
+	hostMTU        int
+	hostLinkUp     bool
 }
 
 func (m *Manager) SetNetworkForSIM(ctx context.Context, id, iccid, imsi string, request NetworkRequest) (NetworkResult, error) {
