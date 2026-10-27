@@ -48,7 +48,8 @@ QDC507 ADB/D4/UAC voice bridge is outside this implementation target.
 | Further live acceptance | Real Baresip extension media/transcoding, RTCP and DTMF, LAN MESSAGE confirmation/deduplication, physical USB PCM I/O, an existing eSIM profile round trip and four prompt import formats passed their scoped checks. |
 | Cellular data export | Real CTNET IPv6, simultaneous IPv4/IPv6 and IPv4 HTTPS through authenticated HTTP/SOCKS5, IPv4/IPv6 public-IP queries and original data cleanup passed. |
 | Native installation | Scoped real systemd installation, failed-upgrade rollback, original administrator preservation and shared-lock retention passed. |
-| Remaining acceptance | Incoming carrier calls, carrier hold/DTMF/recording/playback/takeover, USB call media, carrier softphone bridging and other hardware/installation combinations. |
+| Advanced live acceptance | Pure Host IMS hold/resume, incoming automatic answer, prompt playback, web-phone PCM takeover and complete stereo recordings passed scoped carrier checks. A negotiated key submission succeeded; remote IVR recognition remains separate. |
+| Remaining acceptance | Actual browser audio, carrier softphone bridging, remote IVR recognition, USB call media and further failure/hardware/installation combinations. |
 
 The initial combined software run passed: **2,025 native Go tests, 2,020 static Go
 tests, 79 frontend tests, 132 selected race-test executions, 41 isolated kernel
@@ -102,6 +103,9 @@ Earlier module/ADB audio and module SMS are excluded from Host IMS acceptance.
 The [Host IMS call and task follow-up](docs/VERIFICATION_20261027_HOSTIMS_CALL_TASKS.md)
 records the answered pure Host IMS AMR call, the empty-final-SDP fix, explicit
 Host IMS task selection, combined checks and scoped recovery results.
+The [advanced carrier follow-up](docs/VERIFICATION_20261027_HOSTIMS_ADVANCED.md)
+adds real hold/resume, incoming automatic answering, audible playback, same-call
+PCM takeover and call-bound recordings, plus authenticated recording API checks.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the

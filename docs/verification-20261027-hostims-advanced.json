@@ -1,0 +1,376 @@
+{
+  "schema": 1,
+  "date": "2026-10-27",
+  "scope": "Original QDC507/China Telecom SIM: pure Host IMS hold/resume, DTMF submission, incoming automatic answer/playback/takeover and call-bound recording",
+  "inputs": {
+    "baseRevision": "99150437d38c0c5c16de7de238da09844e21d949",
+    "candidateSHA256": "ef2ebfced99cf736e21f890adbaf386a7eee8f8677a6a9925727843bb1ed4ca0",
+    "frozenSourceManifestSHA256": "f7708df78d6324dbc2248c7b312497c09d7d166459e905479847b569c5d9191d",
+    "unchangedRuntimeTestFrontendAndScriptInputs": 1772,
+    "runtimeSourceChanged": false,
+    "combinedSoftwareChecksReusedFrom": "verification-20261027-hostims-call-tasks.json",
+    "newFullSoftwareRun": false
+  },
+  "outgoing": {
+    "callsSubmitted": 1,
+    "explicitOriginalLineAndSIM": true,
+    "onlyAuthorizedRecipient": true,
+    "transport": "host_ims",
+    "answered": true,
+    "holdHTTP": 200,
+    "holdConfirmed": true,
+    "resumeHTTP": 200,
+    "resumeConfirmed": true,
+    "sameOriginalCall": true,
+    "pendingHoldCleared": true,
+    "DTMF": {
+      "digit": "5",
+      "HTTP": 200,
+      "submitted": true,
+      "automaticReplay": false,
+      "remoteIVRReceiptProven": false
+    },
+    "humanFeedback": "Heard tones and reported no issues before and after hold/resume.",
+    "media": {
+      "absolute20msPacing": true,
+      "answered": true,
+      "callHTTP202": true,
+      "mediaReady": true,
+      "noADBVoiceRoute": true,
+      "noPhilippinesSubmission": true,
+      "observedStates": {
+        "active": true,
+        "dialing": true,
+        "early_media": true,
+        "ringing": true
+      },
+      "onlyAuthorizedDestination": true,
+      "originalCTSIMVerified": true,
+      "receivedFrames": 904,
+      "receivedNonzeroSamples": 122571,
+      "receivedPeak": 10952,
+      "receivedRMS": 1075.0226492777615,
+      "receivedSamples": 144640,
+      "sentSamples": 336000,
+      "toneFadeMs": 10,
+      "tonePeak": 900,
+      "transport": "host_ims",
+      "websocketConnected": true
+    },
+    "hangupHTTP": 202
+  },
+  "incoming": {
+    "authorizedHandsetCallback": true,
+    "transport": "host_ims",
+    "automaticAnswerDelaySeconds": 5,
+    "promptSeconds": 6,
+    "promptHz": 660,
+    "takeoverToneHz": 440,
+    "maxCallSeconds": 60,
+    "observedStates": [
+      {
+        "state": "ringing",
+        "audioOwner": "",
+        "autoAnswerStage": null,
+        "answerConfirmed": false,
+        "mediaReady": false
+      },
+      {
+        "state": "ringing",
+        "audioOwner": "auto_answer",
+        "autoAnswerStage": "answering",
+        "answerConfirmed": false,
+        "mediaReady": false
+      },
+      {
+        "state": "active",
+        "audioOwner": "auto_answer",
+        "autoAnswerStage": "answering",
+        "answerConfirmed": false,
+        "mediaReady": true
+      },
+      {
+        "state": "active",
+        "audioOwner": "auto_answer",
+        "autoAnswerStage": "answering",
+        "answerConfirmed": true,
+        "mediaReady": true
+      },
+      {
+        "state": "active",
+        "audioOwner": "auto_answer",
+        "autoAnswerStage": "playing",
+        "answerConfirmed": true,
+        "mediaReady": true
+      },
+      {
+        "state": "active",
+        "audioOwner": "auto_answer",
+        "autoAnswerStage": "awaiting_takeover",
+        "answerConfirmed": true,
+        "mediaReady": true
+      }
+    ],
+    "takeoverHTTP": 202,
+    "sameOriginalCall": true,
+    "webPCMCapabilityAttached": true,
+    "humanFeedback": "Heard the two groups of tones.",
+    "digit8ReceiptProven": false,
+    "media": {
+      "absolute20msPacing": true,
+      "answered": true,
+      "automaticAnswerConfirmed": true,
+      "direction": "incoming",
+      "mediaReady": true,
+      "noADBVoiceRoute": true,
+      "noPhilippinesSubmission": true,
+      "observedStates": {
+        "active": true
+      },
+      "onlyAuthorizedDestination": true,
+      "originalCTSIMVerified": true,
+      "promptPlaybackCompleted": true,
+      "receivedFrames": 314,
+      "receivedNonzeroSamples": 34119,
+      "receivedPeak": 11056,
+      "receivedRMS": 1118.1366779482946,
+      "receivedSamples": 50240,
+      "sentSamples": 200000,
+      "takeoverHTTP202": true,
+      "toneFadeMs": 10,
+      "tonePeak": 900,
+      "transport": "host_ims",
+      "websocketConnected": true
+    },
+    "hangupHTTP": 202,
+    "finalCall": {
+      "direction": "incoming",
+      "state": "ended",
+      "codec": "AMR",
+      "mediaQuality": {
+        "packets_sent": 1553,
+        "packets_received": 424,
+        "octets_sent": 49696,
+        "packets_lost": 0,
+        "jitter": 93,
+        "reports_sent": 9,
+        "reports_received": 0,
+        "invalid_reports": 0,
+        "send_errors": 0,
+        "round_trip_ms": 0,
+        "peer_left": false
+      }
+    }
+  },
+  "recordings": [
+    {
+      "direction": "outgoing",
+      "exactOriginalCallAndSIM": true,
+      "transport": "host_ims",
+      "state": "complete",
+      "stopReason": "call_ended",
+      "channels": 2,
+      "rate": 8000,
+      "bits": 16,
+      "frames": 348320,
+      "durationSeconds": 43.54,
+      "uplinkSamples": 272320,
+      "downlinkSamples": 145120,
+      "droppedSamples": 0,
+      "leftPeak": 900,
+      "rightPeak": 10952,
+      "receivedNonquietWindowsCompared": 18,
+      "receivedNonquietWindowsMatched": 18,
+      "windowSamples": 64,
+      "windowSpacingSeconds": 1,
+      "tones": {
+        "440": [
+          {
+            "startSeconds": 1.0,
+            "durationSeconds": 0.8
+          },
+          {
+            "startSeconds": 3.0,
+            "durationSeconds": 0.8
+          },
+          {
+            "startSeconds": 5.0,
+            "durationSeconds": 0.8
+          },
+          {
+            "startSeconds": 19.0,
+            "durationSeconds": 0.8
+          },
+          {
+            "startSeconds": 21.0,
+            "durationSeconds": 0.8
+          }
+        ],
+        "660": []
+      },
+      "wavMode": "0o600",
+      "metadataMode": "0o600"
+    },
+    {
+      "direction": "incoming",
+      "exactOriginalCallAndSIM": true,
+      "transport": "host_ims",
+      "state": "complete",
+      "stopReason": "call_ended",
+      "channels": 2,
+      "rate": 8000,
+      "bits": 16,
+      "frames": 269760,
+      "durationSeconds": 33.72,
+      "uplinkSamples": 248480,
+      "downlinkSamples": 62560,
+      "droppedSamples": 0,
+      "leftPeak": 900,
+      "rightPeak": 11056,
+      "receivedNonquietWindowsCompared": 7,
+      "receivedNonquietWindowsMatched": 7,
+      "windowSamples": 64,
+      "windowSpacingSeconds": 1,
+      "tones": {
+        "440": [
+          {
+            "startSeconds": 8.0,
+            "durationSeconds": 1.0
+          },
+          {
+            "startSeconds": 10.0,
+            "durationSeconds": 1.0
+          },
+          {
+            "startSeconds": 12.0,
+            "durationSeconds": 1.0
+          }
+        ],
+        "660": [
+          {
+            "startSeconds": 1.0,
+            "durationSeconds": 1.0
+          },
+          {
+            "startSeconds": 3.0,
+            "durationSeconds": 1.0
+          },
+          {
+            "startSeconds": 5.2,
+            "durationSeconds": 0.8
+          }
+        ]
+      },
+      "wavMode": "0o600",
+      "metadataMode": "0o600"
+    }
+  ],
+  "earlierAnsweredCallRecording": {
+    "candidateSHA256": "96f20291711f6a5a1a00aa184908f53ac344d0b3126369ebaf3fa9f11ae1cf26",
+    "analysis": {
+      "exactOriginalCallAndSIM": true,
+      "transport": "host_ims",
+      "state": "complete",
+      "stopReason": "call_ended",
+      "wavChannels": 2,
+      "wavRate": 8000,
+      "wavBits": 16,
+      "frames": 142080,
+      "durationSeconds": 17.76,
+      "uplinkSamples": 129440,
+      "downlinkSamples": 91520,
+      "droppedSamples": 0,
+      "leftPeak": 900,
+      "rightPeak": 18384,
+      "leftToneBursts": [
+        0.9999,
+        0.9999,
+        0.9999
+      ],
+      "rawReceiveWindowsCompared": 7,
+      "rawReceiveWindowsMatched": 7,
+      "wavMode": "0o600",
+      "metadataMode": "0o600"
+    },
+    "analysisAddedNow": true,
+    "newCarrierCall": false,
+    "rawReceiveWindowSamples": 64,
+    "rawReceiveWindowSpacingSeconds": 1,
+    "permissionsObservedAfterEarlierMaintenance": true
+  },
+  "isolatedRecordingAPI": {
+    "results": {
+      "success": true,
+      "unauthenticatedAudioDenied": true,
+      "exactCallSIMAndAccessListed": true,
+      "authenticatedAudioBitIdentical": true,
+      "downloadBitIdentical": true,
+      "middleRangeExact": true,
+      "suffixRangeExact": true,
+      "outOfRangeRejected": true,
+      "unknownRecordingRejected": true,
+      "settingsCSRFDeniedWithoutMutation": true,
+      "settingsRoundTrip": true,
+      "deleteCSRFDeniedWithoutMutation": true,
+      "ownedCopyDeletionConfirmed": true,
+      "originalRecordingUntouched": true,
+      "artifactSHA256": "ef2ebfced99cf736e21f890adbaf386a7eee8f8677a6a9925727843bb1ed4ca0",
+      "noCarrierOrHardwareOperation": true,
+      "applicationExitedZero": true,
+      "originalDatabaseLockManagerAndContainerIDsPreserved": true,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0
+    },
+    "copiedActualCarrierRecording": true,
+    "noDeviceDBusHostPIDOrHostNetwork": true,
+    "readOnlyRootFilesystem": true,
+    "allCapabilitiesDropped": true,
+    "noNewPrivileges": true,
+    "loopbackOnlyEphemeralPublish": true,
+    "authenticationAudioStatus": 401,
+    "fullAudioStatus": 200,
+    "middleAndSuffixRangeStatus": 206,
+    "outOfRangeStatus": 416,
+    "unknownRecordingStatus": 404,
+    "missingCSRFMutationStatus": 403,
+    "deleteOnlyOwnedCopyStatus": 200,
+    "deletedCopyReadStatus": 404
+  },
+  "restoration": {
+    "applicationExitedZero": true,
+    "nativeIMS11": true,
+    "originalSIMsRegisteredRFOn": true,
+    "originalPDPDefinitionsRestored": true,
+    "rawIPLinkMTURulesRoutesIPv6Restored": true,
+    "claimsAndXFRMEmpty": true,
+    "taskJournalsAndTasksEmpty": true,
+    "originalManagerBinaryRestored": true,
+    "restoredManagerAutomaticRestarts": 0,
+    "ownedManagerFilesRemoved": true,
+    "originalDatabaseHashPreserved": true,
+    "serverLockInodePreserved": true,
+    "originalRunningContainerIDsPreserved": true,
+    "temporaryPromptRemovedAndAnsweringSettingsRestored": true,
+    "transientNetworkCheckRetained": true,
+    "continuationUsedNoAdditionalFirmwareWriteOrReboot": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0
+  },
+  "retainedHarnessObservations": [
+    "First isolated recording API harness called a nonexistent urllib.request.open before exercising unauthenticated access; its disposable application exited 0 and originals were unchanged. Corrected v2 used its own fresh copy.",
+    "The post-reset restoration snapshot transiently differed from baseline. A fresh read-only snapshot matched all guarded fields. Continuation verified native IMS 1,1 and completed without another firmware write or reboot."
+  ],
+  "remaining": [
+    "Actual browser microphone/speaker and human-triggered browser UI takeover",
+    "Remote IVR confirmation of the submitted digit and explicit incoming digit-8 observation",
+    "Carrier SIP extension/peer bridging and additional SIP INFO interoperability",
+    "Recipient-confirmed IMS SMS reply round trip",
+    "Active-call/daemon/host crash, physical hotplug and independent data-owner loss",
+    "Other task/profile/crash, hardware, installation and external-provider delivery combinations; disposable eSIM provisioning/download/delete"
+  ],
+  "privacy": {
+    "rawIdentitiesCredentialsDestinationsSIPTracesAndAudioExcluded": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0
+  }
+}

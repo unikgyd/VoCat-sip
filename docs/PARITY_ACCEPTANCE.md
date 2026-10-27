@@ -176,8 +176,18 @@ a separate successful task-preparation SIGKILL recovery. A later real clock
 Host IMS SMS task received carrier delivery confirmation; a new six-second
 Host IMS call task completed call/signaling cleanup and restored the saved policy.
 
-The full objective remains open. Incoming carrier calls, carrier
-hold/DTMF/media/recording/playback/takeover, recipient-confirmed IMS SMS round trips, physical
+The [advanced Host IMS follow-up](VERIFICATION_20261027_HOSTIMS_ADVANCED.md)
+adds original-line hold/resume, negotiated key submission, an incoming callback
+with ACK-confirmed automatic answering, audible prompt playback and same-call
+web-phone PCM takeover. Both new calls produced complete stereo recordings with
+zero dropped samples and matching receive windows. An isolated checked service
+also passed authentication, exact audio/download/range, CSRF, settings and
+owned-copy deletion checks using a copy of an actual carrier recording. All
+owned hardware/host settings were restored. Runtime inputs were unchanged;
+the previous combined software result was not counted as another execution.
+
+The full objective remains open. Actual browser microphone/speaker use,
+remote IVR recognition, carrier SIP bridging, recipient-confirmed IMS SMS round trips, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
 additional scheduled-task/profile/crash combinations and external provider
 delivery still need their live scenarios. Existing
