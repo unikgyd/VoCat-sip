@@ -37,14 +37,17 @@ simultaneous dual-stack data export, even though the saved card setting accepts
 ## Clock dispatch and modem admission
 
 A temporary `cellular_attach` task executed once by manual queue submission and
-once by its actual scheduled clock time. Both attempts correctly refused the
-observed non-idle module before changing the environment. Each had one attempt,
+once by its actual scheduled clock time. Both attempts refused the module's
+observed CLCC entries before changing the environment. Each had one attempt,
 no retry, no notification and no call/SMS payload. The original device/card
 configuration stayed unchanged, no recovery journal remained and only the
 test task was removed.
 
 This proves live dispatch and its admission guard. Successful task registration,
 public-IP task execution and interrupted-task restoration remain unproven.
+The later [voice-idle classification follow-up](VERIFICATION_20261027_CALL_IDLE.md)
+identified those original entries as non-voice connections and corrected that
+overbroad refusal. This historical refusal does not prove an active voice call.
 
 ## Shutdown repair
 

@@ -1,0 +1,289 @@
+{
+  "date": "2026-10-27",
+  "scope": "Strict non-voice CLCC classification; same-profile scheduled registration; real CT module SMS/call; Philippines WiFi IMS connectivity; final native data regression",
+  "sourceBaseline": "074091448136c3ba1c2ea518b8e2f6b12edd965c",
+  "sourceManifestSHA256": "975d67cd6130fd1f5044b2afd960d1ee589c4b27c6ab75704d064fe00642c290",
+  "sourceFiles": 1873,
+  "changedRuntimeAndTestFiles": {
+    "cmd/vocat/cli.go": "9f6ed2b96f56138b9cbd7e69a5e98b50d149c629f276d258a48bd1ae6c02f194",
+    "internal/server/ims_mode_api.go": "9dc8df9e7013ea0cae1533be166c15285bfa20b7be8d8d50980c44fddc9982b4",
+    "internal/server/ims_dispatch_test.go": "98cf9e4225adde549f77d00a4c94cc9f9241155e0ac97575ff44015b55ed0003"
+  },
+  "software": {
+    "started": 1793069526.2109149,
+    "sourceBaseline": "074091448136c3ba1c2ea518b8e2f6b12edd965c",
+    "manifestSHA256": "975d67cd6130fd1f5044b2afd960d1ee589c4b27c6ab75704d064fe00642c290",
+    "contractManifestSHA256": "235f9dd816d375be23726fee26c43193d3cac6edeed804a378a8b0f44f7fddff",
+    "results": [
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 191.733,
+        "tests": {
+          "pass": 2081,
+          "fail": 0,
+          "skip": 50
+        }
+      },
+      {
+        "label": "data-kernel",
+        "exit": 0,
+        "seconds": 1.268,
+        "tests": {
+          "pass": 3,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 6.642
+      },
+      {
+        "label": "race",
+        "exit": 0,
+        "seconds": 35.144,
+        "tests": {
+          "pass": 75,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "call-idle-race",
+        "exit": 1,
+        "seconds": 200.658,
+        "tests": {
+          "pass": 38,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "call-idle-race-completed",
+        "exit": 0,
+        "seconds": 192.183,
+        "tests": {
+          "pass": 40,
+          "fail": 0,
+          "skip": 0
+        }
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 8.104
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 7.745
+      },
+      {
+        "label": "386",
+        "exit": 0,
+        "seconds": 8.1
+      },
+      {
+        "label": "arm",
+        "exit": 0,
+        "seconds": 7.69
+      }
+    ],
+    "retainedFinding": "Initial selected server race run exhausted its 3 minute package timeout; exact frozen inputs and five repetitions retained for completion with a 10 minute package timeout.",
+    "artifacts": {
+      "amd64": "f8ab0847c407a081da369da87ae667f64a068e056700ae500b5ba31d70d96750",
+      "arm64": "d5cba61f7b5c6a2ed243af134c78c5aedbe944a92d43b6f0f73088ae0ee8bc87",
+      "386": "9fba051ec34e54a916b31a1c5836f501a218832258488df9db435fe3bd1d8804",
+      "arm": "b37a42993e7cc09c92b0b88d5fd78ecea5548f20c2d1c561711ebfddfd45945e"
+    },
+    "completed": 1793070227.4424515
+  },
+  "artifactUsedForAllLiveCases": "f8ab0847c407a081da369da87ae667f64a068e056700ae500b5ba31d70d96750",
+  "nativeIPv6Prerequisite": {
+    "oneRebootAcknowledged": true,
+    "sameOriginalSIMAndEquipment": true,
+    "newUSBGeneration": true,
+    "nativeIMS1Registered": true,
+    "managerSamePIDAndRestartsAndBothModemsInhibited": true,
+    "originalRawIPAndHostBaselineRestored": true
+  },
+  "nativeDataCases": {
+    "4": {
+      "ipMode": "4",
+      "actualSIGKILL": true,
+      "independentProxyPIDInvocationNamespaceAndRestartCountUnchanged": true,
+      "originalOwnerTransportToIndependentProxyProven": true,
+      "systemdRecordedCodeKilledStatus9": true,
+      "automaticMainRestart": true,
+      "mainPIDAndInvocationChanged": true,
+      "originalOwnerPIDAndInvocationUnchanged": true,
+      "originalHostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "oldClaimDeletedNewClaimCreated": true,
+      "sameOriginalSIMAndUSBGeneration": true,
+      "hostCleanupObservedBeforeReconnect": true,
+      "originalModemManagerUnchanged": true,
+      "noNewEnableOrRestartRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "recoveryAndPublicQuerySeconds": 29.059,
+      "mainAutomaticRestartDelta": 1,
+      "ownerAutomaticRestartDelta": 0,
+      "transientFailedStatusSamples": 6
+    },
+    "6": {
+      "ipMode": "6",
+      "actualSIGKILL": true,
+      "independentProxyPIDInvocationNamespaceAndRestartCountUnchanged": true,
+      "originalOwnerTransportToIndependentProxyProven": true,
+      "systemdRecordedCodeKilledStatus9": true,
+      "automaticMainRestart": true,
+      "mainPIDAndInvocationChanged": true,
+      "originalOwnerPIDAndInvocationUnchanged": true,
+      "originalHostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "oldClaimDeletedNewClaimCreated": true,
+      "sameOriginalSIMAndUSBGeneration": true,
+      "hostCleanupObservedBeforeReconnect": true,
+      "originalModemManagerUnchanged": true,
+      "noNewEnableOrRestartRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 6,
+      "recoveryAndPublicQuerySeconds": 28.455,
+      "mainAutomaticRestartDelta": 1,
+      "ownerAutomaticRestartDelta": 0,
+      "transientFailedStatusSamples": 6
+    },
+    "dual": {
+      "ipMode": "dual",
+      "actualSIGKILL": true,
+      "independentProxyPIDInvocationNamespaceAndRestartCountUnchanged": true,
+      "originalOwnerTransportToIndependentProxyProven": true,
+      "systemdRecordedCodeKilledStatus9": true,
+      "automaticMainRestart": true,
+      "mainPIDAndInvocationChanged": true,
+      "originalOwnerPIDAndInvocationUnchanged": true,
+      "originalHostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "oldClaimDeletedNewClaimCreated": true,
+      "sameOriginalSIMAndUSBGeneration": true,
+      "hostCleanupObservedBeforeReconnect": true,
+      "originalModemManagerUnchanged": true,
+      "noNewEnableOrRestartRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 6,
+      "recoveryAndPublicQuerySeconds": 63.01,
+      "mainAutomaticRestartDelta": 1,
+      "ownerAutomaticRestartDelta": 0,
+      "transientFailedStatusSamples": 134
+    }
+  },
+  "automaticRegistration": {
+    "manualQueued202": true,
+    "realClockDispatch": true,
+    "executions": 2,
+    "statuses": [
+      "success",
+      "success"
+    ],
+    "attempts": [
+      1,
+      1
+    ],
+    "taskType": "cellular_attach",
+    "originalDeviceAndCardAndPolicyUnchanged": true,
+    "zeroRecoveryJournals": true,
+    "onlyOwnTaskDeleted": true,
+    "otherLineOriginalDataClaimAndOwnerAndProxyUnchanged": true,
+    "otherLinePublicIPHTTPStatus": 200,
+    "otherLinePublicIPAddressFamily": 4,
+    "carrierCallOrSMS": false,
+    "rawJSONStringComparisonFailureRetained": true,
+    "onlyDifferencesWereJSONWhitespace": true,
+    "typedJSONValuesAndAllOtherFieldsCompared": true,
+    "noTaskReplay": true
+  },
+  "SMS": {
+    "httpStatus": 202,
+    "exactOriginalCTSIM": true,
+    "onlyAuthorizedDestination": true,
+    "noPhilippinesSubmission": true,
+    "noRetry": true,
+    "parts_total": 1,
+    "parts_attempted": 1,
+    "parts_accepted": 1,
+    "submission_accepted": true,
+    "delivery_confirmed": false,
+    "delivery_state": "unknown",
+    "submission_state": "accepted_by_modem",
+    "outcome": "accepted_unconfirmed",
+    "transport": "cellular_at"
+  },
+  "SMSReply": {
+    "submissionHTTP202": true,
+    "onePartSubmittedExactlyOnce": true,
+    "inboundReplyFromAuthorizedRecipient": false,
+    "inboundOKReply": false,
+    "sameOriginalCTEquipmentAndSIM": true,
+    "noPhilippinesSubmission": true
+  },
+  "moduleCall": {
+    "httpStatus": 202,
+    "exactOriginalCTSIM": true,
+    "onlyAuthorizedDestination": true,
+    "noPhilippinesSubmission": true,
+    "noRetry": true,
+    "ownedCallIDReturned": true,
+    "observedStates": [
+      "dialing",
+      "ringing"
+    ],
+    "answered": false,
+    "callCleanupObserved": true
+  },
+  "WiFiIMS": {
+    "exactOriginalPhilippinesSIMAndEquipment": true,
+    "realWiFiIMSRegistration": true,
+    "callsSubmitted": 0,
+    "SMSSubmitted": 0,
+    "defaultRoutePreserved": true,
+    "phase": "sms_ready"
+  },
+  "WiFiCleanup": {
+    "originalPolicyRestored": true,
+    "IMSStopped": true,
+    "callsSubmitted": 0,
+    "SMSSubmitted": 0
+  },
+  "finalNativeIMS": {
+    "nativeIMS1Registered": true,
+    "originalModemProfilesUnchanged": true,
+    "noVoiceCallRemains": true,
+    "zeroDataClaims": true,
+    "zeroTasksAndRecoveryJournals": true
+  },
+  "restoration": {
+    "ownedMainOwnerAndProxyStoppedSuccessfully": true,
+    "originalManagerRestored": true,
+    "bothOriginalSIMsRegisteredRFOn": true,
+    "originalDatabaseAndHostStateAndLockInodeRestored": true,
+    "originalRunningContainerIDsUnchanged": true,
+    "ownedNativePathsRemoved": true
+  },
+  "retainedFindings": [
+    "Selected server race run exceeded its original three minute package timeout after 38 top-level executions; same tests, frozen source and five repeats passed with a ten minute limit, 40 executions.",
+    "Task restoration observer initially compared raw JSON strings; only whitespace differed. Typed JSON and all other original fields matched. Original observer result retained and no task replay performed.",
+    "First call HTTP request used a nonexistent API path and returned 404 before routing; retained separately, corrected documented endpoint made one actual call.",
+    "Dual-stack recovery had 134 transient failed status samples and completed automatically in 63.010 seconds; no enable/restart request followed SIGKILL."
+  ],
+  "limits": [
+    "SMS accepted_by_modem is not proof of recipient delivery; no authorized-recipient reply observed.",
+    "Module call rang and was cleared; it was not answered and carrier media/recording/playback/DTMF/hold remain unproven.",
+    "Scheduled work here is same-profile cellular registration only; no task call, task SMS, profile switch or task crash injected.",
+    "Philippines SIM connection only: zero calls and zero SMS submitted.",
+    "Initial IPv6 reachability required a separate diagnostic reboot with IMS retained at 1; initialization fault remains open.",
+    "Independent owner/proxy loss, host/power loss, physical hotplug, first-use browser consent, external notifications and disposable eSIM provisioning remain separate."
+  ]
+}

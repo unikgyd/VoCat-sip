@@ -107,4 +107,9 @@ The [independent native follow-up](VERIFICATION_20261027_NATIVE_INDEPENDENT.md)
 also executed the new proxy unit's actual protection/readiness settings and a
 disposable systemd client SIGKILL in a private network namespace. A real already
 serving host proxy was refused without replacement. Those checks do not accept
-the still-pending cold carrier recovery scenario.
+the cold carrier recovery scenario. The subsequent
+[real three-unit run](VERIFICATION_20261027_NATIVE_COLD.md) passed main-process
+SIGKILL recovery for IPv4, IPv6 and dual stack. It also records controlled
+restoration of the earlier failed phase and the separate maintenance reboot
+needed for initial IPv6 reachability. Neither result establishes owner/proxy
+process-loss recovery.

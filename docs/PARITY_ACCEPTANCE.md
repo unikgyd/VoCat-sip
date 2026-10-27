@@ -57,8 +57,9 @@ The [data and shutdown run](VERIFICATION_20261027_NETWORK.md) adds real CTNET
 WDS data, independent authenticated HTTP CONNECT/SOCKS5 HTTPS transfers, observed
 modem-interface DNS/TCP traffic, proxy-disable cancellation, public-IP cache
 invalidation and original host-routing restoration. It also adds actual manual
-and clock task dispatch with a correctly rejected non-idle modem. That refusal
-does not establish successful task business execution.
+and clock task dispatch rejected because of CLCC entries. A later classification
+fix identified those entries as non-voice connections; the original refusal does
+not establish an active voice call or successful task business execution.
 
 The [IPv6/dual-stack run](VERIFICATION_20261027_IPV6.md) adds real IPv6-only,
 simultaneous IPv4/IPv6 and IPv4 regression HTTPS transfers, complete per-run
@@ -135,10 +136,29 @@ runs with the original password and session preserved. Hardware/host D-Bus were
 explicitly hidden. This closes that scoped bootstrap check; standard empty-host
 installer execution, public release delivery and cold carrier recovery remain open.
 
+The subsequent [cold native carrier run](VERIFICATION_20261027_NATIVE_COLD.md)
+restored the earlier failed phase through its original owner after an authorized
+single recovery reboot. All three unmodified shipping units then passed actual
+main-process SIGKILL recovery: IPv4 28.936 s, IPv6 28.883 s, dual stack 29.951 s.
+The owner and independent proxy survived with their live transport intact.
+Initial IPv6 reachability required a separate maintenance reboot and remains an
+environment/dependency limitation. Original host state was restored; an unrelated
+container added during the run was preserved. These cases submitted no call/SMS.
+
+The [voice-idle/carrier follow-up](VERIFICATION_20261027_CALL_IDLE.md) fixes that
+non-voice classification and adds two successful same-profile registration runs
+(manual and real clock), restored original policies and an unchanged other-line
+data session. Its final frozen source passed 2,081 Go cases, 115 selected race
+executions, three kernel cases, vet and four builds. Actual native main-crash
+recovery passed again in all three families. One CT SMS was accepted by the
+module, one CT module call rang and cleared, and the original Philippines SIM
+completed Wi-Fi IMS registration/shutdown with zero calls/SMS. No SMS delivery
+or answered carrier-media result is inferred from these observations.
+
 The full objective remains open. Answered and incoming carrier calls, carrier
 hold/DTMF/media/recording/playback/takeover, mobile SMS delivery, physical
 hotplug, active-call/daemon/host crash recovery, loss of the independent data owner,
-successful scheduled work and external provider
+scheduled call/SMS and task-restart recovery, and external provider
 delivery still need their live scenarios. Existing
 profile management does not establish provisioning/download/delete of a
 disposable profile.

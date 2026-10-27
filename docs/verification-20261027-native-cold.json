@@ -1,0 +1,172 @@
+{
+  "date": "2026-10-27",
+  "scope": "Actual unmodified native main, surviving data owner and independently supervised QMI proxy; original host network namespace and real CTNET",
+  "sourceCommit": "f5eea23",
+  "sourceManifestSHA256": "37a01d8466bd56481c3bdb59fc1b35ecd68189bd3bb59254d7a869d651f7ab64",
+  "checkedArtifactSHA256": "50b058b1fa2b7ba0b5b4ff18637b5470fa18c2b8af8a9b211c154c44746e0959",
+  "priorFailedPhaseRecovery": {
+    "additionalExplicitlyAuthorizedRecoveryRebootCompletedOnce": true,
+    "originalNativeIMS1Registered": true,
+    "originalOwnerAcknowledgedOldUSBGenerationDisappearance": true,
+    "originalOwnerReleasedItsClaimAndFlock": true,
+    "noForcedClaimDeletionOrFenceBypass": true,
+    "originalRawIPAndLinkStateRestored": true,
+    "allOriginalStateRestored": true,
+    "notAutomaticCrashRecovery": true
+  },
+  "coldProxyHandoff": {
+    "bothExactOriginalModemsInhibited": true,
+    "noLiveProxyClients": true,
+    "originalOwningManagerServiceNormallyStopped": true,
+    "noExistingProxyAdopted": true,
+    "dedicatedProxyColdStartedBeforeManager": true,
+    "threeShippingUnitsUnmodified": true,
+    "originalSIMsReconfirmedBeforeApplication": true
+  },
+  "initialIPv6PublicQuery": {
+    "httpStatus": 502,
+    "detected": false,
+    "sameOriginalOwnedSession": true,
+    "packetCounts": {
+      "4": {
+        "DNSOutbound": 0,
+        "DNSInbound": 0,
+        "TCP443Outbound": 0,
+        "TCP443Inbound": 0
+      },
+      "6": {
+        "DNSOutbound": 16,
+        "DNSInbound": 0,
+        "TCP443Outbound": 0,
+        "TCP443Inbound": 0
+      }
+    },
+    "errorCode": "public_ip_lookup_failed"
+  },
+  "ipv6Maintenance": {
+    "oneRebootAcknowledged": true,
+    "sameOriginalSIMAndEquipment": true,
+    "newUSBGeneration": true,
+    "nativeIMS1Registered": true,
+    "managerSamePIDAndRestartsAndBothModemsInhibited": true,
+    "originalRawIPAndHostBaselineRestored": true,
+    "observerResumedAfterCorrectingExpectedMulticastFlag": true,
+    "noResetReplay": true
+  },
+  "cases": {
+    "4": {
+      "ipMode": "4",
+      "actualSIGKILL": true,
+      "independentProxyPIDInvocationNamespaceAndRestartCountUnchanged": true,
+      "originalOwnerTransportToIndependentProxyProven": true,
+      "systemdRecordedCodeKilledStatus9": true,
+      "automaticMainRestart": true,
+      "mainPIDAndInvocationChanged": true,
+      "originalOwnerPIDAndInvocationUnchanged": true,
+      "originalHostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "oldClaimDeletedNewClaimCreated": true,
+      "sameOriginalSIMAndUSBGeneration": true,
+      "hostCleanupObservedBeforeReconnect": true,
+      "originalModemManagerUnchanged": true,
+      "noNewEnableOrRestartRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "recoveryAndPublicQuerySeconds": 28.936,
+      "mainAutomaticRestartDelta": 1,
+      "ownerAutomaticRestartDelta": 0,
+      "transientFailedStatusSamples": 6
+    },
+    "6": {
+      "ipMode": "6",
+      "actualSIGKILL": true,
+      "independentProxyPIDInvocationNamespaceAndRestartCountUnchanged": true,
+      "originalOwnerTransportToIndependentProxyProven": true,
+      "systemdRecordedCodeKilledStatus9": true,
+      "automaticMainRestart": true,
+      "mainPIDAndInvocationChanged": true,
+      "originalOwnerPIDAndInvocationUnchanged": true,
+      "originalHostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "oldClaimDeletedNewClaimCreated": true,
+      "sameOriginalSIMAndUSBGeneration": true,
+      "hostCleanupObservedBeforeReconnect": true,
+      "originalModemManagerUnchanged": true,
+      "noNewEnableOrRestartRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 6,
+      "recoveryAndPublicQuerySeconds": 28.883,
+      "mainAutomaticRestartDelta": 1,
+      "ownerAutomaticRestartDelta": 0,
+      "transientFailedStatusSamples": 6
+    },
+    "dual": {
+      "ipMode": "dual",
+      "actualSIGKILL": true,
+      "independentProxyPIDInvocationNamespaceAndRestartCountUnchanged": true,
+      "originalOwnerTransportToIndependentProxyProven": true,
+      "systemdRecordedCodeKilledStatus9": true,
+      "automaticMainRestart": true,
+      "mainPIDAndInvocationChanged": true,
+      "originalOwnerPIDAndInvocationUnchanged": true,
+      "originalHostNetworkNamespaceUnchanged": true,
+      "originalInstanceLockRetainedByOwner": true,
+      "oldClaimDeletedNewClaimCreated": true,
+      "sameOriginalSIMAndUSBGeneration": true,
+      "hostCleanupObservedBeforeReconnect": true,
+      "originalModemManagerUnchanged": true,
+      "noNewEnableOrRestartRequestAfterCrash": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "recoveryAndPublicQuerySeconds": 29.951,
+      "mainAutomaticRestartDelta": 1,
+      "ownerAutomaticRestartDelta": 0,
+      "transientFailedStatusSamples": 6
+    }
+  },
+  "cleanup": {
+    "6": {
+      "claimDeleted": true,
+      "hostStateRestored": true
+    },
+    "4": {
+      "claimDeleted": true,
+      "hostStateRestored": true
+    },
+    "dual": {
+      "claimDeleted": true,
+      "hostStateRestored": true
+    },
+    "6-after-refresh": {
+      "claimDeleted": true,
+      "hostStateRestored": true
+    }
+  },
+  "restoration": {
+    "originalNativeServicePathsAbsent": true,
+    "threeOwnedServicesStoppedSuccessfully": true,
+    "originalModemManagerRestored": true,
+    "bothOriginalSIMsRFOnAndRegistered": true,
+    "originalNetworkDatabaseAndLockRestored": true,
+    "allOriginalContainersSameIDs": true,
+    "unrelatedContainerAddedDuringRun": true,
+    "unrelatedContainerPreserved": true,
+    "strictOriginalContainerSetObserverFailureRetained": true
+  },
+  "carrierBusinessActions": {
+    "callsSubmitted": 0,
+    "SMSSubmitted": 0
+  },
+  "retainedFindings": [
+    "Initial IPv6 WDS connection had no inbound DNS traffic; not accepted by IPv4 fallback.",
+    "One separate diagnostic reboot, with native IMS kept at 1 and the same manager inhibited, restored IPv6 before its SIGKILL case.",
+    "Post-reset observer omitted the original MULTICAST flag; observation resumed without replaying the reboot.",
+    "Final strict container-set comparison saw an unrelated database container added during the run; all original IDs were unchanged and the new container was left untouched.",
+    "Both original modules reported non-voice CLCC entries; automatic registration task preflight stopped without creating a task."
+  ],
+  "limits": [
+    "Owner/proxy process loss and host/power loss are separate scenarios.",
+    "Answered carrier media, SMS delivery and successful scheduled work are not established by these data cases.",
+    "The IPv6 reinitialization fault remains a reproducible environment/dependency limitation; a maintenance reboot is not automatic recovery from that initial fault."
+  ]
+}

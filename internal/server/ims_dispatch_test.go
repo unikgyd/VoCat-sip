@@ -411,6 +411,13 @@ func TestIMSModeModuleCallMustBeProvenIdle(t *testing.T) {
 		want    int
 	}{
 		{"active", modem.Response{Final: "OK", Lines: []string{`+CLCC: 1,0,0,0,0,"+15550000001",145`}}, nil, 409},
+		{"data-and-fax", modem.Response{Final: "OK", Lines: []string{`+CLCC: 1,1,0,1,0,"",128`, `+CLCC: 2,1,0,2,0,"",128`}}, nil, 202},
+		{"voice-among-data", modem.Response{Final: "OK", Lines: []string{`+CLCC: 1,1,0,1,0,"",128`, `+CLCC: 2,0,2,0,0,"+15550000001",145`}}, nil, 409},
+		{"unknown-mode", modem.Response{Final: "OK", Lines: []string{`+CLCC: 1,1,0,9,0`}}, nil, 409},
+		{"malformed-data", modem.Response{Final: "OK", Lines: []string{`+CLCC: 1,1,no,1,0`}}, nil, 409},
+		{"short-record", modem.Response{Final: "OK", Lines: []string{`+CLCC: 1,1,0,1`}}, nil, 409},
+		{"duplicate-index", modem.Response{Final: "OK", Lines: []string{`+CLCC: 1,1,0,1,0`, `+CLCC: 1,1,0,1,0`}}, nil, 409},
+		{"unrecognized-case", modem.Response{Final: "OK", Lines: []string{`+clcc: 1,1,0,1,0`}}, nil, 409},
 		{"unknown", modem.Response{}, errors.New("control unavailable"), 409},
 		{"rejected", modem.Response{Final: "ERROR"}, nil, 409},
 		{"idle", modem.Response{Final: "OK"}, nil, 202},

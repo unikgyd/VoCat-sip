@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"vocat/internal/device"
+	"vocat/internal/modulecall"
 	"vocat/internal/store"
 	"vocat/internal/vowifi"
 )
@@ -196,13 +197,21 @@ func (s *Server) requireModuleCallsIdle(ctx context.Context, config store.Device
 	if err != nil || !response.OK() {
 		return errors.New("the module did not confirm an idle call state; retry without switching")
 	}
-	if len(parseCLCC(response)) != 0 {
-		return errors.New("finish the active module call before changing line mode")
-	}
 	for _, line := range response.Lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "+CLCC:") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(strings.ToUpper(line), "+CLCC:") && !strings.HasPrefix(line, "+CLCC:") {
 			return errors.New("the module returned an unrecognized call record; idle state cannot be assumed")
 		}
+	}
+	records, err := modulecall.ParseRecords(response)
+	if err != nil {
+		return errors.New("the module returned an unrecognized call record; idle state cannot be assumed")
+	}
+	// Some modules include packet/data connections in CLCC. Those are not
+	// voice calls; the data owner must still acknowledge its own cleanup in
+	// the caller's separate data-handover path before access is replaced.
+	if len(modulecall.VoiceRecords(records)) != 0 {
+		return errors.New("finish the active module call before changing line mode")
 	}
 	return nil
 }

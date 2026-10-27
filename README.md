@@ -77,10 +77,18 @@ ModemManager preserved; the authorized native IMS setting was restored afterward
 The [native owner and DNS follow-up](docs/VERIFICATION_20261027_NATIVE_OWNER_DNS.md)
 adds real systemd IPv4/dual-stack recovery and a verified cellular DNS repair.
 A subsequent IPv6 crash exposed loss of an automatically launched QMI proxy;
-the independent proxy layout is implemented, with cold live acceptance pending.
+the independent proxy layout is implemented.
 The [independent native follow-up](docs/VERIFICATION_20261027_NATIVE_INDEPENDENT.md)
 adds actual protected proxy-unit execution and fresh administrator/server bootstrap,
 including credentials and sessions preserved across an orderly restart.
+The [cold native carrier run](docs/VERIFICATION_20261027_NATIVE_COLD.md) then
+passed real IPv4, IPv6 and dual-stack main-process SIGKILL recovery with all
+three shipping units. The earlier failed phase was restored; initial IPv6
+reachability still needed a separate maintenance reboot and remains a limitation.
+The [voice-idle and carrier follow-up](docs/VERIFICATION_20261027_CALL_IDLE.md)
+fixes non-voice CLCC classification and adds successful manual/clock registration,
+fresh native recovery, Wi-Fi IMS connectivity, one accepted CT SMS and one ringing
+module call. Recipient delivery and answered carrier media remain unconfirmed.
 
 The backend uses Go, React/TypeScript is embedded in the production binary, and
 SQLite stores configuration and runtime history. See the
