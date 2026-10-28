@@ -71,7 +71,7 @@ func openLinuxNetworkKernel(lease *BearerLease, fixture bool) (*linuxNetworkKern
 	if err != nil {
 		return nil, ErrNetwork
 	}
-	handle, err := netlink.NewHandleAt(netns.NsHandle(namespace.Fd()), unix.NETLINK_ROUTE)
+	handle, err := netlink.NewHandleAt(netnsHandle(namespace), unix.NETLINK_ROUTE)
 	if err != nil {
 		namespace.Close()
 		return nil, ErrNetwork
@@ -86,7 +86,7 @@ func openLinuxNetworkKernel(lease *BearerLease, fixture bool) (*linuxNetworkKern
 	if handle.SetSocketTimeout(2*time.Second) != nil {
 		return nil, ErrNetwork
 	}
-	ruleSocket, err := nl.GetNetlinkSocketAt(netns.NsHandle(namespace.Fd()), netns.None(), unix.NETLINK_ROUTE)
+	ruleSocket, err := nl.GetNetlinkSocketAt(netnsHandle(namespace), netns.None(), unix.NETLINK_ROUTE)
 	if err != nil {
 		return nil, ErrNetwork
 	}

@@ -66,7 +66,7 @@ func usbFunction(path, physical string) (string, uint32, error) {
 
 func pinWDSTopology(lease *BearerLease, control *qmiEndpointPin) (*linuxWDSTopology, error) {
 	return pinWDSTopologyWith(lease, control, "/sys", func(namespace *os.File) (wdsLinkReader, error) {
-		handle, err := netlink.NewHandleAt(netns.NsHandle(namespace.Fd()), unix.NETLINK_ROUTE)
+		handle, err := netlink.NewHandleAt(netnsHandle(namespace), unix.NETLINK_ROUTE)
 		if err != nil {
 			return nil, err
 		}
@@ -191,7 +191,7 @@ func readQmapMux(path string) (byte, error) {
 	return byte(value), nil
 }
 func readRmnetMux(namespace *os.File, index int) (byte, error) {
-	socket, err := nl.GetNetlinkSocketAt(netns.NsHandle(namespace.Fd()), netns.None(), unix.NETLINK_ROUTE)
+	socket, err := nl.GetNetlinkSocketAt(netnsHandle(namespace), netns.None(), unix.NETLINK_ROUTE)
 	if err != nil {
 		return 0, ErrQMIEndpoint
 	}
@@ -287,7 +287,7 @@ func parseRmnetMux(raw []byte, index int) (byte, error) {
 				return 0, ErrQMIEndpoint
 			}
 		default:
-			return 0, ErrQMIEndpoint
+			continue
 		}
 	}
 	if mux < 1 || mux > 254 {
@@ -298,7 +298,7 @@ func parseRmnetMux(raw []byte, index int) (byte, error) {
 func (n *linuxWDSTopology) Binding() wdsBinding { return n.binding }
 func (n *linuxWDSTopology) Key() string         { return n.key }
 func (n *linuxWDSTopology) Verify(ctx context.Context) error {
-	if n.closed || ctx.Err() != nil {
+	if n == nil || n.closed || ctx.Err() != nil {
 		return ErrChanged
 	}
 	namespace, err := namespaceIdentity("/proc/self/ns/net")
@@ -356,7 +356,7 @@ func (n *linuxWDSTopology) Verify(ctx context.Context) error {
 	return nil
 }
 func (n *linuxWDSTopology) Close() error {
-	if n.closed {
+	if n == nil || n.closed {
 		return nil
 	}
 	n.closed = true

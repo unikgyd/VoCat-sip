@@ -197,28 +197,31 @@ func openCellularRuntime(ctx context.Context, lease *BearerLease, verify func(co
 		}
 		return nil, safeRuntimeError(cause)
 	}
-	s.topology, err = deps.topology(lease, pin)
+	topology, err := deps.topology(lease, pin)
 	if err != nil {
 		return cleanFailure(ErrQMIEndpoint)
 	}
+	s.topology = topology
 	if !s.topology.Binding().valid() || !hashString(s.topology.Key()) {
 		return cleanFailure(ErrQMIEndpoint)
 	}
 	s.bindingKey = s.topology.Key()
-	s.gate, err = deps.qmi.acquire(ctx, pin.Path())
+	gate, err := deps.qmi.acquire(ctx, pin.Path())
 	if err != nil {
 		return cleanFailure(err)
 	}
+	s.gate = gate
 	if pin.Verify(ctx) != nil || s.topology.Verify(ctx) != nil || verify(ctx) != nil {
 		return cleanFailure(ErrChanged)
 	}
-	s.proxy, err = deps.qmi.dial(ctx)
+	proxy, err := deps.qmi.dial(ctx)
 	if err != nil {
 		if ctx.Err() != nil {
 			return cleanFailure(ctx.Err())
 		}
 		return cleanFailure(ErrQMIProxy)
 	}
+	s.proxy = proxy
 	if err := s.verify(ctx); err != nil {
 		return cleanFailure(err)
 	}

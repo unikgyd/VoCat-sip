@@ -173,20 +173,22 @@ func openCellularUIM(ctx context.Context, provider *SIMProvider, selection Selec
 		}
 		return nil, safeSIMError(cause)
 	}
-	resource.gate, err = deps.acquire(ctx, pin.Path())
+	gate, err := deps.acquire(ctx, pin.Path())
 	if err != nil {
 		return cleanFailure(err)
 	}
+	resource.gate = gate
 	if pin.Verify(ctx) != nil || provider.verifyLease(ctx) != nil {
 		return cleanFailure(ErrChanged)
 	}
-	resource.proxy, err = deps.dial(ctx)
+	proxy, err := deps.dial(ctx)
 	if err != nil {
 		if ctx.Err() != nil {
 			return cleanFailure(ctx.Err())
 		}
 		return cleanFailure(ErrQMIProxy)
 	}
+	resource.proxy = proxy
 	if resource.verify(ctx) != nil {
 		return cleanFailure(ErrChanged)
 	}
