@@ -2,7 +2,7 @@
   <img src="web/public/favicon.svg" width="96" alt="Vocat">
 </p>
 
-<h1 align="center">VoCat</h1>
+<h1 align="center">VoCat-sip</h1>
 
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.25-00ADD8?style=flat-square&logo=go&logoColor=white">
@@ -24,14 +24,19 @@
 
 **English** | [简体中文](docs/README.zh-CN.md) | [العربية](docs/README.ar.md) | [繁體中文](docs/README.zh-TW.md) | [Français](docs/README.fr.md) | [Русский](docs/README.ru.md) | [Español](docs/README.es.md) | [日本語](docs/README.ja.md)
 
-Vocat is an open-source web control panel and engineering toolkit for Quectel EC20/EC25-class and China Mobile ML307 series cellular modems. It combines modem discovery, live radio status, AT and USSD terminals, SMS, WiFi Calling, eSIM management, network selection, proxy routing, notifications, audit logs, and release automation in one self-contained service.
+**VoCat-sip is a fork of [VoCat](https://github.com/MengMengCode/VoCat), maintained by [unikgyd](https://github.com/unikgyd).** The original VoCat authors retain credit for the upstream project. This repository develops the Linux client alongside [VoWin](https://github.com/unikgyd/VoWin).
 
-This fork is the Linux client alongside [VoWin](https://github.com/unikgyd/VoWin).
+It inherits VoCat's web control panel and engineering toolkit for Quectel EC20/EC25-class and China Mobile ML307 series cellular modems, including modem discovery, live radio status, AT and USSD terminals, SMS, WiFi Calling, eSIM management, network selection, proxy routing, notifications and audit logs.
+
 The goal is the union of both clients' capabilities, with most implementation work
 in VoCat-sip. The original [research and evaluation license](LICENSE) and runtime
 authorization checks remain in force.
 
 Deployment: [installation, verification, backup and rollback runbook (中文)](docs/DEPLOYMENT_RUNBOOK.zh-CN.md).
+Support: [sponsorship and maintainer information](docs/SUPPORT.md).
+
+For pure Host IMS, keep the ModemManager backend available and use a verified dependency version. VoCat-sip independently supervises its shared QMI proxy and ordinary-data owner; these do not replace the IMS bearer backend. See [the service ownership decision](docs/HOST_IMS_DEPLOYMENT.md#service-ownership-and-modemmanager-policy).
+
 Use a fixed, verified candidate; the upstream `latest` image does not establish
 that this fork's changes are included. Dependency and IPv6 qualifications remain
 explicit in the [native supervision acceptance](docs/VERIFICATION_20261028_NATIVE_SUPERVISION.md).
@@ -247,6 +252,8 @@ Vocat targets Qualcomm-based Quectel and China Mobile ML307 series modules that 
 Available features depend on the module firmware, USB composition, SIM/eSIM capabilities, host drivers, radio network, and carrier configuration.
 
 ## Installation
+
+For **VoCat-sip**, use the [deployment runbook](docs/DEPLOYMENT_RUNBOOK.zh-CN.md) with this fork's pinned source or candidate artifact. The installer URLs and container images below are inherited **upstream VoCat references**; they install upstream software and do not establish that this fork's changes are included. The same distinction applies to the upstream self-update examples.
 
 ### One-click Linux installation
 
@@ -574,23 +581,30 @@ cd web && npm run build
 ```
 
 ## Thanks
+
+- [VoCat / MengMengCode](https://github.com/MengMengCode/VoCat) — The upstream project from which VoCat-sip is forked.
+- [VoWin](https://github.com/unikgyd/VoWin) — The Windows client and reference for Linux capability parity.
 - [Nodeseek.com](https://www.nodeseek.com) — A community dedicated to servers
 - [Linux.do](https://linux.do) — An inspiring tech community
 - [iniwex5](https://github.com/iniwex5) — Style and Functionality Guidelines
 
-## Buy me a coffee
+## Support VoCat-sip
+
+These channels support **[unikgyd](https://github.com/unikgyd), the VoCat-sip fork maintainer**, using the same public details as VoWin. See [sponsorship details](docs/SUPPORT.md).
 
 | Network | Address |
 | ------- | ------- |
-| USDT-TRON (TRC20) | `TWSAkvzVsFc7KqncDLmUfRxpPQbpV5CgTB` |
-| USDT-BSC (BEP20) | `0xb43031387342ebb1ff536fb9ad6440b9e6377139` |
-| USDT-Polygon | `0xb43031387342ebb1ff536fb9ad6440b9e6377139` |
+| USDT · TRON (TRC-20) | `TDecoS5mFozuyfJSR2QhSsWbCkGm8nsvpH` |
+| USDT · BNB Smart Chain (BEP-20) | `0x0e5e07b7604d8585fd936527f48874a10ad8b884` |
+| USDT · Polygon | `0x0e5e07b7604d8585fd936527f48874a10ad8b884` |
+
+Community: [GitHub Issues](https://github.com/unikgyd/VoCat-sip/issues), [Telegram](https://t.me/VoWindows1), [X / Twitter @Unikgyd99](https://x.com/Unikgyd99).
 
 ## License
 
 See [LICENSE](LICENSE).
 
-## Star History
+## Upstream VoCat Star History
 
 <a href="https://www.star-history.com/?repos=mengmengcode%2Fvocat&type=date&legend=top-left">
  <picture>

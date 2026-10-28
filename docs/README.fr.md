@@ -2,7 +2,9 @@
   <img src="../web/public/favicon.svg" width="96" alt="Vocat">
 </p>
 
-<h1 align="center">VoCat</h1>
+<h1 align="center">VoCat-sip</h1>
+
+VoCat-sip is a fork of [VoCat](https://github.com/MengMengCode/VoCat), maintained by [unikgyd](https://github.com/unikgyd). This translation contains inherited upstream reference instructions. For current fork deployment, use the [English README](../README.md), [Simplified Chinese README](README.zh-CN.md) and [deployment runbook](DEPLOYMENT_RUNBOOK.zh-CN.md).
 
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.25-00ADD8?style=flat-square&logo=go&logoColor=white">
@@ -346,11 +348,13 @@ cd web && npm run build
 
 ## Offrez-moi un café
 
+These channels support **[unikgyd](https://github.com/unikgyd), the VoCat-sip fork maintainer**. See [sponsorship details](SUPPORT.md).
+
 | Réseau | Adresse |
 | ------- | ------- |
-| USDT-TRON (TRC20) | `TWSAkvzVsFc7KqncDLmUfRxpPQbpV5CgTB` |
-| USDT-BSC (BEP20) | `0xb43031387342ebb1ff536fb9ad6440b9e6377139` |
-| USDT-Polygon | `0xb43031387342ebb1ff536fb9ad6440b9e6377139` |
+| USDT-TRON (TRC20) | `TDecoS5mFozuyfJSR2QhSsWbCkGm8nsvpH` |
+| USDT-BSC (BEP20) | `0x0e5e07b7604d8585fd936527f48874a10ad8b884` |
+| USDT-Polygon | `0x0e5e07b7604d8585fd936527f48874a10ad8b884` |
 
 ## Licence
 

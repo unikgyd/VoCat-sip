@@ -6,6 +6,14 @@
 
 QDC507 使用纯 **Host IMS**：主机持有承载、认证、SIP 对话和 RTP/AMR 媒体。必须显式选择 `host_ims`，不使用已废弃的 QDC507 ADB/D4/UAC 语音桥。普通数据所有者是普通 QMI 数据恢复组件，不替代 Host IMS 控制器。
 
+**项目归属**：VoCat-sip fork 自 [VoCat / MengMengCode](https://github.com/MengMengCode/VoCat)，由 [unikgyd](https://github.com/unikgyd) 维护，作为 VoWin 的 Linux 端。保留上游版权、研究与评估许可及现有授权要求；维护者的赞助渠道见[赞助说明](SUPPORT.zh-CN.md)。
+
+**本次 ModemManager 选择**：保留一个已核验版本的 MM 后端，项目独立管理 QMI proxy／普通数据 owner。当前纯 Host IMS 通过 MM 的系统 D-Bus 创建和释放 IMS 承载，直接停用全部 MM 会失去该能力。
+
+发行版 MM 有问题时，按下文选择匹配修补版，在原 `ModemManager.service` 上管理其可执行文件及回滚 drop-in，保留发行版二进制和服务加固；同时只运行一个 MM 守护进程。切换前先正常释放所有受影响线路，独立 proxy 先于 MM／VoCat 客户端启动。AT 冲突只隔离已核验的对应设备。
+
+仅普通数据／VoWiFi 的专用环境可在确认无其他使用者后考虑停 MM，但现有故障验收不代表“无 MM”部署已通过。详见[服务归属策略](HOST_IMS_DEPLOYMENT.md#service-ownership-and-modemmanager-policy)。
+
 ## 1. 上线范围与当前限制
 
 | 项目 | 可引用的证据与上线条件 |

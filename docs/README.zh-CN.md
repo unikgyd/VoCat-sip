@@ -2,7 +2,7 @@
   <img src="../web/public/favicon.svg" width="96" alt="Vocat">
 </p>
 
-<h1 align="center">VoCat</h1>
+<h1 align="center">VoCat-sip</h1>
 
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.25-00ADD8?style=flat-square&logo=go&logoColor=white">
@@ -24,7 +24,13 @@
 
 [English](../README.md) | **简体中文** | [العربية](README.ar.md) | [繁體中文](README.zh-TW.md) | [Français](README.fr.md) | [Русский](README.ru.md) | [Español](README.es.md) | [日本語](README.ja.md)
 
-Vocat 是一款面向 Quectel EC20/EC25 系列蜂窝模组的开源 Web 控制面板与工程工具套件。它在一个自包含的服务中整合了模组发现、实时射频状态、AT 与 USSD 终端、短信、WiFi Calling（WiFi 通话）、eSIM 管理、网络选择、代理路由、通知、审计日志以及发布自动化。
+**VoCat-sip fork 自 [VoCat](https://github.com/MengMengCode/VoCat)，由 [unikgyd](https://github.com/unikgyd) 维护。** 上游 VoCat 的原作者保留原项目署名与版权。本仓库作为 [VoWin](https://github.com/unikgyd/VoWin) 的 Linux 端，主要以成熟的 VoWin 行为补齐 Linux 能力，并保留 VoCat 原有功能。
+
+VoCat-sip 继承了上游面向 Quectel EC20/EC25 等蜂窝模组的 Web 控制面板与工程工具套件，整合模组发现、实时射频状态、AT 与 USSD 终端、短信、WiFi Calling、eSIM 管理、网络选择、代理路由、通知和审计日志。原有[研究与评估许可](../LICENSE)及运行时授权要求继续适用。
+
+部署见[安装、验收、备份及回滚手册](DEPLOYMENT_RUNBOOK.zh-CN.md)，赞助见[维护者与赞助信息](SUPPORT.zh-CN.md)。
+
+纯 Host IMS 当前仍需 ModemManager 后端，使用已核验的依赖版本；QMI 代理与普通数据 owner 由项目独立监督管理。具体选择见[服务归属与 ModemManager 策略](HOST_IMS_DEPLOYMENT.md#service-ownership-and-modemmanager-policy)。
 
 后端使用 Go 编写，界面采用 React 与 TypeScript 构建，生产环境前端被嵌入进 Go 二进制中。单个可执行文件即包含完整的 Web 应用，并使用 SQLite 进行持久化存储。
 
@@ -189,6 +195,8 @@ Vocat 面向基于高通芯片、并暴露兼容 AT、QMI、串口与 USB 网络
 可用功能取决于模组固件、USB 复合设备配置、SIM/eSIM 能力、主机驱动、无线网络以及运营商配置。
 
 ## 安装
+
+部署 **VoCat-sip** 请按[部署手册](DEPLOYMENT_RUNBOOK.zh-CN.md)使用本 fork 的固定源码或候选产物。下列安装脚本、容器镜像及后文自更新命令沿用的是**上游 VoCat 的参考示例**，会安装或更新上游软件，不能据此认为已经包含本 fork 的改动。
 
 ### Linux 一键安装
 
@@ -477,21 +485,30 @@ cd web && npm run build
 ```
 
 ## 致谢
+
+- [VoCat / MengMengCode](https://github.com/MengMengCode/VoCat) — VoCat-sip 所 fork 的上游项目。
+- [VoWin](https://github.com/unikgyd/VoWin) — Windows 端及 Linux 能力补齐的参考。
 - [Nodeseek.com](https://www.nodeseek.com) — 专注服务器的社群
 - [Linux.do](https://linux.do) — 富有启发的技术社群
 - [iniwex5](https://github.com/iniwex5) — 风格与功能指南
 
-## 请我喝杯咖啡
+## 赞助 VoCat-sip
+
+以下渠道支持 **VoCat-sip fork 维护者 [unikgyd](https://github.com/unikgyd)**，沿用 VoWin 的公开赞助信息；详见[赞助说明](SUPPORT.zh-CN.md)。
 
 | 网络 | 地址 |
 | ------- | ------- |
-| USDT-TRON (TRC20) | `TWSAkvzVsFc7KqncDLmUfRxpPQbpV5CgTB` |
-| USDT-BSC (BEP20) | `0xb43031387342ebb1ff536fb9ad6440b9e6377139` |
-| USDT-Polygon | `0xb43031387342ebb1ff536fb9ad6440b9e6377139` |
+| USDT · TRON（TRC-20） | `TDecoS5mFozuyfJSR2QhSsWbCkGm8nsvpH` |
+| USDT · BNB Smart Chain（BEP-20） | `0x0e5e07b7604d8585fd936527f48874a10ad8b884` |
+| USDT · Polygon | `0x0e5e07b7604d8585fd936527f48874a10ad8b884` |
+
+交流：[GitHub Issues](https://github.com/unikgyd/VoCat-sip/issues)、[Telegram 交流群](https://t.me/VoWindows1)、[X / Twitter @Unikgyd99](https://x.com/Unikgyd99)。
 
 ## 许可证
 
 参见 [LICENSE](../LICENSE)。
+
+## 上游 VoCat Star History
 
 <a href="https://star-history.dera.page/#MengMengCode/VoCat">
  <picture>

@@ -1,11 +1,41 @@
 # Host IMS deployment notes
 
-Host IMS needs the host ModemManager, its QMI proxy, the real host network and
+Host IMS needs the host ModemManager, a shared QMI proxy, the real host network and
 shared process/QMI lock directories. The compose definition mounts the system
 bus and `/run/vocat` and `/run/lock`, and shares host PID and network namespaces.
-Create `/run/vocat` as root with mode 0700 before starting a container. Do not run
-two services against the same hardware or use an independent QMI client while
+Create `/run/vocat` as root with mode 0700 before starting a container. Run only
+one VoCat deployment for each physical modem; its MM, proxy and owner services
+cooperate within that deployment. Do not use an independent QMI client while
 a line owns its bearer.
+
+## Service ownership and ModemManager policy
+
+For the current Host IMS deployment, retain one ModemManager backend and pin a
+verified version. Its system D-Bus service supplies the modem/SIM identity and
+creates, connects and releases IMS bearers. `vocat qmi-proxy` supervises the
+shared transport, while `vocat data-owner` owns ordinary packet-data sessions;
+neither replaces this IMS bearer backend. The self-managed WDS reader in Host
+IMS reads the acquired bearer runtime and does not start an IMS bearer itself.
+
+If the distribution ModemManager has the documented defect, select a verified
+matching patched executable through the existing `ModemManager.service`
+drop-in, following the dependency section below. Preserve the packaged binary
+and unit hardening, keep only one daemon providing
+`org.freedesktop.ModemManager1`, and retain the exact drop-in for rollback.
+Replacing that executable keeps the required MM backend available. Globally
+disabling or masking MM would remove the current Host IMS backend.
+
+Before changing MM or proxy ownership, normally drain every affected user's
+calls and data sessions and acknowledge their cleanup. Start the independently
+managed proxy before the MM and VoCat clients. If another application already
+owns a live proxy, coordinate its release instead of adopting or killing it.
+For legacy AT-port conflicts, inhibit only the verified legacy device, as
+described below; do not inhibit the modem currently providing Host IMS.
+
+An environment using only ordinary data or VoWiFi can choose to stop MM after
+confirming that no Host IMS line or other application needs it. Those paths do
+not use the MM D-Bus bearer backend, but the recorded fault tests used a matching
+patched MM; they do not establish acceptance of an MM-free deployment.
 
 QDC507 follows the current VoWin Host IMS design: the host owns the IMS bearer,
 authentication, SIP dialogs and RTP/AMR media. The former QDC507 ADB/D4/UAC voice

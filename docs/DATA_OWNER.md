@@ -7,6 +7,10 @@ owner runs independently of the HTTP service, so terminating the HTTP process
 does not discard its packet cleanup capability. AT, voice, SMS and eSIM remain
 with the main device manager.
 
+This ordinary-data owner and the independently supervised QMI proxy do not
+replace the ModemManager backend used for Host IMS bearers. Keep that backend
+available on a Host IMS host; see the [service ownership policy](HOST_IMS_DEPLOYMENT.md#service-ownership-and-modemmanager-policy).
+
 AT packet-data owners also remain local and use their original stop path.
 An unreleased local AT owner cannot be replaced by a delegated QMI start; an
 AT activation on a QMI-capable modem first joins any admitted delegated owner.

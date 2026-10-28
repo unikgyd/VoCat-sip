@@ -67,7 +67,7 @@ services:
       # QMI raw-IP setup follows /sys/class/net symlinks into /sys/devices.
       # Keep the rest of sysfs read-only while allowing owned device setup.
       - /sys/devices:/sys/devices:rw
-      # Host IMS uses the host ModemManager and its QMI proxy. Shared lock
+      # Host IMS uses the host ModemManager and a shared QMI proxy. Shared lock
       # directories prevent a second container/process from owning the modem.
       - /run/dbus:/run/dbus:ro
       - /run/vocat:/run/vocat
