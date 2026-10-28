@@ -407,6 +407,11 @@ func main() {
 			logger.Error("bootstrap admin failed", "error", err)
 			os.Exit(1)
 		}
+	case "reset-admin":
+		if err := runResetAdmin(rest); err != nil {
+			logger.Error("reset admin failed", "error", err)
+			os.Exit(1)
+		}
 	case "help", "-h", "--help":
 		printUsage(os.Stdout)
 	default:
