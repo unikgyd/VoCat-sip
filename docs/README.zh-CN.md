@@ -94,7 +94,8 @@ QDC507 按 VoWin 当前方案使用纯 **Host IMS**，由主机负责 IMS 会话
 | Linux 实机 | QDC507／电信 Host IMS 与 EC20／DITO VoWiFi 已同时注册；纯 Host IMS 短信收到状态码 0 的运营商送达报告；后续 AMR 通话已接通并有双向 RTP，接听者确认短音清楚且说了话。 |
 | 后续实测 | 已通过真实 Baresip 分机双向媒体／转码、RTCP 和按键、局域网 MESSAGE 确认／防重、物理 USB PCM 读写、已安装 eSIM 配置往返切换及四种留言格式导入的分项检查。 |
 | 蜂窝数据出口 | 电信 CTNET 的 IPv6、IPv4V6 和 IPv4 已通过 HTTP／SOCKS5 认证代理的真实 HTTPS、IPv4／IPv6 公网地址查询及原数据资源清理。 |
-| QMI 代理故障 | 可选原所有者恢复已通过真实代理强杀，保留原主进程／所有者并恢复公网查询；原生监督配置连带退出仍另验收。 |
+| QMI 代理故障 | 可选原所有者恢复已通过真实代理强杀，保留原主进程／所有者并恢复公网查询；原生范围见下方独立记录。 |
+| 原生监督恢复 | [真实双栈 owner／proxy 强杀](VERIFICATION_20261028_NATIVE_SUPERVISION.md)已通过，修复运行中 `Requires` 连带退出，保留严格启动检查；其他地址族和受保护接入联合故障仍另验收。 |
 | 活动数据所有者退出 | [默认 Compose 的 IPv4／IPv6／双栈实测](VERIFICATION_20261028_COMPOSE_OWNER_ACTIVE.md)已通过替代进程恢复，保留原主进程和代理；要求完整宿主记录和单次受控复位，保留 IPv6 基线维护及修补版 MM 的限定。 |
 | 原生安装 | 限定场景下的真实 systemd 安装、失败升级回滚、原管理员保留和共享锁保留已通过。 |
 | 高级实机通话 | 纯 Host IMS 保持／恢复、来电自动接听、提示音播放、网页电话 PCM 接管和完整双声道录音已通过限定场景；协商按键已获提交确认。 |
@@ -145,6 +146,7 @@ vet 和四种构建；一条纯 Host IMS 短信获 IMS 接受，并收到运营�
 ADB 音频和模块短信均不计入 Host IMS 验收，接通音频仍待实测。
 
 完整差异见[能力并集清单](FEATURE_UNION.md)，接入边界见[独立接入说明](INDEPENDENT_ACCESS.md)，
+上线步骤、固定产物、鉴权、备份升级和回滚见[部署与运行手册](DEPLOYMENT_RUNBOOK.zh-CN.md)。
 源码、缓存和运行文件的提交规则见[仓库约定](REPOSITORY.md)。原许可、地区准入和授权检查保持。
 本次受控电信测试卡通过[精确 SIM 准入文件](AUTHORIZED_TEST_SIMS.md)配置，真实身份不提交到 Git。
 现有 IMS Profile、模组 IMS 交接和依赖要求见[Host IMS 部署说明](HOST_IMS_DEPLOYMENT.md)。

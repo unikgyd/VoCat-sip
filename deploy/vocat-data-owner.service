@@ -2,14 +2,17 @@
 Description=vocat original QMI data owner
 After=network-online.target
 After=vocat-qmi-proxy.service
-Wants=network-online.target
-Requires=vocat-qmi-proxy.service
+Wants=network-online.target vocat-qmi-proxy.service
 
 [Service]
 Type=exec
 User=root
 Group=root
 WorkingDirectory=/opt/vocat
+# A proxy crash must not stop the original owner before it can acknowledge
+# cleanup. Require the dedicated service and socket at startup instead.
+ExecStartPre=systemctl --quiet is-active vocat-qmi-proxy.service
+ExecStartPre=/opt/vocat/bin/vocat qmi-proxy --check
 ExecStart=/opt/vocat/bin/vocat data-owner
 Restart=on-failure
 RestartSec=3s

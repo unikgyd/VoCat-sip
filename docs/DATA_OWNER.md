@@ -54,8 +54,13 @@ process with the installed libqmi proxy using `--no-exit`; this preserves its
 systemd cgroup and avoids an idle exit. The existing installer does not yet
 enable this optional layout automatically.
 
-The proxy's `ExecStartPost` checks its actual shared socket before either client
-starts. The same check gates both Compose clients on a healthy proxy container.
+The proxy's `ExecStartPost` checks its actual shared socket. Both native clients
+also require an active dedicated proxy unit and a successful socket check before
+execution. `Wants` and ordering activate the dependency without stopping original
+clients when the proxy crashes. `Requires` previously left both clients inactive
+after the proxy restarted; the [native supervision run](VERIFICATION_20261028_NATIVE_SUPERVISION.md)
+records that diagnostic, the fix and actual dual-stack owner/proxy recovery.
+The Compose clients retain their healthy-proxy startup gate.
 
 An automatically launched proxy can belong to the HTTP service's cgroup.
 Systemd's default control-group cleanup then kills that proxy when the main

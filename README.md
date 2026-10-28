@@ -31,11 +31,16 @@ The goal is the union of both clients' capabilities, with most implementation wo
 in VoCat-sip. The original [research and evaluation license](LICENSE) and runtime
 authorization checks remain in force.
 
+Deployment: [installation, verification, backup and rollback runbook (中文)](docs/DEPLOYMENT_RUNBOOK.zh-CN.md).
+Use a fixed, verified candidate; the upstream `latest` image does not establish
+that this fork's changes are included. Dependency and IPv6 qualifications remain
+explicit in the [native supervision acceptance](docs/VERIFICATION_20261028_NATIVE_SUPERVISION.md).
+
 QDC507 uses pure **Host IMS**, following the current VoWin design. Its carrier
 calls, SMS and RTP/AMR audio run through the host IMS owner. The deprecated
 QDC507 ADB/D4/UAC voice bridge is outside this implementation target.
 
-## Development status — 2026-10-27
+## Development status — 2026-10-28
 
 | Area | Current source status |
 | --- | --- |
@@ -47,7 +52,8 @@ QDC507 ADB/D4/UAC voice bridge is outside this implementation target.
 | Live Linux acceptance | QDC507/China Telecom Host IMS and EC20/DITO VoWiFi registered simultaneously. Pure Host IMS SMS received carrier delivery status 0. A later answered AMR call carried bidirectional RTP; the recipient confirmed clear tones and speaking. |
 | Further live acceptance | Real Baresip extension media/transcoding, RTCP and DTMF, LAN MESSAGE confirmation/deduplication, physical USB PCM I/O, an existing eSIM profile round trip and four prompt import formats passed their scoped checks. |
 | Cellular data export | Real CTNET IPv6, simultaneous IPv4/IPv6 and IPv4 HTTPS through authenticated HTTP/SOCKS5, IPv4/IPv6 public-IP queries and original data cleanup passed. |
-| QMI proxy fault | Opt-in original-owner recovery passed real proxy SIGKILL cases with original main/owner retained and fresh public queries. Native supervision cascades remain separate. |
+| QMI proxy fault | Opt-in original-owner recovery passed real proxy SIGKILL cases with original main/owner retained and fresh public queries. Native coverage is qualified by the separate report below. |
+| Native supervision | [Actual dual-stack owner/proxy faults](docs/VERIFICATION_20261028_NATIVE_SUPERVISION.md) passed after replacing runtime `Requires` coupling with `Wants` and strict startup checks. Other services stayed alive; additional family/protected-access combinations remain separate. |
 | Active data-owner death | [Shipping Compose IPv4/IPv6/dual-stack cases](docs/VERIFICATION_20261028_COMPOSE_OWNER_ACTIVE.md) recovered through a replacement owner, retaining the original main/proxy. Committed host receipts and one-shot physical recovery are required; IPv6 baseline maintenance and patched-manager qualifications apply. |
 | Native installation | Scoped real systemd installation, failed-upgrade rollback, original administrator preservation and shared-lock retention passed. |
 | Advanced live acceptance | Pure Host IMS hold/resume, incoming automatic answer, prompt playback, web-phone PCM takeover and complete stereo recordings passed scoped carrier checks. A negotiated key submission succeeded; remote IVR recognition remains separate. |

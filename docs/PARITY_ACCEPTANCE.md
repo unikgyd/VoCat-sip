@@ -342,12 +342,26 @@ Strict payload comparison reconciled an echo-only restoration observer failure;
 all original state was restored and stock MM observed for 121.070 seconds at
 zero automatic restarts. This is qualified active-ready-record recovery.
 
+The [native supervision follow-up](VERIFICATION_20261028_NATIVE_SUPERVISION.md)
+reproduced the previous `Requires` dependency cascade in isolated real services,
+then changed only two unit files to `Wants` plus active-unit/socket startup checks.
+All other frozen code/assets matched the checked binary, so prior combined Go,
+kernel, race, vet and architecture checks were referenced explicitly. Real unit
+behavior additionally refused foreign listeners and active units without sockets.
+Actual native CT dual-stack owner/proxy SIGKILLs recovered in 37.329/67.365 seconds
+with other original services retained and fresh IPv4/IPv6 public queries. Owner
+CFUN bytes were not captured; proxy CFUN bytes were captured once. The strict
+cleanup observer's inactive-unit exit-code assumption was retained/reconciled;
+original host state was restored and stock MM observed for 121.685 seconds with
+zero automatic restarts. The [deployment runbook](DEPLOYMENT_RUNBOOK.zh-CN.md)
+is available without claiming unconditional production readiness.
+
 The full objective remains open. Browser microphone/speaker use is deferred
 by the human. Actual carrier-bound SIP endpoint death and fixed-PBX/carrier joint faults,
 prolonged network-loss/reconnection and other fault combinations,
 remote IVR recognition, further SIP call-ending/fault scenarios, physical
 hotplug, active-call/daemon/host crash recovery, owner loss with legacy/unready records,
-unconfigured recovery, native systemd proxy-loss dependency cascades,
+unconfigured recovery, remaining native family/protected-access fault combinations,
 distribution-manager callback reliability and other failure combinations,
 additional scheduled-task/profile/crash combinations and external provider
 delivery still need their live scenarios. Existing

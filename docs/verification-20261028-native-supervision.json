@@ -1,0 +1,256 @@
+{
+  "schema": 1,
+  "date": "2026-10-28",
+  "sourceBaseline": "044fcfe080df4c2710fb277732e60136cf653f21",
+  "changedProductFiles": [
+    "deploy/vocat-data-owner.conf",
+    "deploy/vocat-data-owner.service"
+  ],
+  "unitHashes": {
+    "deploy/vocat.service": "661ead1e3b8c86facce8f2bf23ccf18f2ff3a78a7f9d1ab877dbdb184fe932d0",
+    "deploy/vocat-data-owner.service": "2add76c39804028325fff9ce05f814702943cdc474ae67df8268d8934c73f5b6",
+    "deploy/vocat-qmi-proxy.service": "677ea7e97c3f8f21b79ccacdbfd68f019351d5a7ae3bd68d2eb5fb740712b74b",
+    "deploy/vocat-data-owner.conf": "71dd10781c7d91ba95b6baa57bdcc509653d453ac3963c007a5efaa93b8dae92"
+  },
+  "allOtherFrozenNonDocumentationFilesMatch": true,
+  "checkedBinaryUnchanged": true,
+  "checkedBinarySHA256": "403d5708de465c3575ee8118af35a9e0d2155c1bf69f581d87310e99eef04ad1",
+  "previousCombinedSoftwareChecks": {
+    "sourceManifestSHA256": "70c48c2c09a6cd292882fffcd8b37a315b81c7ec7343a605aaa5fef6cfb074d9",
+    "results": [
+      {
+        "label": "data-kernel",
+        "exit": 0,
+        "seconds": 13.433,
+        "tests": {
+          "pass": 7,
+          "fail": 0,
+          "skip": 0
+        },
+        "rootNames": 7,
+        "repetitionsPerRoot": [
+          1
+        ]
+      },
+      {
+        "label": "go",
+        "exit": 0,
+        "seconds": 197.14,
+        "tests": {
+          "pass": 2140,
+          "fail": 0,
+          "skip": 50
+        },
+        "rootNames": 2140,
+        "repetitionsPerRoot": [
+          1
+        ]
+      },
+      {
+        "label": "vet",
+        "exit": 0,
+        "seconds": 7.283
+      },
+      {
+        "label": "data-kernel-race",
+        "exit": 0,
+        "seconds": 57.451,
+        "tests": {
+          "pass": 35,
+          "fail": 0,
+          "skip": 0
+        },
+        "rootNames": 7,
+        "repetitionsPerRoot": [
+          5
+        ]
+      },
+      {
+        "label": "amd64",
+        "exit": 0,
+        "seconds": 13.161
+      },
+      {
+        "label": "arm64",
+        "exit": 0,
+        "seconds": 15.837
+      },
+      {
+        "label": "386",
+        "exit": 0,
+        "seconds": 14.074
+      },
+      {
+        "label": "arm",
+        "exit": 0,
+        "seconds": 14.505
+      }
+    ],
+    "unchangedOwnerRecoveryRace": {
+      "sourceManifestSHA256": "42523b971b014bddbc07e3d5b2cec861a0f1e5c26f9a6946cfee0b042e41bb1a",
+      "result": {
+        "label": "owner-recovery-race",
+        "exit": 0,
+        "seconds": 352.2,
+        "tests": {
+          "pass": 200,
+          "fail": 0,
+          "skip": 10
+        },
+        "rootNames": 40,
+        "repetitionsPerRoot": [
+          5
+        ]
+      },
+      "unchangedOtherInputs": true,
+      "changedInputsRetestedByCurrentKernelRace": [
+        "internal/device/data_host_rules_linux.go"
+      ]
+    }
+  },
+  "beforeFixIsolatedDependencyGraph": {
+    "diagnosticOnly": true,
+    "noCarrierAcceptance": true,
+    "actualSystemdPrivateNetworkServices": true,
+    "shippingRequiresWantsAfterAndRestartEdges": true,
+    "proxyAutomaticallyRestarted": true,
+    "mainStayedActive": false,
+    "ownerStayedActive": false,
+    "allDiagnosticUnitsAndProcessesRemoved": true,
+    "retainedCleanupObserverFailure": "rename across tmpfs/filesystem; resumed from stopped services with exact unit hashes and copy/unlink move"
+  },
+  "modifiedUnitSoftwareBehavior": {
+    "softwareUnitBehaviorOnly": true,
+    "noCarrierAcceptance": true,
+    "allOtherFrozenNonDocumentationInputsUnchanged": true,
+    "changedProductFiles": [
+      "deploy/vocat-data-owner.conf",
+      "deploy/vocat-data-owner.service"
+    ],
+    "previousCombinedChecksReferenced": true,
+    "checkedBinarySHA256": "403d5708de465c3575ee8118af35a9e0d2155c1bf69f581d87310e99eef04ad1",
+    "actualShippingProtectionAndStartupChecksPreserved": true,
+    "systemdAnalyzeVerifyPassed": true,
+    "proxyKillAutomaticallyRestartedOnceWithoutStoppingClients": true,
+    "ownerKillAutomaticallyRestartedOnceWithoutStoppingMainOrProxy": true,
+    "foreignServingProxyNotAdoptedAndClientsNeverExecuted": true,
+    "activeProxyWithoutSocketClientsNeverExecuted": true,
+    "allOwnedUnitsProcessesNamespaceAndRuntimePathsRemoved": true,
+    "retainedCleanupObserverFailure": "Intentional negative start-pre process interrupted by stop left failed/result=signal; stopped zero-PID state recorded, only these disposable negative units reset before removal"
+  },
+  "actualNativeCases": [
+    {
+      "case": "owner-dual",
+      "actualSIGKILLWithActiveReadyDataClaim": true,
+      "systemdRecordedKilledStatus9": true,
+      "defaultNativeRestartAndShutdownSettings": true,
+      "targetAutomaticallyRestartedOnce": true,
+      "originalOtherServicePIDsInvocationsAndRestartCountsPreserved": true,
+      "originalOwnerTransportToDedicatedProxyProven": true,
+      "noDependencyCascade": true,
+      "oneDurableOriginalRecoveryIntentObserved": true,
+      "originalUSBGenerationGoneAndOriginalClaimReleased": true,
+      "oldHostRulesAndDNSAbsentBeforeNewClaim": true,
+      "freshReadyClaimSameOriginalEquipmentAndSIM": true,
+      "savedDataIntentRestoredWithoutOperatorAction": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 4,
+      "observedCFUNWrites": 0,
+      "CFUNByteObservationComplete": false,
+      "recoveryAndPublicQuerySeconds": 37.329,
+      "carrierCalls": 0,
+      "carrierSMS": 0,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0
+    },
+    {
+      "case": "proxy-dual",
+      "actualSIGKILLWithActiveReadyDataClaim": true,
+      "systemdRecordedKilledStatus9": true,
+      "defaultNativeRestartAndShutdownSettings": true,
+      "targetAutomaticallyRestartedOnce": true,
+      "originalOtherServicePIDsInvocationsAndRestartCountsPreserved": true,
+      "originalOwnerTransportToDedicatedProxyProven": true,
+      "noDependencyCascade": true,
+      "oneDurableOriginalRecoveryIntentObserved": true,
+      "originalUSBGenerationGoneAndOriginalClaimReleased": true,
+      "oldHostRulesAndDNSAbsentBeforeNewClaim": true,
+      "freshReadyClaimSameOriginalEquipmentAndSIM": true,
+      "savedDataIntentRestoredWithoutOperatorAction": true,
+      "publicIPHTTPStatus": 200,
+      "publicIPAddressFamily": 6,
+      "observedCFUNWrites": 1,
+      "CFUNByteObservationComplete": true,
+      "recoveryAndPublicQuerySeconds": 67.365,
+      "carrierCalls": 0,
+      "carrierSMS": 0,
+      "PhilippinesCalls": 0,
+      "PhilippinesSMS": 0
+    }
+  ],
+  "matchingPatchedModemManagerUsed": true,
+  "ordinaryDataOnlyPolicyAndExplicitCTSecondaryRecovery": true,
+  "mainOwnerAndProxyShippingProtectionPreserved": true,
+  "privateOverrides": "Only private candidate/configuration and owner secondary-port mapping; no restart/dependency/protection relaxation in hardware cases",
+  "noVoiceBridge": true,
+  "allNativeAddressFamilyFaultCombinationsAccepted": false,
+  "ownerCommandWriteBytesCaptured": false,
+  "proxyCommandWriteBytesCaptured": true,
+  "cleanupObserverReconciliation": {
+    "originalFailureRetained": true,
+    "proxyInactiveNoPIDsAndSuccessResult": true,
+    "proxyHadNoEstablishedClientsBeforeStop": true,
+    "successfulProxyDeactivationJournalConfirmed": true,
+    "noSpecificProxyRawExitCodeClaimed": true,
+    "mainAndOwnerRecordedExitZero": true,
+    "noServiceRestartOrHardwareRecoveryRequired": true,
+    "detailedProxyExitCodeFieldsWereZeroAtReconciliation": true,
+    "reasonForClearedFieldsNotIndependentlyEstablished": true
+  },
+  "stockManagerStability": {
+    "seconds": 121.685,
+    "samePID": true,
+    "sameStartTicks": true,
+    "automaticRestarts": 0,
+    "nativeAttestationBeforeStockSwitch": true,
+    "noStockInhibitionOrATCycle": true
+  },
+  "baselineOwnerLockInodePreserved": true,
+  "restored": {
+    "applicationAndOwnerExitedZero": true,
+    "ownedProxyStoppedWithoutEstablishedClients": true,
+    "actualShippingUnitsAndBothDropInDirectoriesArchived": true,
+    "fixtureBinaryConfigAndPrivateDatabaseArchived": true,
+    "originalNativeUnitPathsNotFound": true,
+    "originalEquipmentSIMsRegisteredRFOn": true,
+    "nativeIMSKept1AndAllPDPDefinitionsPreserved": true,
+    "nativeQueryFramingStrictlyParsedWithoutRewritingObservations": true,
+    "stockManagerActive": true,
+    "stockManagerSHA256": "e1c6e899c75385544423cf96d5a67e37d516038e16c01680e3ccb5c59941a5e6",
+    "stockManagerAutomaticRestarts": 0,
+    "originalStockManagerZeroRestartsAfter120Seconds": true,
+    "noStockManagerInhibitionOrATCycle": true,
+    "ownedManagerOverrideAndExecutableRemoved": true,
+    "CTHostExactExceptRecreatedInterfaceIndex": true,
+    "PHHostExactlyPreserved": true,
+    "originalDatabaseHashPreserved": true,
+    "sharedLockInodePreserved": true,
+    "originalRunningContainerIDsPreserved": true,
+    "hostPCSCServiceAndSocketPreserved": true,
+    "noDataOrHostIMSClaim": true,
+    "noPrivateOwnerSocketOrNewRuntimePaths": true,
+    "noXFRMStateOrPolicy": true,
+    "noPrivateDNSFile": true,
+    "PhilippinesCalls": 0,
+    "PhilippinesSMS": 0
+  },
+  "qualifiedNativeDualStackOwnerAndProxyFaultRecoveryAccepted": true,
+  "productionUnconditionallyReady": false,
+  "overallGoalComplete": false,
+  "remaining": [
+    "Distribution ModemManager crash dependency remains qualified; faults used matching patched build",
+    "IPv6 cold-start reliability and remaining standalone native IPv4/IPv6 fault combinations need separate acceptance",
+    "Cross-boot/power-loss, physical hotplug and carrier-bound SIP joint faults are not covered",
+    "Physical browser audio remains deferred by user"
+  ]
+}
