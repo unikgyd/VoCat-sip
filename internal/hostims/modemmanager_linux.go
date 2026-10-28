@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/godbus/dbus/v5"
@@ -25,7 +26,12 @@ const (
 	mmBearer  = mmService + ".Bearer"
 )
 
-type modemManagerBackend struct{ connection *dbus.Conn }
+type modemManagerBackend struct {
+	connection   *dbus.Conn
+	inhibitMu    sync.Mutex
+	inhibitOwner string
+	inhibited    map[string]bool
+}
 
 // NewModemManagerBackend uses an existing private system-bus connection owned
 // by the caller. No radio or bearer operation runs during construction/select.
@@ -429,7 +435,11 @@ func modemManagerConnectError(err error) error {
 			name = reply.Name
 		}
 	}
-	if strings.HasPrefix(name, mmService+".Error.MobileEquipment.") {
+	if strings.HasPrefix(name, mmService+".Error.MobileEquipment.") ||
+		(strings.HasPrefix(name, mmService+".Error.Qmi.") &&
+			!strings.HasSuffix(name, ".Timeout") &&
+			!strings.HasSuffix(name, ".Cancelled")) ||
+		name == mmService+".Error.Core.Failed" {
 		return ErrRejected
 	}
 	return ErrTransport
@@ -501,3 +511,227 @@ func mmBool(props map[string]dbus.Variant, key string) (bool, error) {
 	}
 	return v, nil
 }
+
+func (b *modemManagerBackend) ObserveModemRadio(ctx context.Context, path string) (RadioObservation, error) {
+	if !objectPath(path, "Modem") {
+		return RadioObservation{}, ErrSelection
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	owner, err := b.owner(ctx)
+	if err != nil {
+		return RadioObservation{}, err
+	}
+	props, err := b.properties(ctx, owner, path, mmModem)
+	if err != nil {
+		return RadioObservation{}, err
+	}
+	read := func(m map[string]dbus.Variant, name string) string {
+		value, _ := mmText(m, name)
+		return strings.TrimSpace(value)
+	}
+	obs := RadioObservation{
+		IMEI:          read(props, "EquipmentIdentifier"),
+		Manufacturer:  read(props, "Manufacturer"),
+		Model:         read(props, "Model"),
+		Firmware:      read(props, "Revision"),
+		OperatingMode: 1,
+		ModeKnown:     true,
+	}
+	if strings.EqualFold(obs.Model, "QUECTEL Mobile Broadband Module") && obs.Firmware != "" {
+		for _, prefix := range []string{"QDC507", "EC20", "EC25", "EG25", "EM05", "RM500", "RG500"} {
+			if strings.HasPrefix(strings.ToUpper(obs.Firmware), prefix) {
+				obs.Model = "Quectel " + prefix
+				break
+			}
+		}
+	}
+	state, _ := props["State"].Value().(int32)
+	if power, powerErr := mmUint(props, "PowerState"); powerErr == nil {
+		switch power {
+		case 3:
+			obs.OperatingMode, obs.ModeKnown, obs.FlightMode = 1, true, false
+		case 2:
+			obs.OperatingMode, obs.ModeKnown, obs.FlightMode = 4, true, true
+		case 1:
+			obs.OperatingMode, obs.ModeKnown, obs.FlightMode = 0, true, true
+		}
+	} else if state >= 0 && state < 6 {
+		obs.OperatingMode, obs.ModeKnown, obs.FlightMode = 4, true, true
+	}
+	if access, accessErr := mmUint(props, "AccessTechnologies"); accessErr == nil {
+		obs.AccessTech = mmAccessTechnologyName(access)
+	}
+	if sq, ok := props["SignalQuality"]; ok {
+		if pct, valid := mmSignalQualityPercent(sq); valid {
+			obs.SignalPercent = &pct
+			if pct > 0 {
+				dbm := -113 + (pct*62)/100
+				obs.RSSIDBm = &dbm
+			}
+		}
+	}
+	if state >= 8 {
+		obs.RegistrationStatus = 1
+	} else if state == 7 {
+		obs.RegistrationStatus = 2
+	}
+	if state == 11 {
+		obs.PSAttached = true
+	}
+	if gpp, gppErr := b.properties(ctx, owner, path, mmModem+".Modem3gpp"); gppErr == nil {
+		if imei := read(gpp, "Imei"); imei != "" && obs.IMEI == "" {
+			obs.IMEI = imei
+		}
+		obs.OperatorCode = read(gpp, "OperatorCode")
+		obs.OperatorName = read(gpp, "OperatorName")
+		if reg, regErr := mmUint(gpp, "RegistrationState"); regErr == nil {
+			switch reg {
+			case 1:
+				obs.RegistrationStatus = 1
+			case 5:
+				obs.RegistrationStatus = 5
+			case 2:
+				obs.RegistrationStatus = 2
+			case 3:
+				obs.RegistrationStatus = 3
+			case 0, 4:
+				if state < 8 {
+					obs.RegistrationStatus = 0
+				}
+			}
+		}
+		if ps, psErr := mmUint(gpp, "PacketServiceState"); psErr == nil && ps == 2 {
+			obs.PSAttached = true
+		}
+	}
+	return obs, nil
+}
+
+func mmAccessTechnologyName(access uint32) string {
+	switch {
+	case access&(1<<15) != 0:
+		return "NR5G"
+	case access&(1<<14) != 0:
+		return "LTE"
+	case access&(1<<5|1<<6|1<<7|1<<8|1<<9) != 0:
+		return "HSPA"
+	case access&(1<<4) != 0:
+		return "UMTS"
+	case access&(1<<1|1<<2|1<<3) != 0:
+		return "GSM"
+	default:
+		return ""
+	}
+}
+
+func mmSignalQualityPercent(v dbus.Variant) (int, bool) {
+	items, ok := v.Value().([]any)
+	if !ok || len(items) < 1 {
+		return 0, false
+	}
+	pct, ok := items[0].(uint32)
+	if !ok || pct > 100 {
+		return 0, false
+	}
+	return int(pct), true
+}
+
+func (b *modemManagerBackend) SyncDeviceInhibition(ctx context.Context, desired map[string]bool) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	owner, err := b.owner(ctx)
+	if err != nil {
+		return err
+	}
+	b.inhibitMu.Lock()
+	defer b.inhibitMu.Unlock()
+	if b.inhibitOwner != owner || b.inhibited == nil {
+		b.inhibitOwner = owner
+		b.inhibited = make(map[string]bool)
+	}
+	managed := b.managedPhysicalPaths(ctx, owner)
+	var firstErr error
+	for physical, shouldInhibit := range desired {
+		if !strings.HasPrefix(physical, "/sys/devices/") {
+			continue
+		}
+		if shouldInhibit {
+			needsInhibit := !b.inhibited[physical] || managed[physical]
+			for m := range managed {
+				if samePhysicalTree(m, physical) {
+					needsInhibit = true
+				}
+			}
+			if !needsInhibit {
+				continue
+			}
+			err := b.inhibitDevice(ctx, owner, physical, true)
+			for m := range managed {
+				if m != physical && samePhysicalTree(m, physical) {
+					_ = b.inhibitDevice(ctx, owner, m, true)
+				}
+			}
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+			b.inhibited[physical] = true
+			continue
+		}
+		if b.inhibited[physical] {
+			if err := b.inhibitDevice(ctx, owner, physical, false); err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+			delete(b.inhibited, physical)
+		}
+	}
+	return firstErr
+}
+
+func (b *modemManagerBackend) managedPhysicalPaths(ctx context.Context, owner string) map[string]bool {
+	var objects map[dbus.ObjectPath]map[string]map[string]dbus.Variant
+	if b.connection.Object(owner, dbus.ObjectPath(mmRoot)).CallWithContext(ctx, "org.freedesktop.DBus.ObjectManager.GetManagedObjects", 0).Store(&objects) != nil || len(objects) > 256 {
+		return nil
+	}
+	result := make(map[string]bool)
+	for _, interfaces := range objects {
+		if props, ok := interfaces[mmModem]; ok {
+			physical, _ := mmText(props, "Physdev")
+			if physical == "" {
+				physical, _ = mmText(props, "Device")
+			}
+			if strings.HasPrefix(physical, "/sys/devices/") {
+				result[physical] = true
+			}
+		}
+	}
+	return result
+}
+
+func (b *modemManagerBackend) inhibitDevice(ctx context.Context, owner, uid string, inhibit bool) error {
+	if !validOwner(owner) || !strings.HasPrefix(uid, "/sys/devices/") {
+		return ErrSelection
+	}
+	err := b.connection.Object(owner, dbus.ObjectPath(mmRoot)).CallWithContext(ctx, mmService+".InhibitDevice", 0, uid, inhibit).Err
+	if err == nil {
+		return nil
+	}
+	text := strings.ToLower(err.Error())
+	if !inhibit && (strings.Contains(text, "no inhibition found") || strings.Contains(text, "notfound") || strings.Contains(text, "not found")) {
+		return nil
+	}
+	if inhibit && strings.Contains(text, "already inhibited") {
+		return nil
+	}
+	return ErrTransport
+}
+

@@ -75,6 +75,16 @@ func configureHostIMSRuntime(ctx context.Context, logger *slog.Logger, database 
 	}); ok {
 		manager.readSubscription = observer.Subscription
 	}
+	if radioObserver, ok := factory.(interface {
+		ObserveRadio(context.Context, string) (device.Snapshot, error)
+	}); ok {
+		manager.observeRadio = radioObserver.ObserveRadio
+	}
+	if inhibitor, ok := factory.(interface {
+		ReconcileDeviceInhibition(context.Context) error
+	}); ok {
+		manager.reconcileInhibition = inhibitor.ReconcileDeviceInhibition
+	}
 	if recovery, ok := factory.(interface {
 		CleanupPending(context.Context, string) error
 	}); ok {

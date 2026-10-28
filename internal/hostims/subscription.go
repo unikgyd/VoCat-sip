@@ -66,3 +66,89 @@ func (p *BearerPool) Subscription(ctx context.Context, target ModemTarget) (icci
 	}
 	return b.ICCID, b.IMSI, nil
 }
+
+type RadioObservation struct {
+	ICCID              string
+	IMSI               string
+	IMEI               string
+	Manufacturer       string
+	Model              string
+	Firmware           string
+	OperatorCode       string
+	OperatorName       string
+	AccessTech         string
+	RegistrationStatus int
+	PSAttached         bool
+	OperatingMode      int
+	ModeKnown          bool
+	FlightMode         bool
+	SignalPercent      *int
+	RSSIDBm            *int
+}
+
+type radioObserverBackend interface {
+	ObserveModemRadio(ctx context.Context, path string) (RadioObservation, error)
+}
+
+type deviceInhibitorBackend interface {
+	SyncDeviceInhibition(ctx context.Context, desired map[string]bool) error
+}
+
+func (p *BearerPool) ObserveRadio(ctx context.Context, target ModemTarget) (RadioObservation, error) {
+	iccid, imsi, err := p.Subscription(ctx, target)
+	if err != nil {
+		return RadioObservation{}, err
+	}
+	obs := RadioObservation{
+		ICCID:         iccid,
+		IMSI:          imsi,
+		IMEI:          target.Equipment,
+		OperatingMode: 1,
+		ModeKnown:     true,
+	}
+	observer, ok := p.backend.(radioObserverBackend)
+	if !ok {
+		return obs, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	paths, err := p.backend.Modems(ctx)
+	if err != nil {
+		return obs, nil
+	}
+	selected := ""
+	for path, equipment := range paths {
+		if equipment == target.Equipment {
+			selected = path
+			break
+		}
+	}
+	if selected == "" {
+		return obs, nil
+	}
+	radio, err := observer.ObserveModemRadio(ctx, selected)
+	if err != nil {
+		return obs, nil
+	}
+	radio.ICCID = iccid
+	radio.IMSI = imsi
+	if radio.IMEI == "" {
+		radio.IMEI = target.Equipment
+	}
+	return radio, nil
+}
+
+func (p *BearerPool) SyncDeviceInhibition(ctx context.Context, desired map[string]bool) error {
+	if p == nil {
+		return ErrSelection
+	}
+	inhibitor, ok := p.backend.(deviceInhibitorBackend)
+	if !ok {
+		return nil
+	}
+	return inhibitor.SyncDeviceInhibition(ctx, desired)
+}
+

@@ -10,6 +10,7 @@ import (
 
 type subscriptionObservation struct {
 	identity             vowifi.SIMIdentity
+	radio                *device.Snapshot
 	physical, generation string
 	available            bool
 	at                   time.Time
@@ -53,6 +54,7 @@ func (s *Server) projectHostSubscription(config store.Device, entry *device.Devi
 		snapshot = *entry.Snapshot
 	}
 	snapshot.ICCID, snapshot.IMSI = "", ""
+	snapshot.Responsive = false
 	snapshot.SIMReady = false
 	snapshot.SIMStatus = "unknown"
 	snapshot.Phone = device.PhoneNumber{}
@@ -65,8 +67,32 @@ func (s *Server) projectHostSubscription(config store.Device, entry *device.Devi
 	verified := false
 	if value, exists := s.subscriptionObservations.Load(config.ID); exists {
 		if observed, ok := value.(subscriptionObservation); ok && observed.available && time.Since(observed.at) <= 15*time.Second && observed.physical == entry.ID && observed.generation == entry.Candidate.USBGeneration {
+			copy.LastError = ""
+			snapshot.Responsive = true
+			snapshot.OperatingMode = 1
+			snapshot.ModeKnown = true
+			snapshot.FlightMode = false
+			snapshot.RadioOff = false
 			snapshot.ICCID, snapshot.IMSI = observed.identity.ICCID, observed.identity.IMSI
 			snapshot.UpdatedAt = observed.at.UTC()
+			if observed.radio != nil {
+				snapshot.Manufacturer = firstNonEmpty(observed.radio.Manufacturer, snapshot.Manufacturer)
+				snapshot.Model = firstNonEmpty(observed.radio.Model, snapshot.Model)
+				snapshot.Firmware = firstNonEmpty(observed.radio.Firmware, snapshot.Firmware)
+				snapshot.IMEI = firstNonEmpty(observed.radio.IMEI, snapshot.IMEI)
+				snapshot.OperatorCode = observed.radio.OperatorCode
+				snapshot.OperatorName = observed.radio.OperatorName
+				snapshot.AccessTech = observed.radio.AccessTech
+				snapshot.RegistrationStatus = observed.radio.RegistrationStatus
+				snapshot.RegistrationSource = observed.radio.RegistrationSource
+				snapshot.PSAttached = observed.radio.PSAttached
+				snapshot.OperatingMode = observed.radio.OperatingMode
+				snapshot.ModeKnown = observed.radio.ModeKnown
+				snapshot.FlightMode = observed.radio.FlightMode
+				snapshot.RadioOff = observed.radio.RadioOff
+				snapshot.SignalPercent = observed.radio.SignalPercent
+				snapshot.RSSIDBm = observed.radio.RSSIDBm
+			}
 			verified = true
 			if snapshot.ICCID == "" {
 				snapshot.SIMStatus = "not_inserted"

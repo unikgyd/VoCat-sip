@@ -228,6 +228,7 @@ func (f *linuxHostIMSFactory) prepare(ctx context.Context, id string) (hostimsru
 	if err != nil {
 		return nil, err
 	}
+	_ = pool.SyncDeviceInhibition(ctx, map[string]bool{target.Physical: false})
 	selection, err := pool.SelectTarget(ctx, target)
 	if err != nil {
 		return nil, err
@@ -346,11 +347,112 @@ func (f *linuxHostIMSFactory) Subscription(ctx context.Context, id string) (vowi
 	if err != nil {
 		return vowifi.SIMIdentity{}, err
 	}
+	_ = pool.SyncDeviceInhibition(ctx, map[string]bool{target.Physical: false})
 	iccid, imsi, err := pool.Subscription(ctx, target)
 	if err != nil {
 		return vowifi.SIMIdentity{}, err
 	}
 	return vowifi.SIMIdentity{ICCID: iccid, IMSI: imsi}, nil
+}
+
+func (f *linuxHostIMSFactory) ObserveRadio(ctx context.Context, id string) (device.Snapshot, error) {
+	config, err := f.opts.Store.Device(ctx, id)
+	if err != nil {
+		return device.Snapshot{}, err
+	}
+	entries := hostIMSMetadataInventory(config, f.opts.Devices.List())
+	target, err := hostIMSPhysicalTarget(config, entries)
+	if err != nil {
+		return device.Snapshot{}, err
+	}
+	target.ICCID, target.IMSI = "", ""
+	pool, err := f.sharedPool(ctx)
+	if err != nil {
+		return device.Snapshot{}, err
+	}
+	_ = pool.SyncDeviceInhibition(ctx, map[string]bool{target.Physical: false})
+	radio, err := pool.ObserveRadio(ctx, target)
+	if err != nil {
+		return device.Snapshot{}, err
+	}
+	operatorName := strings.TrimSpace(radio.OperatorName)
+	if radio.OperatorCode != "" {
+		if carrierName, _, found := device.CarrierForPLMN(radio.OperatorCode); found && strings.TrimSpace(carrierName) != "" {
+			operatorName = strings.TrimSpace(carrierName)
+		}
+	}
+	simStatus := "not_inserted"
+	simReady := false
+	if radio.ICCID != "" {
+		simStatus = "ready"
+		simReady = true
+	}
+	return device.Snapshot{
+		DeviceID:           id,
+		Responsive:         true,
+		Manufacturer:       radio.Manufacturer,
+		Model:              radio.Model,
+		Firmware:           radio.Firmware,
+		IMEI:               radio.IMEI,
+		IMSI:               radio.IMSI,
+		ICCID:              radio.ICCID,
+		SIMStatus:          simStatus,
+		SIMReady:           simReady,
+		SignalPercent:      radio.SignalPercent,
+		RSSIDBm:            radio.RSSIDBm,
+		OperatorName:       operatorName,
+		OperatorCode:       radio.OperatorCode,
+		AccessTech:         radio.AccessTech,
+		RegistrationStatus: radio.RegistrationStatus,
+		RegistrationSource: "ModemManager",
+		PSAttached:         radio.PSAttached,
+		OperatingMode:      radio.OperatingMode,
+		ModeKnown:          radio.ModeKnown,
+		FlightMode:         radio.FlightMode,
+		RadioOff:           radio.FlightMode,
+		UpdatedAt:          time.Now().UTC(),
+	}, nil
+}
+
+func (f *linuxHostIMSFactory) ReconcileDeviceInhibition(ctx context.Context) error {
+	if f == nil || f.opts.Store == nil || f.opts.Devices == nil {
+		return errHostIMSFactory
+	}
+	entries := f.opts.Devices.List()
+	desired := make(map[string]bool)
+	guard := defaultHostIMSPhysicalGuard()
+	for _, entry := range entries {
+		if !entry.Discovered || entry.Candidate.HardwareKind == "pcsc" {
+			continue
+		}
+		physical, err := canonicalHostIMSPhysical(entry.Candidate.USBPath)
+		if err != nil {
+			continue
+		}
+		ownedByHostIMS := hostIMSOwnsPhysicalWith(ctx, f.opts.Store, entries, entry.ID, guard)
+		desired[physical] = !ownedByHostIMS
+	}
+	if configs, err := f.opts.Store.ListDevices(ctx); err == nil {
+		for _, config := range configs {
+			physical, err := canonicalHostIMSPhysical(config.USBPath)
+			if err != nil {
+				continue
+			}
+			if store.HostIMSConfigured(config) {
+				desired[physical] = false
+			} else if _, exists := desired[physical]; !exists {
+				desired[physical] = true
+			}
+		}
+	}
+	if len(desired) == 0 {
+		return nil
+	}
+	pool, err := f.sharedPool(ctx)
+	if err != nil {
+		return err
+	}
+	return pool.SyncDeviceInhibition(ctx, desired)
 }
 
 type hostIMSCleanup interface{ Close(context.Context) error }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"vocat/internal/device"
 	"vocat/internal/hostims"
 	"vocat/internal/hostimsruntime"
 	"vocat/internal/store"
@@ -15,9 +16,11 @@ import (
 // recovery callback may clean a confirmed previous-process journal first.
 type durableHostIMSController struct {
 	*hostimsruntime.Manager
-	database         *store.Store
-	readSubscription func(context.Context, string) (vowifi.SIMIdentity, error)
-	recoverPending   func(context.Context, string) error
+	database            *store.Store
+	readSubscription    func(context.Context, string) (vowifi.SIMIdentity, error)
+	observeRadio        func(context.Context, string) (device.Snapshot, error)
+	reconcileInhibition func(context.Context) error
+	recoverPending      func(context.Context, string) error
 }
 
 func (c *durableHostIMSController) Subscription(ctx context.Context, id string) (vowifi.SIMIdentity, error) {
@@ -25,6 +28,20 @@ func (c *durableHostIMSController) Subscription(ctx context.Context, id string) 
 		return vowifi.SIMIdentity{}, errHostIMSFactory
 	}
 	return c.readSubscription(ctx, id)
+}
+
+func (c *durableHostIMSController) ObserveRadio(ctx context.Context, id string) (device.Snapshot, error) {
+	if c == nil || c.observeRadio == nil {
+		return device.Snapshot{}, errHostIMSFactory
+	}
+	return c.observeRadio(ctx, id)
+}
+
+func (c *durableHostIMSController) ReconcileDeviceInhibition(ctx context.Context) error {
+	if c == nil || c.reconcileInhibition == nil {
+		return nil
+	}
+	return c.reconcileInhibition(ctx)
 }
 
 func newDurableHostIMSController(manager *hostimsruntime.Manager, database *store.Store) *durableHostIMSController {

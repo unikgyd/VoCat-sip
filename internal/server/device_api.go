@@ -2241,7 +2241,8 @@ func (s *Server) configuredDeviceOverview(
 	result["network_enabled"] = developerActive && config.NetworkEnabled
 	result["public_ip_info"] = s.overviewPublicIP(config, physical, developerActive)
 	result["vowifi_enabled"] = config.VoWiFiEnabled
-	result["radio_live_ok"] = present && entry.Snapshot != nil && entry.Snapshot.Responsive
+	controlOnline, _ := result["control_online"].(bool)
+	result["radio_live_ok"] = present && controlOnline
 
 	// Live network state: on-demand sample of the cellular interface counters,
 	// kept warm by the 2s overview SSE cadence. Only meaningful when the modem

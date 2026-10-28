@@ -34,6 +34,13 @@ func (manager *Manager) withNativeQMISIMSession(ctx context.Context, id string, 
 	if err != nil {
 		return err
 	}
+	if !native && shared {
+		if state, lookupErr := manager.lookup(id); lookupErr == nil {
+			if candidateControl := strings.TrimSpace(manager.candidateFor(state).QMIControl); candidateControl != "" {
+				control, native = candidateControl, true
+			}
+		}
+	}
 	if !native {
 		return errors.New("native QMI control is unavailable")
 	}

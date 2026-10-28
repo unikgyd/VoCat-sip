@@ -606,8 +606,6 @@ func run(logger *slog.Logger, logs *loghub.Hub) (runErr error) {
 	if err := provisionDiscoveredDevices(deviceStartupContext, database, deviceManager); err != nil {
 		logger.Warn("automatic first-run device provisioning failed", "error", err)
 	}
-	configureDeviceBackends(deviceStartupContext, logger, database, deviceManager)
-	restoreDefaultCellularRadios(deviceStartupContext, logger, database, deviceManager)
 	defer func() {
 		stopContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -630,18 +628,6 @@ func run(logger *slog.Logger, logs *loghub.Hub) (runErr error) {
 		return nil
 	}
 
-	vowifiManager, err := configureVoWiFiRuntime(
-		deviceStartupContext,
-		logger,
-		database,
-		deviceManager,
-		cardReaders,
-		forwardIncoming,
-		recordings,
-	)
-	if err != nil {
-		return fmt.Errorf("configure VoWiFi runtime: %w", err)
-	}
 	hostIMSManager, closeHostIMS, err := configureHostIMSRuntime(deviceStartupContext, logger, database, deviceManager, developerEnabled, forwardIncoming, recordings)
 	if closeHostIMS != nil {
 		defer func() {
@@ -655,11 +641,29 @@ func run(logger *slog.Logger, logs *loghub.Hub) (runErr error) {
 	if err != nil {
 		return fmt.Errorf("configure Host IMS runtime: %w", err)
 	}
+	if inhibitErr := hostIMSManager.ReconcileDeviceInhibition(deviceStartupContext); inhibitErr != nil {
+		logger.Debug("initial ModemManager device inhibition skipped", "error", inhibitErr)
+	}
+	configureDeviceBackends(deviceStartupContext, logger, database, deviceManager)
+	restoreDefaultCellularRadios(deviceStartupContext, logger, database, deviceManager)
+
+	vowifiManager, err := configureVoWiFiRuntime(
+		deviceStartupContext,
+		logger,
+		database,
+		deviceManager,
+		cardReaders,
+		forwardIncoming,
+		recordings,
+	)
+	if err != nil {
+		return fmt.Errorf("configure VoWiFi runtime: %w", err)
+	}
 	// Start background consumers only after the synchronous radio/VoWiFi
 	// startup sequence. A snapshot refresh also takes the device operation
 	// mutex; starting it earlier can strand cold boot forever behind a serial
 	// read from an unstable USB enumeration.
-	go pollDeviceSnapshots(pollContext, deviceLogger, database, deviceManager)
+	go pollDeviceSnapshots(pollContext, deviceLogger, database, deviceManager, hostIMSManager)
 	go collectCellularTraffic(pollContext, logger, database)
 	go persistLogsToStore(pollContext, logger, logs, database)
 	if !developerEnabled {
@@ -1095,7 +1099,12 @@ func configureVoWiFiRuntime(
 			if err != nil {
 				return nil, fmt.Errorf("load device %q VoWiFi config: %w", deviceID, err)
 			}
-			adapter := vowifiDeviceAdapter(ec20Adapter)
+			adapter := vowifiDeviceAdapter(coexistAwareVoWiFiAdapter{
+				database: database,
+				deviceID: deviceID,
+				at:       ec20Adapter,
+				qmi:      nativeQMIAdapter,
+			})
 			if deviceConfig.DeviceType == store.DeviceTypeUSBSIMReader {
 				adapter = pcscAdapter
 			} else if deviceConfig.DeviceType == store.DeviceTypeWiFi410 {
@@ -1615,7 +1624,15 @@ func pollDeviceSnapshots(
 	logger *slog.Logger,
 	database *store.Store,
 	manager *device.Manager,
+	hostIMS ...*durableHostIMSController,
 ) {
+	reconcileInhibition := func() {
+		if len(hostIMS) > 0 && hostIMS[0] != nil {
+			inhibitCtx, cancelInhibit := context.WithTimeout(ctx, 5*time.Second)
+			_ = hostIMS[0].ReconcileDeviceInhibition(inhibitCtx)
+			cancelInhibit()
+		}
+	}
 	recoveryTracker := newRegistrationRecoveryTracker(ec20RegistrationGrace, ec20RegistrationEscalation)
 	recoverRegistration := func(entry device.Device, snapshot device.Snapshot, action registrationRecoveryAction) {
 		if action == registrationRecoveryNone {
@@ -1662,6 +1679,7 @@ func pollDeviceSnapshots(
 			// device's selected QMI/AT control plane before collecting its snapshot.
 			configureDeviceBackends(ctx, logger, database, manager)
 		}
+		reconcileInhibition()
 		entries := manager.List()
 		// Each physical modem owns its own operation lock. Refresh them in
 		// parallel so a slow or wedged EC20 on one hub port cannot delay signal
@@ -1677,7 +1695,8 @@ func pollDeviceSnapshots(
 			}
 			// Native 410 firmware can miss physical SIM insertion events. Probe it
 			// every five seconds; retain normal discovery/other modem cadence.
-			if !fullRefresh && provisionedDeviceType(entry.Candidate) != store.DeviceTypeWiFi410 {
+			needsImmediateRefresh := entry.Snapshot == nil || !entry.Snapshot.Responsive || entry.LastError != ""
+			if !fullRefresh && !needsImmediateRefresh && provisionedDeviceType(entry.Candidate) != store.DeviceTypeWiFi410 {
 				continue
 			}
 			entry := entry

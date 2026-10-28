@@ -15,8 +15,9 @@ import (
 
 func (s *Server) observedTelephonySubscription(ctx context.Context, config store.Device) (identity vowifi.SIMIdentity, err error) {
 	entry, physical, present := s.physicalForConfig(config)
+	var radio *device.Snapshot
 	defer func() {
-		observation := subscriptionObservation{identity: identity, physical: physical, generation: entry.Candidate.USBGeneration, available: present && err == nil, at: time.Now()}
+		observation := subscriptionObservation{identity: identity, radio: radio, physical: physical, generation: entry.Candidate.USBGeneration, available: present && err == nil, at: time.Now()}
 		s.subscriptionObservations.Store(config.ID, observation)
 		if store.HostIMSConfigured(config) && observation.available {
 			s.subscriptionTransitions.Store(config.ID, observation)
@@ -29,7 +30,17 @@ func (s *Server) observedTelephonySubscription(ctx context.Context, config store
 		return vowifi.SIMIdentity{}, device.ErrSIMObservation
 	}
 	if s.readSubscription != nil {
-		return s.readSubscription(ctx, config.ID)
+		identity, err = s.readSubscription(ctx, config.ID)
+		if err == nil && store.HostIMSConfigured(config) && s.hostIMS != nil {
+			if observer, ok := s.hostIMS.(interface {
+				ObserveRadio(context.Context, string) (device.Snapshot, error)
+			}); ok {
+				if snap, snapErr := observer.ObserveRadio(ctx, config.ID); snapErr == nil {
+					radio = &snap
+				}
+			}
+		}
+		return identity, err
 	}
 	iccid, imsi, err := device.SnapshotSubscription(entry.Snapshot)
 	return vowifi.SIMIdentity{ICCID: iccid, IMSI: imsi}, err
@@ -65,6 +76,11 @@ func (s *Server) ReconcileTelephonyPolicies(ctx context.Context) {
 		}
 		for _, config := range configs {
 			if config.Telephony == nil {
+				if store.HostIMSConfigured(config) {
+					obsCtx, cancelObs := context.WithTimeout(ctx, 5*time.Second)
+					_, _ = s.observedTelephonySubscription(obsCtx, config)
+					cancelObs()
+				}
 				continue
 			}
 			select {
