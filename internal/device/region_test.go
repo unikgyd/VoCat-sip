@@ -50,27 +50,24 @@ func TestPlaceholderIMSIIsNotTreatedAsARealCarrier(t *testing.T) {
 }
 
 func TestRegionBlockReason(t *testing.T) {
-	t.Parallel()
-	for _, imsi := range []string{"460001234567890", "461001234567890"} {
-		reason := RegionBlockReason(imsi)
-		if reason == "" {
-			t.Fatalf("RegionBlockReason(%q) did not block", imsi)
-		}
-		if !strings.Contains(reason, "中国") {
-			t.Fatalf("RegionBlockReason(%q) = %q, want it to name 中国", imsi, reason)
+	for _, imsi := range []string{"460001234567890", "461001234567890", "310260123456789", "001011234567890", ""} {
+		if reason := RegionBlockReason(imsi); reason != "" {
+			t.Fatalf("RegionBlockReason(%q) = %q, want empty", imsi, reason)
 		}
 	}
-	for _, imsi := range []string{"310260123456789", "001011234567890", ""} {
-		if reason := RegionBlockReason(imsi); reason != "" {
-			t.Fatalf("RegionBlockReason(%q) = %q, want empty (fail-open)", imsi, reason)
-		}
+	BlockedMCCs["999"] = "测试"
+	defer delete(BlockedMCCs, "999")
+	if reason := RegionBlockReason("999001234567890"); reason == "" || !strings.Contains(reason, "测试") {
+		t.Fatalf("RegionBlockReason for blocked MCC failed: %s", reason)
 	}
 }
 
 func TestSetNetworkBlockedForRestrictedRegionSIM(t *testing.T) {
+	BlockedMCCs["999"] = "测试"
+	defer delete(BlockedMCCs, "999")
 	client := &transcriptClient{}
 	manager, id := newStartedTestManager(t, client)
-	injectSnapshot(t, manager, id, &Snapshot{DeviceID: id, IMSI: "460001234567890"})
+	injectSnapshot(t, manager, id, &Snapshot{DeviceID: id, IMSI: "999001234567890"})
 	_, err := manager.SetNetwork(context.Background(), id, NetworkRequest{
 		Enabled: true, APN: "internet", IPVersion: "IPV4V6",
 	})
@@ -118,9 +115,11 @@ func TestSetNetworkAllowedWhenSIMRegionUnknown(t *testing.T) {
 }
 
 func TestSendSMSBlockedForRestrictedRegionSIM(t *testing.T) {
+	BlockedMCCs["999"] = "测试"
+	defer delete(BlockedMCCs, "999")
 	client := &transcriptClient{}
 	manager, id := newStartedTestManager(t, client)
-	injectSnapshot(t, manager, id, &Snapshot{DeviceID: id, IMSI: "460001234567890"})
+	injectSnapshot(t, manager, id, &Snapshot{DeviceID: id, IMSI: "999001234567890"})
 	result, err := manager.SendSMS(context.Background(), id, "+15551234567", "hello")
 	if !errors.Is(err, ErrRegionBlocked) {
 		t.Fatalf("error = %v, want ErrRegionBlocked", err)

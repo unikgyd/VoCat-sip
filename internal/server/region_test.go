@@ -156,13 +156,11 @@ func blockedRegionServer(t *testing.T, imsi string) *Server {
 }
 
 func TestModemSummaryRegionFields(t *testing.T) {
-	t.Parallel()
-	blocked := modemSummary(&device.Snapshot{IMSI: "460001234567890"}, "", "")
+	device.BlockedMCCs["999"] = "测试"
+	defer delete(device.BlockedMCCs, "999")
+	blocked := modemSummary(&device.Snapshot{IMSI: "999001234567890"}, "", "")
 	if blocked["service_blocked"] != true {
 		t.Fatalf("service_blocked = %v, want true", blocked["service_blocked"])
-	}
-	if blocked["card_mcc"] != "460" || blocked["card_country"] != "中国" {
-		t.Fatalf("card_mcc=%v card_country=%v", blocked["card_mcc"], blocked["card_country"])
 	}
 	if reason, _ := blocked["blocked_reason"].(string); reason == "" {
 		t.Fatal("blocked_reason must be set for a blocked card")
@@ -174,6 +172,11 @@ func TestModemSummaryRegionFields(t *testing.T) {
 	}
 	if allowed["card_mcc"] != "310" || allowed["card_country"] != "美国" {
 		t.Fatalf("allowed card_mcc=%v card_country=%v", allowed["card_mcc"], allowed["card_country"])
+	}
+
+	cnCard := modemSummary(&device.Snapshot{IMSI: "460001234567890"}, "", "")
+	if cnCard["service_blocked"] != false || cnCard["card_mcc"] != "460" || cnCard["card_country"] != "中国" {
+		t.Fatalf("cn card summary = %#v", cnCard)
 	}
 
 	empty := modemSummary(nil, "", "")
@@ -218,7 +221,9 @@ func TestCountryNameForMCC(t *testing.T) {
 }
 
 func TestHandleVoWiFiEnabledBlockedRegion(t *testing.T) {
-	server := blockedRegionServer(t, "460001234567890")
+	device.BlockedMCCs["999"] = "测试"
+	defer delete(device.BlockedMCCs, "999")
+	server := blockedRegionServer(t, "999001234567890")
 	request := httptest.NewRequest(http.MethodPatch, "/devices/dev1/vowifi", strings.NewReader(`{"enabled":true}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()

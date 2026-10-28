@@ -7,6 +7,9 @@ import (
 )
 
 func TestAuthorizedTestSIMPolicyIsExactAndRevocable(t *testing.T) {
+	BlockedMCCs["460"] = "中国"
+	BlockedMCCs["461"] = "中国"
+	t.Cleanup(func() { delete(BlockedMCCs, "460"); delete(BlockedMCCs, "461") })
 	previous := configuredTestSIMs.Load()
 	t.Cleanup(func() { configuredTestSIMs.Store(previous) })
 	path := filepath.Join(t.TempDir(), "test-sims.json")
@@ -33,6 +36,9 @@ func TestAuthorizedTestSIMPolicyIsExactAndRevocable(t *testing.T) {
 }
 
 func TestAuthorizedTestSIMPolicyRejectsBroadAndMalformedInputs(t *testing.T) {
+	BlockedMCCs["460"] = "中国"
+	BlockedMCCs["461"] = "中国"
+	t.Cleanup(func() { delete(BlockedMCCs, "460"); delete(BlockedMCCs, "461") })
 	previous := configuredTestSIMs.Load()
 	t.Cleanup(func() { configuredTestSIMs.Store(previous) })
 	path := filepath.Join(t.TempDir(), "test-sims.json")

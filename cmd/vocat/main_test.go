@@ -110,10 +110,12 @@ func TestEnforceCardRegionForcesAirplaneAndPersistsPolicy(t *testing.T) {
 	manager := newRegionTestManager(t, client)
 	database := newRegionTestStore(t)
 
+	device.BlockedMCCs["999"] = "测试"
+	defer delete(device.BlockedMCCs, "999")
 	snapshot := &device.Snapshot{
 		DeviceID: regionTestDeviceID,
 		SIMReady: true,
-		IMSI:     "460001234567890",
+		IMSI:     "999001234567890",
 		ICCID:    "89860012345678901234",
 	}
 	enforceCardRegion(context.Background(), regionTestLogger(), database, manager, regionTestDeviceID, snapshot)
@@ -136,10 +138,12 @@ func TestEnforceCardRegionSkipsRadioWhenAlreadyOff(t *testing.T) {
 	manager := newRegionTestManager(t, client)
 	database := newRegionTestStore(t)
 
+	device.BlockedMCCs["999"] = "测试"
+	defer delete(device.BlockedMCCs, "999")
 	snapshot := &device.Snapshot{
 		DeviceID:   regionTestDeviceID,
 		SIMReady:   true,
-		IMSI:       "461001234567890",
+		IMSI:       "999001234567890",
 		ICCID:      "89860012345678901234",
 		FlightMode: true,
 	}

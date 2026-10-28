@@ -746,11 +746,11 @@ func TestBlockedSMSDestination(t *testing.T) {
 		phone string
 		block bool
 	}{
-		{"e164 china", "+8613800138000", true},
-		{"no plus china", "8613800138000", true},
-		{"international prefix china", "008613800138000", true},
-		{"spaced china", "+86 138 0013 8000", true},
-		{"dashed china", "+86-138-0013-8000", true},
+		{"e164 china", "+8613800138000", false},
+		{"no plus china", "8613800138000", false},
+		{"international prefix china", "008613800138000", false},
+		{"spaced china", "+86 138 0013 8000", false},
+		{"dashed china", "+86-138-0013-8000", false},
 		{"us e164", "+12025550177", false},
 		{"us no plus", "12025550177", false},
 		{"uk e164", "+447700900123", false},

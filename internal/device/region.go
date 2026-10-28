@@ -9,14 +9,9 @@ import (
 )
 
 // BlockedMCCs lists the mobile country codes whose SIM cards must not be
-// served by this product. The product does not provide service to mainland
-// China cards; the set mirrors the CN entry of the MCC table used for upstream
-// proxy routing (460/461). It is keyed by MCC with a display name for logs and
-// user-facing messaging.
-var BlockedMCCs = map[string]string{
-	"460": "中国",
-	"461": "中国",
-}
+// served by this product. The restriction for MCC 460/461 has been removed
+// for private usage.
+var BlockedMCCs = map[string]string{}
 
 // CardMCCMNC splits an IMSI into its mobile country code and mobile network
 // code. The MCC is the leading three digits and the MNC the following two or

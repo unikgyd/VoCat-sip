@@ -88,7 +88,9 @@ func TestHostIMSMappingRejectsMissingAmbiguousAndStaleAnchors(t *testing.T) {
 			case "placeholder":
 				entry.Snapshot.IMSI = "310000000000000"
 			case "blocked-region":
-				entry.Snapshot.IMSI = "460001234567890"
+				device.BlockedMCCs["999"] = "测试"
+				t.Cleanup(func() { delete(device.BlockedMCCs, "999") })
+				entry.Snapshot.IMSI = "999001234567890"
 			case "bad-imsi":
 				entry.Snapshot.IMSI = "unknown"
 			case "no-anchor":
