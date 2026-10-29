@@ -389,10 +389,13 @@ func (c *sipCall) runIncoming() {
 		case event := <-c.events:
 			if event.response == nil || event.branch.isStopped() || event.branch.remoteEnded.Load() {
 				remaining--
-				// A global SIP decline terminates the whole call. Ordinary busy,
-				// offline or no-answer leaves the independent web receiver alone.
+				// A global SIP decline (or a fixed peer PBX rejecting with 403/486)
+				// terminates the whole call. Ordinary extension busy, offline or
+				// no-answer leaves the independent web receiver alone.
 				c.mu.Lock()
-				decline := !c.stopped && in.owner == "" && c.winner == nil && event.failure >= 600 && event.failure < 700
+				decline := !c.stopped && in.owner == "" && c.winner == nil &&
+					((event.failure >= 600 && event.failure < 700) ||
+						(event.branch.entry.peer && (event.failure == 403 || event.failure == 486)))
 				if decline {
 					in.endCarrier.Store(true)
 				}

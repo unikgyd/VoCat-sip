@@ -345,6 +345,42 @@ func TestCarrierIncomingUnansweredGroupsLeaveLocalCallAvailable(t *testing.T) {
 	}
 }
 
+func TestCarrierIncomingFixedPeerRejectsHangupCarrier(t *testing.T) {
+	for _, code := range []int{403, 480, 486, 603} {
+		t.Run(map[int]string{403: "rejected", 480: "unavailable", 486: "busy", 603: "decline"}[code], func(t *testing.T) {
+			m, r, b := incomingRuntime(t, nil)
+			peer := newWireClient(t, r)
+			r.mu.Lock()
+			r.callRingTimeout = 150 * time.Millisecond
+			r.config.Config.CarrierLines[0].IncomingExtensions = nil
+			r.config.Config.Peer = &PeerConfig{
+				Enabled:          true,
+				Endpoint:         peer.conn.LocalAddr().String(),
+				AllowCallsToPeer: true,
+				IncomingRoutes:   []PeerIncomingRoute{{DeviceID: "module-a", CallTarget: "600"}},
+			}
+			r.mu.Unlock()
+			id := b.incoming("module-a", "+15550000001")
+			if !m.ForwardIncoming("module-a", id) {
+				t.Fatal("incoming not admitted")
+			}
+			invite := readCallRequest(t, peer, sip.INVITE)
+			media := testMediaSocket(t)
+			writeCall(t, peer, calleeResponse(t, peer, invite, media, code))
+			readCallRequest(t, peer, sip.ACK)
+			waitCalls(t, r, 0)
+			if code == 403 || code == 486 || code == 603 {
+				waitCarrier(t, func() bool { return b.hangupCount() == 1 })
+			} else {
+				time.Sleep(180 * time.Millisecond)
+				if b.hangupCount() != 0 {
+					t.Fatal("unavailable fixed peer hung up local receiver")
+				}
+			}
+		})
+	}
+}
+
 func TestCarrierIncomingAnswerUncertainAndOtherOwner(t *testing.T) {
 	for _, ownedElsewhere := range []bool{false, true} {
 		t.Run(map[bool]string{false: "uncertain", true: "other owner"}[ownedElsewhere], func(t *testing.T) {
