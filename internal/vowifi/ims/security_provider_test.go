@@ -108,6 +108,114 @@ func TestProviderRegistersOwnedCellularWithoutSWu(t *testing.T) {
 	testProtectedBearerRegistration(t, true)
 }
 
+func TestProtectedTCPReconnectsAfterIdleClientSocketClose(t *testing.T) {
+	localIP := net.ParseIP("127.0.0.1")
+	remoteIP := net.ParseIP("127.0.0.2")
+	initial, err := net.ListenTCP("tcp", &net.TCPAddr{IP: remoteIP})
+	if err != nil {
+		t.Skipf("secondary loopback address is unavailable: %v", err)
+	}
+	defer initial.Close()
+	protected, err := net.ListenTCP("tcp", &net.TCPAddr{IP: remoteIP})
+	if err != nil {
+		t.Fatalf("ListenTCP(protected) error = %v", err)
+	}
+	defer protected.Close()
+	for _, listener := range []*net.TCPListener{initial, protected} {
+		if err := listener.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			t.Fatalf("SetDeadline() error = %v", err)
+		}
+	}
+
+	ueClientPort, err := availableProtectedPort(localIP, 0)
+	if err != nil {
+		t.Fatalf("availableProtectedPort(client) error = %v", err)
+	}
+	ueServerPort, err := availableProtectedPort(localIP, ueClientPort)
+	if err != nil {
+		t.Fatalf("availableProtectedPort(server) error = %v", err)
+	}
+	pcscfClientPort, err := availableProtectedPort(remoteIP, protected.Addr().(*net.TCPAddr).Port)
+	if err != nil {
+		t.Fatalf("availableProtectedPort(P-CSCF client) error = %v", err)
+	}
+
+	nonceBytes := make([]byte, 32)
+	for index := range nonceBytes {
+		nonceBytes[index] = byte(index + 1)
+	}
+	nonce := base64.StdEncoding.EncodeToString(nonceBytes)
+	idleClosed := make(chan struct{})
+	serverDone := make(chan error, 1)
+	go func() {
+		serverDone <- serveProtectedRegistrarWithIdleClose(
+			initial,
+			protected,
+			pcscfClientPort,
+			nonce,
+			ueClientPort,
+			ueServerPort,
+			idleClosed,
+		)
+	}()
+
+	installer := &fakeIPSecInstaller{}
+	aka := &recordingAKA{
+		result: vowifi.AKAResult{
+			RES: []byte{1, 2, 3, 4, 5, 6, 7, 8},
+			CK:  []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+			IK:  []byte{16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31},
+		},
+	}
+	initialAddress := initial.Addr().String()
+	provider, err := NewProvider(aka, Config{
+		PCSCF:               initialAddress,
+		LocalAddress:        localIP.String(),
+		Transport:           "tcp",
+		TransactionTimeout:  3 * time.Second,
+		SecurityMode:        SecurityRequired,
+		IPSecInstaller:      installer,
+		ProtectedClientPort: ueClientPort,
+		ProtectedServerPort: ueServerPort,
+	})
+	if err != nil {
+		t.Fatalf("NewProvider() error = %v", err)
+	}
+	session, err := provider.Start(context.Background(), vowifi.IMSRequest{
+		DeviceID: "modem0",
+		Identity: vowifi.SIMIdentity{
+			ICCID:   "8901000000000000000",
+			IMSI:    "001010123456789",
+			HomeMCC: "001",
+			HomeMNC: "01",
+		},
+		Tunnel: evidenceTunnel{evidence: vowifi.TunnelEvidence{
+			Established: true,
+			LocalIPv4:   localIP.String(),
+			PCSCF:       []string{initialAddress},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Provider.Start() error = %v", err)
+	}
+
+	<-idleClosed
+	time.Sleep(50 * time.Millisecond)
+	if evidence := session.Evidence(); !evidence.Registered || evidence.RegistrationState != "registered" {
+		t.Fatalf("expected session to remain registered while protected server listeners are up: %#v", evidence)
+	}
+	if err := session.(*Session).refreshOnce(context.Background()); err != nil {
+		t.Fatalf("refreshOnce() error after idle protected TCP close and 401 re-challenge = %v", err)
+	}
+
+	if err := session.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error after idle protected TCP close = %v", err)
+	}
+	if err := <-serverDone; err != nil {
+		t.Fatalf("protected registrar error = %v", err)
+	}
+}
+
 func testProtectedBearerRegistration(t *testing.T, cellular bool) {
 	t.Helper()
 	localIP := net.ParseIP("127.0.0.1")
@@ -620,6 +728,171 @@ func serveProtectedRegistrar(
 		return result, err
 	}
 	return result, nil
+}
+
+func serveProtectedRegistrarWithIdleClose(
+	initialListener *net.TCPListener,
+	protectedListener *net.TCPListener,
+	pcscfClientPort int,
+	nonce string,
+	wantUEClientPort int,
+	wantUEServerPort int,
+	idleClosed chan<- struct{},
+) error {
+	initialConnection, err := initialListener.AcceptTCP()
+	if err != nil {
+		return err
+	}
+	_ = initialConnection.SetDeadline(time.Now().Add(5 * time.Second))
+	initialReader := bufio.NewReader(initialConnection)
+	packet, err := readTestTCPRequest(initialReader)
+	if err != nil {
+		_ = initialConnection.Close()
+		return err
+	}
+	_, headers, err := parseTestRequest(packet)
+	if err != nil {
+		_ = initialConnection.Close()
+		return err
+	}
+	offers := splitHeaderValues([]string{headers["security-client"]})
+	proposal, err := parseSecurityMechanism(offers[0])
+	if err != nil {
+		_ = initialConnection.Close()
+		return err
+	}
+	pcscfClientSPI, pcscfServerSPI := nonCollidingServerSPIs(proposal.spiClient, proposal.spiServer)
+	securityServer := fmt.Sprintf(
+		"ipsec-3gpp;q=0.100;alg=hmac-sha-1-96;prot=esp;mod=trans;ealg=aes-cbc;spi-c=%d;spi-s=%d;port-c=%d;port-s=%d",
+		pcscfClientSPI,
+		pcscfServerSPI,
+		pcscfClientPort,
+		protectedListener.Addr().(*net.TCPAddr).Port,
+	)
+	callID := headers["call-id"]
+	if _, err := initialConnection.Write(testResponse(
+		401,
+		"Unauthorized",
+		callID,
+		headers["cseq"],
+		[]string{
+			`WWW-Authenticate: Digest realm="ims.mnc001.mcc001.3gppnetwork.org", nonce="` + nonce + `", algorithm=AKAv1-MD5, qop="auth"`,
+			"Security-Server: " + securityServer,
+		},
+	)); err != nil {
+		_ = initialConnection.Close()
+		return err
+	}
+	_ = initialConnection.Close()
+
+	protectedConnection, err := protectedListener.AcceptTCP()
+	if err != nil {
+		return err
+	}
+	_ = protectedConnection.SetDeadline(time.Now().Add(5 * time.Second))
+	if got := protectedConnection.RemoteAddr().(*net.TCPAddr).Port; got != wantUEClientPort {
+		_ = protectedConnection.Close()
+		return fmt.Errorf("protected TCP source port = %d, want %d", got, wantUEClientPort)
+	}
+	protectedReader := bufio.NewReader(protectedConnection)
+	packet, err = readTestTCPRequest(protectedReader)
+	if err != nil {
+		_ = protectedConnection.Close()
+		return err
+	}
+	_, headers, err = parseTestRequest(packet)
+	if err != nil {
+		_ = protectedConnection.Close()
+		return err
+	}
+	if _, err := protectedConnection.Write(testResponse(
+		200,
+		"OK",
+		callID,
+		headers["cseq"],
+		[]string{
+			"P-Associated-URI: <sip:001010123456789@ims.mnc001.mcc001.3gppnetwork.org>, <tel:+8613800138000>",
+			"Contact: <sip:001010123456789@127.0.0.1:" + strconv.Itoa(wantUEServerPort) + ";transport=tcp>;expires=600",
+			"Service-Route: <sip:route.ims.example;lr>",
+		},
+	)); err != nil {
+		_ = protectedConnection.Close()
+		return err
+	}
+	_ = protectedConnection.Close()
+	close(idleClosed)
+
+	reconnected, err := protectedListener.AcceptTCP()
+	if err != nil {
+		return err
+	}
+	defer reconnected.Close()
+	_ = reconnected.SetDeadline(time.Now().Add(5 * time.Second))
+	if got := reconnected.RemoteAddr().(*net.TCPAddr).Port; got != wantUEClientPort {
+		return fmt.Errorf("reconnected protected TCP source port = %d, want %d", got, wantUEClientPort)
+	}
+	reconnectedReader := bufio.NewReader(reconnected)
+	packet, err = readTestTCPRequest(reconnectedReader)
+	if err != nil {
+		return err
+	}
+	startLine, headers, err := parseTestRequest(packet)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(startLine, "REGISTER ") || headers["expires"] == "0" {
+		return fmt.Errorf("refresh request = %q, headers %#v", startLine, headers)
+	}
+	if _, err := reconnected.Write(testResponse(
+		401,
+		"Unauthorized",
+		callID,
+		headers["cseq"],
+		[]string{
+			`WWW-Authenticate: Digest realm="ims.mnc001.mcc001.3gppnetwork.org", nonce="` + nonce + `", algorithm=AKAv1-MD5, qop="auth"`,
+			"Security-Server: " + securityServer,
+		},
+	)); err != nil {
+		return err
+	}
+	packet, err = readTestTCPRequest(reconnectedReader)
+	if err != nil {
+		return err
+	}
+	startLine, headers, err = parseTestRequest(packet)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(startLine, "REGISTER ") || headers["expires"] == "0" {
+		return fmt.Errorf("re-authenticated refresh request = %q, headers %#v", startLine, headers)
+	}
+	if _, err := reconnected.Write(testResponse(
+		200,
+		"OK",
+		callID,
+		headers["cseq"],
+		[]string{
+			"P-Associated-URI: <sip:001010123456789@ims.mnc001.mcc001.3gppnetwork.org>, <tel:+8613800138000>",
+			"Contact: <sip:001010123456789@127.0.0.1:" + strconv.Itoa(wantUEServerPort) + ";transport=tcp>;expires=600",
+			"Service-Route: <sip:route.ims.example;lr>",
+		},
+	)); err != nil {
+		return err
+	}
+
+	packet, err = readTestTCPRequest(reconnectedReader)
+	if err != nil {
+		return err
+	}
+	startLine, headers, err = parseTestRequest(packet)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(startLine, "REGISTER ") || headers["expires"] != "0" {
+		return fmt.Errorf("deregistration request = %q, headers %#v", startLine, headers)
+	}
+	_, err = reconnected.Write(testResponse(200, "OK", callID, headers["cseq"], nil))
+	return err
 }
 
 func readTestTCPRequest(reader *bufio.Reader) ([]byte, error) {

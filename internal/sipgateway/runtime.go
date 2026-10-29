@@ -164,7 +164,15 @@ func start(config stored, options ...runtimeOptions) (*runtime, error) {
 		ua.Close()
 		return nil, err
 	}
-	conn, err := net.ListenPacket("udp", config.Config.Listen)
+	network := "udp"
+	if listenAddr, addrErr := netip.ParseAddrPort(config.Config.Listen); addrErr == nil {
+		if listenAddr.Addr().Is4() {
+			network = "udp4"
+		} else if listenAddr.Addr().Is6() {
+			network = "udp6"
+		}
+	}
+	conn, err := net.ListenPacket(network, config.Config.Listen)
 	if err != nil {
 		ua.Close()
 		return nil, err

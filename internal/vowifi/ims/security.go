@@ -672,6 +672,9 @@ func (session *Session) securityFromResponse(response *sipResponse) (securityAgr
 	}
 	values := response.values("Security-Server")
 	if len(splitHeaderValues(values)) == 0 {
+		if session.securityActive {
+			return session.securityAgreement, false, nil
+		}
 		if session.configuredSecurityMode() == SecurityRequired {
 			return securityAgreement{}, false, ErrIPSecAgreementRequired
 		}
@@ -705,12 +708,10 @@ func (session *Session) activateIPSec(
 	ck []byte,
 	ik []byte,
 ) error {
-	if session.securityActive {
-		return errors.New("ims: ipsec-3gpp is already active")
-	}
 	if !session.securityOffered() {
 		return ErrIPSecAgreementRequired
 	}
+	alreadyActive := session.securityActive
 	encryptionKey, integrityKey, err := expandIPSecKeys(ck, ik, agreement.selected.encryption, agreement.selected.algorithm)
 	if err != nil {
 		return err
@@ -718,8 +719,17 @@ func (session *Session) activateIPSec(
 	defer zeroBytes(encryptionKey)
 	defer zeroBytes(integrityKey)
 
-	localIP := addressIP(session.conn.LocalAddr())
-	remoteIP := addressIP(session.conn.RemoteAddr())
+	var localIP, remoteIP net.IP
+	if session.conn != nil {
+		localIP = addressIP(session.conn.LocalAddr())
+		remoteIP = addressIP(session.conn.RemoteAddr())
+	}
+	if localIP == nil && session.protectedTCP != nil {
+		localIP = addressIP(session.protectedTCP.Addr())
+	}
+	if remoteIP == nil {
+		remoteIP = net.ParseIP(strings.Trim(session.endpoint.host, "[]"))
+	}
 	if localIP == nil || remoteIP == nil {
 		return errors.New("ims: protected SIP endpoints are unavailable")
 	}
@@ -740,6 +750,11 @@ func (session *Session) activateIPSec(
 		EncryptionKey:       encryptionKey,
 		IntegrityKey:        integrityKey,
 	}
+	if alreadyActive && session.ipsecHandle != nil {
+		if err := session.closeAccessIPSec(); err != nil {
+			return fmt.Errorf("%w: replace existing SA: %v", ErrIPSecInstall, err)
+		}
+	}
 	handle, err := session.installAccessIPSec(ctx, config)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrIPSecInstall, err)
@@ -748,6 +763,26 @@ func (session *Session) activateIPSec(
 		return fmt.Errorf("%w: installer returned no handle", ErrIPSecInstall)
 	}
 	session.ipsecHandle = handle
+
+	if alreadyActive && session.runtimeStarted {
+		oldPort := session.endpoint.port
+		session.endpoint.port = selected.portServer
+		session.securityAgreement = agreement
+		session.securityActive = true
+		if session.transport == "tcp" {
+			session.writeMu.Lock()
+			needReconnect := selected.portServer != oldPort || session.mainConnDisconnected || session.conn == nil
+			var reconnectErr error
+			if needReconnect {
+				reconnectErr = session.reconnectProtectedTCPLocked(ctx)
+			}
+			session.writeMu.Unlock()
+			if reconnectErr != nil {
+				return reconnectErr
+			}
+		}
+		return nil
+	}
 
 	mtuCompatibility := session.provider.config.MTUCompatibility != nil &&
 		session.provider.config.MTUCompatibility(ctx)
@@ -761,7 +796,12 @@ func (session *Session) activateIPSec(
 		}
 		protection = &binding
 	}
-	_ = session.conn.Close()
+	if session.conn != nil {
+		if tcpConn, ok := session.conn.(*net.TCPConn); ok {
+			_ = tcpConn.SetLinger(0)
+		}
+		_ = session.conn.Close()
+	}
 	connection, dialErr := dialProtectedSIPOnAccess(
 		ctx,
 		session.transport,
@@ -830,4 +870,80 @@ func (session *Session) effectiveSecurityMode() string {
 		return "ipsec-3gpp"
 	}
 	return "none"
+}
+
+func (session *Session) canRedialProtectedTCP() bool {
+	return session != nil && session.securityActive && session.transport == "tcp" &&
+		session.protectedTCP != nil && session.ipsecHandle != nil
+}
+
+// writeMu must be held by the caller. Do not acquire session.mu here because
+// register/deregister callers hold session.mu while invoking exchangeRuntime.
+func (session *Session) reconnectProtectedTCPLocked(ctx context.Context) error {
+	session.inboundMu.Lock()
+	stopping := session.inboundStopping
+	session.inboundMu.Unlock()
+	if stopping {
+		return net.ErrClosed
+	}
+	localIP := addressIP(session.protectedTCP.Addr())
+	if localIP == nil && session.conn != nil {
+		localIP = addressIP(session.conn.LocalAddr())
+	}
+	remoteIP := net.ParseIP(strings.Trim(session.endpoint.host, "[]"))
+	if remoteIP == nil && session.conn != nil {
+		remoteIP = addressIP(session.conn.RemoteAddr())
+	}
+	if localIP == nil || remoteIP == nil || session.securityProposal.portClient <= 0 || session.endpoint.port <= 0 {
+		return errors.New("ims: protected TCP endpoints are unavailable for reconnect")
+	}
+	var protection *imssec.SocketBinding
+	if session.request.Cellular != nil {
+		if err := session.verifyCellularAccess(ctx); err != nil {
+			return err
+		}
+		binding, bindErr := cellularSocketBinding(localIP, remoteIP, session.securityProposal.portClient, imssec.ClientSocket)
+		if bindErr != nil {
+			return bindErr
+		}
+		protection = &binding
+	}
+	if session.conn != nil {
+		if tcpConn, ok := session.conn.(*net.TCPConn); ok {
+			_ = tcpConn.SetLinger(0)
+		}
+		_ = session.conn.Close()
+	}
+	mtuCompatibility := session.provider != nil &&
+		session.provider.config.MTUCompatibility != nil &&
+		session.provider.config.MTUCompatibility(ctx)
+	remoteAddress := net.JoinHostPort(remoteIP.String(), strconv.Itoa(session.endpoint.port))
+	connection, err := dialProtectedSIPOnAccess(
+		ctx,
+		"tcp",
+		localIP.String(),
+		session.securityProposal.portClient,
+		remoteAddress,
+		mtuCompatibility,
+		session.request.Cellular,
+		protection,
+	)
+	if err != nil {
+		session.mainConnDisconnected = true
+		return fmt.Errorf("ims: reconnect protected P-CSCF: %w", err)
+	}
+	reader := bufio.NewReader(connection)
+	session.inboundMu.Lock()
+	if session.inboundStopping {
+		session.inboundMu.Unlock()
+		_ = connection.Close()
+		return net.ErrClosed
+	}
+	session.conn = connection
+	session.reader = reader
+	session.mainConnDisconnected = false
+	session.receiveDone.Add(1)
+	session.inboundMu.Unlock()
+	go session.readMainConnectionFor(connection, reader)
+	return nil
 }

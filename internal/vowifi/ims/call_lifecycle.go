@@ -56,10 +56,40 @@ func (session *Session) callContext() context.Context {
 // The AfterFunc is joined before clearing the deadline so it cannot interrupt
 // an unrelated later request using the same connection.
 func (session *Session) writeRuntimePacket(ctx context.Context, packet []byte) error {
-	if session.conn == nil {
+	if session.conn == nil && !session.canRedialProtectedTCP() {
 		return net.ErrClosed
 	}
-	return writeSIPPacket(ctx, &session.writeMu, session.conn.SetWriteDeadline, session.conn.Write, packet)
+	return writeSIPPacket(
+		ctx,
+		&session.writeMu,
+		func(deadline time.Time) error {
+			if session.canRedialProtectedTCP() && (session.conn == nil || session.mainConnDisconnected) {
+				if err := session.reconnectProtectedTCPLocked(ctx); err != nil {
+					return err
+				}
+			}
+			if session.conn == nil {
+				return net.ErrClosed
+			}
+			return session.conn.SetWriteDeadline(deadline)
+		},
+		func(data []byte) (int, error) {
+			n, err := session.conn.Write(data)
+			if err != nil && session.canRedialProtectedTCP() && ctx.Err() == nil {
+				if reconnErr := session.reconnectProtectedTCPLocked(ctx); reconnErr == nil {
+					if deadline, ok := ctx.Deadline(); ok {
+						_ = session.conn.SetWriteDeadline(deadline)
+					}
+					n, err = session.conn.Write(data)
+				}
+			}
+			if err == nil {
+				session.lastMainActivity = time.Now()
+			}
+			return n, err
+		},
+		packet,
+	)
 }
 
 func writeSIPPacket(ctx context.Context, writeMu *sync.Mutex, setDeadline func(time.Time) error, write func([]byte) (int, error), packet []byte) error {

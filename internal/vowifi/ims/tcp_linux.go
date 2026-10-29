@@ -21,6 +21,8 @@ func configureProtectedTCPDialer(dialer *net.Dialer) {
 	dialer.Control = func(_, _ string, raw syscall.RawConn) error {
 		var optionErr error
 		if err := raw.Control(func(fd uintptr) {
+			_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
+			_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
 			optionErr = unix.SetsockoptInt(int(fd), unix.IPPROTO_TCP, unix.TCP_MAXSEG, protectedTCPMaxSegment)
 		}); err != nil {
 			return fmt.Errorf("ims: access protected TCP socket: %w", err)
@@ -29,5 +31,14 @@ func configureProtectedTCPDialer(dialer *net.Dialer) {
 			return fmt.Errorf("ims: set protected TCP maximum segment size: %w", optionErr)
 		}
 		return nil
+	}
+}
+
+func configureTCPReuseAddr(dialer *net.Dialer) {
+	dialer.Control = func(_, _ string, raw syscall.RawConn) error {
+		return raw.Control(func(fd uintptr) {
+			_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
+			_ = unix.SetsockoptInt(int(fd), unix.SOL_SOCKET, unix.SO_REUSEPORT, 1)
+		})
 	}
 }

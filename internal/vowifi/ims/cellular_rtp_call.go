@@ -30,6 +30,11 @@ func (session *Session) configureCallMediaWithCommit(call *imsCall, ctx context.
 	if ended || media == nil {
 		return io.EOF
 	}
+	if session.provider != nil && session.request.Cellular != nil && !session.request.Cellular.Evidence().Established {
+		if err := session.verifyCellularAccess(ctx); err != nil {
+			return err
+		}
+	}
 	return media.configureRemoteWithCommit(ctx, body, commit)
 }
 

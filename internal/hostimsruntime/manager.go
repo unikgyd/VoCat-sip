@@ -541,6 +541,9 @@ func (m *Manager) refresh(e *managedLine) {
 		if session := rt.Session(); session != nil && snapshot.Ready && desired && !busy {
 			evidence := session.Evidence()
 			if evidence.Registered {
+				if !nilValue(access) {
+					state.AccessReady = true
+				}
 				state.IMSReady, state.IMSRegistration, state.Phase = true, "registered", vowifi.PhaseIMSReady
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				sms, err := session.EnableSMS(ctx)

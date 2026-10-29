@@ -127,8 +127,13 @@ func (session *Session) startRuntimeReceivers() error {
 	}
 	session.runtimeStarted = true
 
+	session.writeMu.Lock()
+	session.lastMainActivity = time.Now()
+	conn := session.conn
+	reader := session.reader
+	session.writeMu.Unlock()
 	session.receiveDone.Add(1)
-	go session.readMainConnection()
+	go session.readMainConnectionFor(conn, reader)
 	// Vodafone UK (and others) deliver MT SMS as SIP MESSAGE to the
 	// ipsec-3gpp UE server port over UDP even when REGISTER used TCP.
 	// Always read both sockets when they were reserved.
@@ -144,26 +149,68 @@ func (session *Session) startRuntimeReceivers() error {
 }
 
 func (session *Session) readMainConnection() {
+	session.writeMu.Lock()
+	conn := session.conn
+	reader := session.reader
+	session.writeMu.Unlock()
+	session.readMainConnectionFor(conn, reader)
+}
+
+func (session *Session) readMainConnectionFor(conn net.Conn, reader *bufio.Reader) {
 	defer session.receiveDone.Done()
+	if conn == nil {
+		return
+	}
+	if session.transport == "tcp" && reader == nil {
+		reader = bufio.NewReader(conn)
+	}
 	for {
 		var packet sipPacket
 		var err error
 		if session.transport == "tcp" {
-			packet, err = readSIPPacket(session.reader)
+			packet, err = readSIPPacket(reader)
 		} else {
 			buffer := make([]byte, 65535)
 			var count int
-			count, err = session.conn.Read(buffer)
+			count, err = conn.Read(buffer)
 			if err == nil {
 				packet, err = parseSIPPacket(buffer[:count])
 			}
 		}
 		if err != nil {
-			if !session.isClosed() {
-				session.publishFailure(fmt.Errorf("ims: SIP receive loop: %w", err))
+			session.inboundMu.Lock()
+			stopping := session.inboundStopping
+			session.inboundMu.Unlock()
+			if stopping {
+				return
 			}
+			if session.canRedialProtectedTCP() {
+				session.writeMu.Lock()
+				if session.conn == conn {
+					session.mainConnDisconnected = true
+					if tcpConn, ok := conn.(*net.TCPConn); ok {
+						_ = tcpConn.SetLinger(0)
+					}
+					_ = conn.Close()
+				}
+				session.writeMu.Unlock()
+				if session.provider != nil && session.provider.config.Logger != nil {
+					session.provider.config.Logger.Debug("IMS protected TCP client connection closed; will reconnect on next outbound request",
+						"device_id", session.request.DeviceID, "error", err)
+				}
+				return
+			}
+			if session.isClosed() {
+				return
+			}
+			session.publishFailure(fmt.Errorf("ims: SIP receive loop: %w", err))
 			return
 		}
+		session.writeMu.Lock()
+		if session.conn == conn {
+			session.lastMainActivity = time.Now()
+		}
+		session.writeMu.Unlock()
 		session.dispatchPacket(packet, func(response []byte) error {
 			return session.writeRuntimePacket(session.callContext(), response)
 		})
@@ -312,6 +359,10 @@ func (session *Session) exchangeRuntime(
 		session.transactionsMu.Unlock()
 	}()
 
+	session.writeMu.Lock()
+	canReconnectTCP := session.canRedialProtectedTCP()
+	session.writeMu.Unlock()
+
 	writeRequest := func() error {
 		return session.writeRuntimePacket(ctx, request)
 	}
@@ -324,8 +375,14 @@ func (session *Session) exchangeRuntime(
 	var retransmit <-chan time.Time
 	retransmitInterval := sipMessageRetransmitT1
 	retransmitCount := 0
+	tcpReconnectPending := false
 	if session.transport == "udp" && key.method != "INVITE" && key.method != "ACK" {
 		retransmitTimer = time.NewTimer(retransmitInterval)
+		retransmit = retransmitTimer.C
+		defer retransmitTimer.Stop()
+	} else if canReconnectTCP && key.method != "ACK" {
+		tcpReconnectPending = true
+		retransmitTimer = time.NewTimer(2 * time.Second)
 		retransmit = retransmitTimer.C
 		defer retransmitTimer.Stop()
 	}
@@ -334,7 +391,7 @@ func (session *Session) exchangeRuntime(
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-timer.C:
-			if retransmitTimer != nil {
+			if retransmitTimer != nil && !tcpReconnectPending {
 				return nil, fmt.Errorf(
 					"ims: SIP %s transaction timed out after %d retransmissions",
 					key.method,
@@ -343,6 +400,16 @@ func (session *Session) exchangeRuntime(
 			}
 			return nil, fmt.Errorf("ims: SIP %s transaction timed out", key.method)
 		case <-retransmit:
+			if tcpReconnectPending {
+				tcpReconnectPending = false
+				session.writeMu.Lock()
+				session.mainConnDisconnected = true
+				session.writeMu.Unlock()
+				if err := writeRequest(); err != nil {
+					return nil, fmt.Errorf("ims: reconnect SIP %s: %w", key.method, err)
+				}
+				continue
+			}
 			if err := writeRequest(); err != nil {
 				return nil, fmt.Errorf("ims: retransmit SIP %s: %w", key.method, err)
 			}
@@ -369,8 +436,12 @@ func (session *Session) exchangeRuntime(
 						default:
 						}
 					}
-					retransmitInterval = sipMessageRetransmitMax
-					retransmitTimer.Reset(retransmitInterval)
+					if tcpReconnectPending {
+						tcpReconnectPending = false
+					} else {
+						retransmitInterval = sipMessageRetransmitMax
+						retransmitTimer.Reset(retransmitInterval)
+					}
 				}
 				continue
 			}

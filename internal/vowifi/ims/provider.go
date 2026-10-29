@@ -699,9 +699,11 @@ func dialProtectedSIPOnAccess(ctx context.Context, transport, localAddress strin
 	if err != nil {
 		return nil, fmt.Errorf("resolve tunnel local address: %w", err)
 	}
-	dialer := net.Dialer{LocalAddr: local}
+	dialer := net.Dialer{LocalAddr: local, KeepAlive: -1}
 	if mtuCompatibility && transport == "tcp" {
 		configureProtectedTCPDialer(&dialer)
+	} else if transport == "tcp" && localPort > 0 && network == nil {
+		configureTCPReuseAddr(&dialer)
 	}
 	bindProtectedCellularDialer(&dialer, network, protection)
 	return dialer.DialContext(ctx, transport, remoteAddress)
@@ -744,10 +746,12 @@ type Session struct {
 	ipsecHandle        IPSecSAHandle
 	protectedTCP       *net.TCPListener
 	protectedUDP       *net.UDPConn
-	failures           chan error
-	failureOnce        sync.Once
-	writeMu            sync.Mutex
-	protectedWriteMu   sync.Mutex
+	failures             chan error
+	failureOnce          sync.Once
+	writeMu              sync.Mutex
+	mainConnDisconnected bool
+	lastMainActivity     time.Time
+	protectedWriteMu     sync.Mutex
 	transactionsMu     sync.Mutex
 	transactions       map[sipTransactionKey]chan *sipResponse
 	runtimeStarted     bool
@@ -1035,6 +1039,7 @@ func (session *Session) register(ctx context.Context, expires int) (*sipResponse
 		expires = profile.IMSRegisterOptions.ExpirySeconds
 	}
 	intervalRetries := 0
+	authenticatedInCall := false
 	for challenges := 0; challenges <= maxAuthenticationChallenges; challenges++ {
 		if session.request.Cellular != nil {
 			current, err := session.checkedCellularEvidence(ctx)
@@ -1097,7 +1102,7 @@ func (session *Session) register(ctx context.Context, expires int) (*sipResponse
 		if challenges == maxAuthenticationChallenges {
 			break
 		}
-		if session.securityActive {
+		if authenticatedInCall && session.securityActive {
 			return nil, errors.New("ims: protected registration was challenged again")
 		}
 		challenge, err := challengeFromResponse(response)
@@ -1123,10 +1128,13 @@ func (session *Session) register(ctx context.Context, expires int) (*sipResponse
 			clearAKAMaterial(&material)
 			return nil, err
 		}
-		if len(material.auts) == 0 && useSecurity {
-			if err := session.activateIPSec(ctx, agreement, material.ck, material.ik); err != nil {
-				clearAKAMaterial(&material)
-				return nil, err
+		if len(material.auts) == 0 {
+			authenticatedInCall = true
+			if useSecurity {
+				if err := session.activateIPSec(ctx, agreement, material.ck, material.ik); err != nil {
+					clearAKAMaterial(&material)
+					return nil, err
+				}
 			}
 		}
 		credentials, err := newDigestCredentials(
@@ -1691,6 +1699,10 @@ func (session *Session) refreshLoop() {
 		case <-timer.C:
 		}
 		if err := session.refreshOnce(session.refreshContext); err != nil {
+			if session.provider != nil && session.provider.config.Logger != nil && session.refreshContext.Err() == nil {
+				session.provider.config.Logger.Warn("IMS registration refresh failed",
+					"device_id", session.request.DeviceID, "error", err)
+			}
 			session.publishFailure(err)
 			return
 		}
@@ -1948,7 +1960,8 @@ func (session *Session) Close(ctx context.Context) error {
 	// Runtime receive loops block in Read/Accept. Close every socket before
 	// waiting for those goroutines; waiting first deadlocks VoWiFi shutdown and
 	// leaves the modem permanently in CFUN=4.
-	if err := session.conn.Close(); err != nil {
+	session.closeInboundConnections()
+	if err := session.conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 		cleanupErrors = append(cleanupErrors, err)
 	}
 	if session.protectedTCP != nil {
@@ -1961,7 +1974,6 @@ func (session *Session) Close(ctx context.Context) error {
 			cleanupErrors = append(cleanupErrors, err)
 		}
 	}
-	session.closeInboundConnections()
 	session.receiveDone.Wait()
 	if err := session.drainCellularMediaOnClose(); err != nil {
 		cleanupErrors = append(cleanupErrors, err)
