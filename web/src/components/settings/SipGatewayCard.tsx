@@ -43,21 +43,26 @@ export function SipGatewayCard() {
     try {
       const view = await api<View>("/settings/sip", { signal: AbortSignal.timeout(10000) });
       if (!mounted.current) return;
-      if (!form) adopt(view); else setStatus(view.status); // never erase unsaved edits
+      if (!form || JSON.stringify(form) === saved) adopt(view); else setStatus(view.status); // never erase unsaved edits
       setLoadError(false); setStatusStale(false);
     } catch { if (mounted.current) { setStatusStale(true); message.error(t("SIP 状态刷新失败")); } }
     finally { if (mounted.current) setRefreshing(false); }
-  }, [adopt, form, t]);
+  }, [adopt, form, saved, t]);
 
-  // Refresh status without fetching raw SIP traces or modifying configuration.
+  // Refresh status without fetching raw SIP traces or modifying unsaved configuration edits.
   useEffect(() => {
-    if (!status?.running || busy) return;
+    if (busy) return;
     let active = true;
     const timer = window.setInterval(() => {
-      api<View>("/settings/sip", { signal: AbortSignal.timeout(10000) }).then(view => { if (active) { setStatus(view.status); setStatusStale(false); } }).catch(() => { if (active) setStatusStale(true); });
+      api<View>("/settings/sip", { signal: AbortSignal.timeout(10000) }).then(view => {
+        if (!active) return;
+        if (!form || JSON.stringify(form) === saved) adopt(view);
+        else setStatus(view.status);
+        setStatusStale(false);
+      }).catch(() => { if (active) setStatusStale(true); });
     }, 15000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [status?.running, busy]);
+  }, [adopt, busy, form, saved]);
 
   const patch = (value: Partial<Form>) => setForm(prev => prev ? { ...prev, ...value } : prev);
   const patchLines = (carrierLines: CarrierLineForm[]) => setForm(prev => {
